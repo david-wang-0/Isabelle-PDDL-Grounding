@@ -4,16 +4,11 @@ session Tree_Decomp_Grounding = HOL +
   description \<open>An executable grounder for PDDL tasks based on FastDownward system.\<close>
   options [timeout = 900]
   sessions
-	"AI_Planning_Languages_Semantics"
-	"Verified_SAT_Based_AI_Planning"
+	"Classical_Planning"
 	"HOL-Library"
 	"Show"
 	"Propositional_Proof_Systems"
   theories [document = false]
-    "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
-	"AI_Planning_Languages_Semantics.PDDL_STRIPS_Checker"	
-	"AI_Planning_Languages_Semantics.Option_Monad_Add"
-	"Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
 	"HOL-Library.Sublist"
 	"HOL-Library.List_Lexorder"
 	"HOL-Library.Char_ord"
@@ -25,7 +20,7 @@ session Tree_Decomp_Grounding = HOL +
     "Propositional_Proof_Systems.CNF_Sema"
     "Propositional_Proof_Systems.CNF_Formulas_Sema"
   theories [document = false]
-    Utils
+    Grounding_Utils
 	Formula_Utils
 	Nat_Show_Utils
 	String_Utils
@@ -36,7 +31,9 @@ session Tree_Decomp_Grounding = HOL +
 	DNF
 	Graph_Funs
 	Normalization_Definitions
-	Type_Normalization
+	"Type_Normalization/Type_Normalization_Locales"
+	"Type_Normalization/Type_Normalization"
+	"Type_Normalization/Type_Normalization_Semantics"
 	Goal_Normalization
 	Precondition_Normalization
 	PDDL_Relaxation

@@ -1,5 +1,6 @@
 theory Grounding_Pipeline
-  imports Type_Normalization Goal_Normalization Precondition_Normalization
+  imports "Type_Normalization/Type_Normalization_Semantics" 
+    Goal_Normalization Precondition_Normalization
     PDDL_Relaxation Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
 
@@ -12,14 +13,14 @@ thm ast_problem2.prob_detyped
 lemma detype_prob_wf_compact:
   "restrict_prob \<Longrightarrow> wf_problem
   \<Longrightarrow> ast_problem.wf_problem detype_prob"
-  using restrict_problem2.detype_prob_wf
-  using restrict_problem2.intro restrict_problem.intro restrict_problem_axioms.intro wf_ast_problem.intro
+  using restrict_classical_problem2.detype_prob_wf
+  using restrict_classical_problem2.intro restrict_classical_problem.intro restrict_classical_problem_axioms.intro wf_ast_problem.intro
   by auto
 lemma detyped_valid_iff_compact:
   "restrict_prob \<Longrightarrow> wf_problem
   \<Longrightarrow> valid_plan \<pi>s \<longleftrightarrow> ast_problem.valid_plan (detype_prob) \<pi>s"
-  using restrict_problem2.detyped_valid_iff
-  using restrict_problem2.intro restrict_problem.intro restrict_problem_axioms.intro wf_ast_problem.intro
+  using restrict_classical_problem2.detyped_valid_iff
+  using restrict_classical_problem2.intro restrict_classical_problem.intro restrict_classical_problem_axioms.intro wf_ast_problem.intro
   by auto
 
 thm ast_problem.degoal_prob_sel

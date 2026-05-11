@@ -1,5 +1,5 @@
-theory Type_Normalization
-  imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
+theory Type_Normalization_Old
+  imports "Classical_Planning.Classical_Abstract_Syntax"
     Normalization_Definitions Graph_Funs String_Utils
 begin
 
@@ -11,24 +11,25 @@ text \<open>Even before performing normalization, we place a two restrictions on
 * Ensure that action signature types are well-formed. This not being ensured in wf_domain may be an
   oversight. In practice, PDDL domains should adhere to this, anyway.\<close>
 
-context ast_domain
+context domain_signature
 begin
 
   (* TODO: maybe better name, e.g. "____is_Car" *)
+  (* TODO: implement prefix or suffix *)
   definition pred_for_type :: "name \<Rightarrow> predicate" where
-    "pred_for_type t \<equiv> Pred (safe_prefix pred_names @ t)"
-
+      "pred_for_type t \<equiv> Pred t"
+  
   fun type_pred :: "name \<Rightarrow> predicate_decl" where
-    "type_pred t = PredDecl (pred_for_type t) [\<omega>]"
+      "type_pred t = PredDecl (pred_for_type t) [\<omega>]"
 
   (* if multiple inheritance exists, there are duplicates *)
-  abbreviation "type_names \<equiv> remdups (''object'' # map fst (types D))"
+  abbreviation "type_names \<equiv> remdups (STR ''object'' # map fst ty_decl)"
 
   definition type_preds :: "predicate_decl list" where
     "type_preds \<equiv> map type_pred type_names"
 
   abbreviation supertypes_of :: "name \<Rightarrow> name list" where
-    "supertypes_of \<equiv> reachable_nodes (types D)"
+    "supertypes_of \<equiv> reachable_nodes ty_decl"
 
   abbreviation (input) type_predatm :: "'a \<Rightarrow> name \<Rightarrow> 'a atom" where
     "type_predatm x t \<equiv> predAtm (pred_for_type t) [x]"
@@ -43,10 +44,16 @@ begin
     "param_precond params = \<^bold>\<And> (map type_precond params)"
 
   abbreviation (in -) detype_pred :: "predicate_decl \<Rightarrow> predicate_decl" where
-    "detype_pred p \<equiv> PredDecl (pred p) (replicate (length (argTs p)) \<omega>)"
+    "detype_pred p \<equiv> PredDecl (pred p) (replicate (length (predicate_decl.argTs p)) \<omega>)"
 
-  definition (in -) detype_preds :: "predicate_decl list \<Rightarrow> predicate_decl list" where
+  definition detype_preds :: "predicate_decl list \<Rightarrow> predicate_decl list" where
     "detype_preds preds \<equiv> map detype_pred preds"
+
+  fun (in -) detype_fun :: "function_decl \<Rightarrow> function_decl" where
+    "detype_fun (FuncDecl n as) = FuncDecl n (replicate (length as) \<omega>)"
+
+  definition  detype_funs :: "function_decl list \<Rightarrow> function_decl list" where
+    "detype_funs funs \<equiv> map detype_fun funs"
 
   fun (in -) detype_ent :: "('ent \<times> type) \<Rightarrow> ('ent \<times> type)" where
     "detype_ent (n, T) = (n, \<omega>)"
@@ -54,17 +61,15 @@ begin
   definition (in -) detype_ents :: "('ent \<times> type) list \<Rightarrow> ('ent \<times> type) list" where
     "detype_ents params \<equiv> map detype_ent params"
 
-  primrec detype_ac :: "ast_action_schema \<Rightarrow> ast_action_schema" where
-  "detype_ac (Action_Schema n params pre eff) =
-    Action_Schema n (detype_ents params) (param_precond params \<^bold>\<and> pre) eff"
+  fun (in -) detype_action_head::"ast_action_head \<Rightarrow> ast_action_head" where
+    "detype_action_head (ActionHead n params) = ActionHead n (detype_ents params)"
 
-  definition detype_dom :: "ast_domain" where
-  "detype_dom \<equiv>
-    Domain
-      []
-      (type_preds @ detype_preds (predicates D))
-      (detype_ents (consts D))
-      (map detype_ac (actions D))"
+  fun detype_simple_action_body::"ast_action_head \<Rightarrow> ast_simple_action_body \<Rightarrow> ast_simple_action_body" where
+    "detype_simple_action_body h (SimpleActionBody pre eff) = SimpleActionBody (param_precond (parameters h) \<^bold>\<and> pre) eff" 
+
+  primrec detype_classical_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema" where
+    "detype_classical_ac (SimpleActionSchema h b) = SimpleActionSchema (detype_action_head h) (detype_simple_action_body h b)"
+
 
   text \<open>This only works for single types on purpose.\<close>
   fun supertype_facts_for :: "(object \<times> type) \<Rightarrow> object atom formula list" where
@@ -76,10 +81,19 @@ begin
     "supertype_facts objs \<equiv> concat (map supertype_facts_for objs)"
 end
 
+definition (in ast_classical_domain) detype_classical_dom :: "ast_classical_domain" where
+"detype_classical_dom \<equiv>
+  Domain
+    []
+    (type_preds @ detype_preds (predicates D))
+    (detype_funs (functions D))
+    (detype_ents (consts D))
+    (map detype_classical_ac (actions D))"
+
 (* TODO remove remdups lmao *)
-definition (in ast_problem) detype_prob :: "ast_problem" where
-"detype_prob \<equiv> Problem
-    detype_dom
+definition (in ast_classical_problem) detype_classical_prob :: "ast_classical_problem" where
+"detype_classical_prob \<equiv> Problem
+    detype_classical_dom
     (detype_ents (objects P))
     (remdups (supertype_facts (all_consts) @ (init P)))
     (goal P)"
@@ -87,44 +101,52 @@ definition (in ast_problem) detype_prob :: "ast_problem" where
 (* typeless_dom and prob taken from here *)
 
 (* This will be referenced a lot in proofs. *)
-abbreviation (in ast_problem) "sf_substate \<equiv> set (supertype_facts all_consts)"
+abbreviation (in problem_signature) "sf_substate \<equiv> set (supertype_facts all_consts)"
 
 (* ------------------------------------- PROOFS ------------------------------------------------- *)
 section \<open>Type Normalization Proofs\<close>
 
 text \<open>This is only to simplify the syntax. So I can just do
-   \<open>d2.some_function\<close> instead of \<open>ast_domain.some_function detype_dom\<close>.\<close>
-abbreviation (in ast_domain) (input) "D2 \<equiv> detype_dom"
-abbreviation (in ast_problem) (input) "P2 \<equiv> detype_prob"
+   \<open>d2.some_function\<close> instead of \<open>ast_classical_domain.some_function detype_classical_dom\<close>.\<close>
+abbreviation (in ast_classical_domain) (input) "D2 \<equiv> detype_classical_dom"
+abbreviation (in ast_classical_problem) (input) "P2 \<equiv> detype_classical_prob"
 
-locale ast_domain2 = ast_domain
-sublocale ast_domain2 \<subseteq> d2: ast_domain D2 .
+locale ast_classical_domain2 = ast_classical_domain
+sublocale ast_classical_domain2 \<subseteq> d2: ast_classical_domain D2 .
 
-locale wf_ast_domain2 = wf_ast_domain
-sublocale wf_ast_domain2 \<subseteq> d2: ast_domain D2 .
-sublocale wf_ast_domain2 \<subseteq> ast_domain2 .
+locale wf_ast_classical_domain2 = wf_ast_classical_domain
+sublocale wf_ast_classical_domain2 \<subseteq> d2: ast_classical_domain D2 .
+sublocale wf_ast_classical_domain2 \<subseteq> ast_classical_domain2 .
 
 locale restrict_domain2 = restrict_domain
-sublocale restrict_domain2 \<subseteq> d2 : ast_domain D2 .
-sublocale restrict_domain2 \<subseteq> wf_ast_domain2
+sublocale restrict_domain2 \<subseteq> d2 : ast_classical_domain D2 .
+sublocale restrict_domain2 \<subseteq> wf_ast_classical_domain2
   by unfold_locales
 
-locale ast_problem2 = ast_problem
-sublocale ast_problem2 \<subseteq> p2: ast_problem P2 .
-sublocale ast_problem2 \<subseteq> ast_domain2 D .
+locale ast_classical_problem2 = ast_classical_problem
+sublocale ast_classical_problem2 \<subseteq> p2: ast_classical_problem P2 .
+sublocale ast_classical_problem2 \<subseteq> ast_classical_domain2 D .
 
-locale wf_ast_problem2 = wf_ast_problem
-sublocale wf_ast_problem2 \<subseteq> p2 : ast_problem P2.
-sublocale wf_ast_problem2 \<subseteq> ast_problem2 .
-sublocale wf_ast_problem2 \<subseteq> wf_ast_domain2 D
+locale wf_ast_classical_problem2 = wf_ast_classical_problem
+sublocale wf_ast_classical_problem2 \<subseteq> p2 : ast_classical_problem P2.
+sublocale wf_ast_classical_problem2 \<subseteq> ast_classical_problem2 .
+sublocale wf_ast_classical_problem2 \<subseteq> wf_ast_classical_domain2 D
   by unfold_locales
 
 locale restrict_problem2 = restrict_problem
-sublocale restrict_problem2 \<subseteq> p2 : ast_problem P2 .
-sublocale restrict_problem2 \<subseteq> wf_ast_problem2
+sublocale restrict_problem2 \<subseteq> p2 : ast_classical_problem P2 .
+sublocale restrict_problem2 \<subseteq> wf_ast_classical_problem2
   by unfold_locales
 sublocale restrict_problem2 \<subseteq> restrict_domain2 D
   by unfold_locales
+
+(* Note (David): Extend a locale loc with a new name loc2 and then in loc2 obtain a new instance of loc
+  named l2 using the constants L2, which are present in loc *)
+
+sublocale wf_ast_classical_problem \<subseteq> ast_classical_problem
+  by (unfold_locales)
+
+
 
 text \<open> Alternate/simplified definitions\<close>
 
@@ -134,37 +156,37 @@ lemma single_type_alt: "single_type T \<longleftrightarrow> length (primitives T
 lemma type_decomp_1: assumes "single_type T" obtains t where "T = Either [t]"
   using assms Misc.list_decomp_1 by (cases T; auto)
 
-lemma (in ast_domain) type_precond_alt: "type_precond p =
+lemma (in ast_classical_domain) type_precond_alt: "type_precond p =
   \<^bold>\<Or> (map (type_atom (term.VAR (fst p))) (primitives (snd p)))"
   by (cases p; cases "snd p"; simp)
 
 lemma detype_ent_alt: "detype_ent x = (fst x, \<omega>)"
   by (cases x; simp)
 
-lemma (in ast_domain) detype_ac_alt: "detype_ac ac = Action_Schema
+lemma (in ast_classical_domain) detype_classical_ac_alt: "detype_classical_ac ac = Action_Schema
   (ac_name ac) (detype_ents (ac_params ac)) (param_precond (ac_params ac) \<^bold>\<and> (ac_pre ac)) (ac_eff ac)"
   by (cases ac; simp)
 
-lemma (in ast_domain) detype_ac_sel [simp]:
-  "ac_name (detype_ac ac) = ac_name ac"
-  "ac_params (detype_ac ac) = detype_ents (ac_params ac)"
-  "ac_pre (detype_ac ac) = param_precond (ac_params ac) \<^bold>\<and> (ac_pre ac)"
-  "ac_eff (detype_ac ac) = ac_eff ac"
-  by (cases ac) (simp_all add: detype_ac_alt)
+lemma (in ast_classical_domain) detype_classical_ac_sel [simp]:
+  "ac_name (detype_classical_ac ac) = ac_name ac"
+  "ac_params (detype_classical_ac ac) = detype_ents (ac_params ac)"
+  "ac_pre (detype_classical_ac ac) = param_precond (ac_params ac) \<^bold>\<and> (ac_pre ac)"
+  "ac_eff (detype_classical_ac ac) = ac_eff ac"
+  by (cases ac) (simp_all add: detype_classical_ac_alt)
 
-lemma (in ast_domain) detype_dom_sel [simp]:
+lemma (in ast_classical_domain) detype_classical_dom_sel [simp]:
   "types D2 = []"
   "predicates D2 = type_preds @ detype_preds (predicates D)"
   "consts D2 = detype_ents (consts D)"
-  "actions D2 = map detype_ac (actions D)"
-  using ast_domain.detype_dom_def by simp_all
+  "actions D2 = map detype_classical_ac (actions D)"
+  using ast_classical_domain.detype_classical_dom_def by simp_all
 
-lemma (in ast_problem) detype_prob_sel [simp]:
+lemma (in ast_classical_problem) detype_classical_prob_sel [simp]:
   "domain P2 = D2"
   "objects P2 = detype_ents (objects P)"
   "init P2 = remdups (supertype_facts (all_consts) @ (init P))"
   "goal P2 = goal P"
-  using ast_problem.detype_prob_def by simp_all
+  using ast_classical_problem.detype_classical_prob_def by simp_all
 
 (* just restrict_dom unfolded *)
 lemma (in restrict_domain) restrict_D: "single_types (consts D)" "list_all1 wf_action_params (actions D)"
@@ -179,7 +201,7 @@ lemma (in restrict_problem) single_t_consts: "single_types (all_consts)"
 
 text \<open> type system \<close>
 
-lemma (in wf_ast_problem) objT_Some: "(n, T) \<in> set (all_consts) \<longleftrightarrow> objT n = Some T"
+lemma (in wf_ast_classical_problem) objT_Some: "(n, T) \<in> set (all_consts) \<longleftrightarrow> objT n = Some T"
 proof -
   have "distinct (map fst (all_consts))"
     using wf_P(1) by auto
@@ -187,15 +209,15 @@ proof -
     by (metis map_of_eq_Some_iff)
 qed
 
-lemma (in -) wf_object: "ast_domain.wf_type d \<omega>"
-  unfolding ast_domain.wf_type.simps by simp
+lemma (in -) wf_object: "ast_classical_domain.wf_type d \<omega>"
+  unfolding ast_classical_domain.wf_type.simps by simp
 
-context ast_domain
+context ast_classical_domain
 begin
 
 text \<open> type_names \<close>
   
-lemma (in ast_domain) type_names_set[simp]: "set type_names = insert ''object'' (fst ` set (types D))"
+lemma (in ast_classical_domain) type_names_set[simp]: "set type_names = insert ''object'' (fst ` set (types D))"
   by auto
 
 lemma wf_type_iff_listed: "wf_type (Either ts) \<longleftrightarrow> (set ts \<subseteq> set (type_names))"
@@ -255,7 +277,7 @@ text \<open> detyped preds \<close>
       by (metis disjoint_iff_not_equal type_pred_refs_type)
   qed
 
-  lemma (in wf_ast_domain) t_preds_dis:
+  lemma (in wf_ast_classical_domain) t_preds_dis:
     shows "distinct (map pred (predicates D2))"
   proof -
     (* Predicate names are unique because the original predicate names are unchanged
@@ -270,7 +292,7 @@ text \<open> detyped preds \<close>
   qed
 
   (* here, _alt definition is actually needed *)
-  lemma (in ast_domain2) t_preds_wf:
+  lemma (in ast_classical_domain2) t_preds_wf:
     "list_all1 d2.wf_predicate_decl (predicates D2)"
     using preds_detyped wf_object d2.wf_predicate_decl_alt by metis
 
@@ -288,7 +310,7 @@ text \<open> detype ents \<close>
     shows "distinct (map fst (detype_ents ents))"
     using assms by (metis t_ents_names)
 
-  lemma (in ast_domain2) t_ents_wf:
+  lemma (in ast_classical_domain2) t_ents_wf:
     shows "(\<forall>(n,T) \<in> set (detype_ents ents). d2.wf_type T)"
     using ents_detyped wf_object by fast
 
@@ -309,12 +331,12 @@ text \<open> detype ents \<close>
 
 text \<open> predicate signatures \<open>sig\<close> \<close>
 
-  lemma (in wf_ast_domain2) sig2_Some:
+  lemma (in wf_ast_classical_domain2) sig2_Some:
     "d2.sig p = Some Ts \<longleftrightarrow> PredDecl p Ts \<in> set type_preds \<union> set (detype_preds (predicates D))"
     using t_preds_dis d2.pred_resolve
-    by (metis detype_dom_sel(2) set_union_code)
+    by (metis detype_classical_dom_sel(2) set_union_code)
 
-  lemma (in wf_ast_domain2) type_pred_sig:
+  lemma (in wf_ast_classical_domain2) type_pred_sig:
     assumes "t \<in> set type_names"
     shows "d2.sig (pred_for_type t) = Some [\<omega>]"
   proof -
@@ -328,7 +350,7 @@ text \<open> predicate signatures \<open>sig\<close> \<close>
   qed
 
 
-  lemma (in wf_ast_domain2) detyped_preds_arity:
+  lemma (in wf_ast_classical_domain2) detyped_preds_arity:
     assumes "sig p = Some Ts"
     shows "d2.sig p = Some (replicate (length Ts) \<omega>)"
   proof -
@@ -343,31 +365,31 @@ text \<open> predicate signatures \<open>sig\<close> \<close>
 
 text \<open> type maps \<close>
 
-  lemma (in ast_domain2) t_constT_Some: "constT c \<noteq> None \<longleftrightarrow> d2.constT c = Some \<omega>"
-    using t_entT_Some ast_domain.constT_def detype_dom_def by fastforce
+  lemma (in ast_classical_domain2) t_constT_Some: "constT c \<noteq> None \<longleftrightarrow> d2.constT c = Some \<omega>"
+    using t_entT_Some ast_classical_domain.constT_def detype_classical_dom_def by fastforce
 
-  lemma (in ast_domain2) t_constT_None: "constT c = None \<longleftrightarrow> d2.constT c = None"
-    using t_entT_None ast_domain.constT_def detype_dom_def by fastforce
+  lemma (in ast_classical_domain2) t_constT_None: "constT c = None \<longleftrightarrow> d2.constT c = None"
+    using t_entT_None ast_classical_domain.constT_def detype_classical_dom_def by fastforce
 
-  lemma (in ast_problem2) t_cnsts_objs_names: "map fst (all_consts)
+  lemma (in ast_classical_problem2) t_cnsts_objs_names: "map fst (all_consts)
     = map fst (detype_ents (consts D) @ detype_ents (objects P))"
     using t_ents_names by (metis map_append)
 
-  lemma (in wf_ast_problem2) t_objm_le_objT:
+  lemma (in wf_ast_classical_problem2) t_objm_le_objT:
     "map_of (objects P2) \<subseteq>\<^sub>m p2.objT"
   proof -
     have "distinct (map fst (all_consts))" using wf_P(1) by auto
     hence "distinct (map fst (consts D2 @ objects P2))" using t_cnsts_objs_names
-      by (metis detype_dom_sel(3) detype_prob_sel(2))
+      by (metis detype_classical_dom_sel(3) detype_classical_prob_sel(2))
     hence "fst ` set (objects P2) \<inter> fst ` set (consts D2) = {}"
       by auto
     hence "dom (map_of (objects P2)) \<inter> dom d2.constT = {}" using d2.constT_def
       by (simp add: dom_map_of_conv_image_fst)
     thus ?thesis using map_add_comm p2.objT_def
-      by (metis detype_prob_sel(1) map_le_iff_map_add_commute)
+      by (metis detype_classical_prob_sel(1) map_le_iff_map_add_commute)
   qed
 
-  lemma (in ast_problem2) t_objT_Some: "objT c \<noteq> None \<longleftrightarrow> p2.objT c = Some \<omega>"
+  lemma (in ast_classical_problem2) t_objT_Some: "objT c \<noteq> None \<longleftrightarrow> p2.objT c = Some \<omega>"
   proof -
     have 1: "\<forall>(x, y) \<in> set (detype_ents (consts D) @ detype_ents (objects P)). y = \<omega>"
       using ents_detyped by fastforce
@@ -377,16 +399,16 @@ text \<open> type maps \<close>
       using t_cnsts_objs_names by (metis image_set)
     also have "... \<longleftrightarrow> p2.objT c = Some \<omega>" using map_of_single_val[OF 1]
       using p2.objT_alt
-      by (simp add: detype_dom_def detype_prob_def)
+      by (simp add: detype_classical_dom_def detype_classical_prob_def)
     ultimately show ?thesis by simp
   qed
 
-lemma (in ast_problem2) t_objT_Some_r: "\<forall>c. objT c \<noteq> None \<longrightarrow> p2.objT c = Some \<omega>"
+lemma (in ast_classical_problem2) t_objT_Some_r: "\<forall>c. objT c \<noteq> None \<longrightarrow> p2.objT c = Some \<omega>"
   using t_objT_Some by simp
 
-  lemma (in ast_problem2) t_objT_None: "objT c = None \<longleftrightarrow> p2.objT c = None"
-    using t_entT_None ast_problem.objT_def
-    by (metis detype_prob_sel(1-2) map_add_None t_constT_None)
+  lemma (in ast_classical_problem2) t_objT_None: "objT c = None \<longleftrightarrow> p2.objT c = None"
+    using t_entT_None ast_classical_problem.objT_def
+    by (metis detype_classical_prob_sel(1-2) map_add_None t_constT_None)
 
    lemma t_tyt_const_Some:
     assumes "ty_term vT (map_of cnsts) (term.CONST x) \<noteq> None"
@@ -409,7 +431,7 @@ lemma (in ast_problem2) t_objT_Some_r: "\<forall>c. objT c \<noteq> None \<longr
     using assms by (induction e) (metis t_entT_None ty_term.simps)+
 
   (* See \<open>t_ac_tyt\<close> for where the assumption comes from. *)
-  lemma (in ast_domain2) t_tyt_params:
+  lemma (in ast_classical_domain2) t_tyt_params:
     assumes "\<forall>e. tyt e \<noteq> None \<longrightarrow> tyt2 e = Some \<omega>"
       "list_all2 (is_of_type tyt) params Ts"
     shows "list_all2 (d2.is_of_type tyt2) params (replicate (length Ts) \<omega>)"
@@ -432,7 +454,7 @@ lemma (in ast_problem2) t_objT_Some_r: "\<forall>c. objT c \<noteq> None \<longr
 
 text \<open> formulas \<close>
 
-  lemma (in wf_ast_domain2) t_atom_wf:
+  lemma (in wf_ast_classical_domain2) t_atom_wf:
     assumes "\<forall>e. tyt e \<noteq> None \<longrightarrow> tyt2 e = Some \<omega>"
       "wf_atom tyt a"
     shows "d2.wf_atom tyt2 a"
@@ -451,13 +473,13 @@ text \<open> formulas \<close>
     ultimately show ?thesis by simp
   qed simp
 
-  lemma (in wf_ast_domain2) t_fmla_wf:
+  lemma (in wf_ast_classical_domain2) t_fmla_wf:
     assumes "\<forall>e. tyt e \<noteq> None \<longrightarrow> tyt2 e = Some \<omega>"
       "wf_fmla tyt \<phi>"
     shows "d2.wf_fmla tyt2 \<phi>"
     using assms t_atom_wf co_fmla_wf by blast
 
-  lemma (in wf_ast_domain2) t_eff_wf:
+  lemma (in wf_ast_classical_domain2) t_eff_wf:
     assumes "\<forall>e. tyt e \<noteq> None \<longrightarrow> tyt2 e = Some \<omega>"
       "wf_effect tyt \<epsilon>"
     shows "d2.wf_effect tyt2 \<epsilon>"
@@ -469,27 +491,27 @@ text \<open> detype ac \<close>
     "\<forall>ac \<in> set (actions D2). \<forall>(n, T) \<in> set (ac_params ac). T = \<omega>"
     using ents_detyped by fastforce
 
-  lemma (in wf_ast_domain) t_acs_dis:
-    "distinct (map ac_name (map detype_ac (actions D)))"
+  lemma (in wf_ast_classical_domain) t_acs_dis:
+    "distinct (map ac_name (map detype_classical_ac (actions D)))"
   proof -
-    have "ac_name (detype_ac ac) = ac_name ac" for ac
+    have "ac_name (detype_classical_ac ac) = ac_name ac" for ac
       by (cases ac; simp)
-    hence "map ac_name (map detype_ac acs) = map ac_name acs" for acs
+    hence "map ac_name (map detype_classical_ac acs) = map ac_name acs" for acs
       by simp
     thus ?thesis using wf_D by metis
   qed
 
-  lemma (in ast_domain2) t_ac_tyt:
+  lemma (in ast_classical_domain2) t_ac_tyt:
     assumes "ty_term (map_of (ac_params a)) constT x \<noteq> None"
-    shows "ty_term (map_of (ac_params (detype_ac a))) d2.constT x = Some \<omega>"
-    using assms t_tyt_Some ast_domain.constT_def by auto
+    shows "ty_term (map_of (ac_params (detype_classical_ac a))) d2.constT x = Some \<omega>"
+    using assms t_tyt_Some ast_classical_domain.constT_def by auto
 
   lemma params_ts_exist: (* somehow this isn't trivial for the solver *)
     assumes "wf_action_params a" "(n, Either ts) \<in> set (ac_params a)"
     shows "set ts \<subseteq> set type_names"
     using assms wf_action_params_def wf_type_iff_listed by blast
 
-  lemma (in wf_ast_domain2) type_atom_wf:
+  lemma (in wf_ast_classical_domain2) type_atom_wf:
     assumes "t \<in> set type_names" "tyt x = Some \<omega>"
     shows "d2.wf_fmla tyt (type_atom x t)"
   proof -
@@ -508,17 +530,17 @@ text \<open> detype ac \<close>
   \<close>
 
   (* instead of d2.ac_tyt, we could use the same with an arbitrary value for consT *)
-  lemma (in wf_ast_domain2) type_precond_wf:
+  lemma (in wf_ast_classical_domain2) type_precond_wf:
     assumes "wf_action_params a" "p \<in> set (ac_params a)"
     shows "d2.wf_fmla
-      (d2.ac_tyt (detype_ac a))
+      (d2.ac_tyt (detype_classical_ac a))
       (type_precond p)"
   proof -
     (* type_precond.cases? *)
     obtain n ts where p: "p = (n, Either ts)"     
       using type_precond.cases .
     let ?tyt = "ac_tyt a"
-    let ?tyt2 = "d2.ac_tyt (detype_ac a)"
+    let ?tyt2 = "d2.ac_tyt (detype_classical_ac a)"
     let ?v = "term.VAR n"
     
     (* Not generally "Some (Either ts)", unless we assume wf_action_schema,
@@ -535,13 +557,13 @@ text \<open> detype ac \<close>
     thus ?thesis using p by simp
   qed
 
-  lemma (in wf_ast_domain2) t_param_precond_wf:
+  lemma (in wf_ast_classical_domain2) t_param_precond_wf:
     assumes "wf_action_params a"
     shows "d2.wf_fmla
-    (d2.ac_tyt (detype_ac a))
+    (d2.ac_tyt (detype_classical_ac a))
     (param_precond (ac_params a))"
   proof -
-    let ?tyt2 = "d2.ac_tyt (detype_ac a)"
+    let ?tyt2 = "d2.ac_tyt (detype_classical_ac a)"
     have "\<forall>p \<in> set (ac_params a). d2.wf_fmla ?tyt2 (type_precond p)"
       using assms type_precond_wf by simp
     hence "\<forall>\<phi> \<in> set (map type_precond (ac_params a)). d2.wf_fmla ?tyt2 \<phi>" by simp
@@ -551,11 +573,11 @@ text \<open> detype ac \<close>
   text \<open>Three conditions: 1. distinct parameter names, 2. wf precondition, 3. wf effect\<close>
   lemma (in restrict_domain2) t_ac_wf:
     assumes "a \<in> set (actions D)"
-    shows "d2.wf_action_schema (detype_ac a)"
+    shows "d2.wf_action_schema (detype_classical_ac a)"
   proof -
-    let ?a2 = "detype_ac a"
+    let ?a2 = "detype_classical_ac a"
     let ?tyt = "ty_term (map_of (ac_params a)) constT"
-    let ?tyt2 = "ty_term (map_of (ac_params (detype_ac a))) d2.constT"
+    let ?tyt2 = "ty_term (map_of (ac_params (detype_classical_ac a))) d2.constT"
 
     have tyt_om: "\<forall>x. ?tyt x \<noteq> None \<longrightarrow> ?tyt2 x = Some \<omega>" using t_ac_tyt by simp
     from assms have wfa: "wf_action_schema a" using wf_D(7) by simp
@@ -577,8 +599,8 @@ text \<open> detype ac \<close>
   qed
 
   lemma (in restrict_domain2) t_acs_wf:
-    shows "\<forall>a \<in> set (map detype_ac (actions D)). d2.wf_action_schema a"
-    using detype_dom_def wf_D t_ac_wf by simp
+    shows "\<forall>a \<in> set (map detype_classical_ac (actions D)). d2.wf_action_schema a"
+    using detype_classical_dom_def wf_D t_ac_wf by simp
 
   text \<open> supertype_facts (init) \<close>
 
@@ -588,7 +610,7 @@ lemma superfacts_for_cond:
     map (type_atom n) (supertypes_of (get_t T))"
   using assms by (auto intro: type_decomp_1)
   
-  lemma (in wf_ast_domain) supertypes_listed:
+  lemma (in wf_ast_classical_domain) supertypes_listed:
     assumes "t \<in> set type_names"
     shows "set (supertypes_of t) \<subseteq> set type_names"
   proof -
@@ -643,7 +665,7 @@ lemma superfacts_for_cond:
     shows "p2.wf_world_model sf_substate"
     using p2.wf_world_model_def super_facts_for_wf supertype_facts_def by auto
 
-lemma (in wf_ast_problem2) t_wm_wf:
+lemma (in wf_ast_classical_problem2) t_wm_wf:
   assumes "wf_world_model M" shows "p2.wf_world_model M"
 proof -
   have "wf_atom objT a \<longrightarrow> p2.wf_atom p2.objT a" for a
@@ -658,7 +680,7 @@ lemma (in restrict_problem2) t_init_wf:
 end
 
 
-context ast_domain begin
+context ast_classical_domain begin
 
 text \<open> init cond \<close>
 
@@ -679,36 +701,36 @@ qed*)
 
 text \<open> goal \<close>
 
-lemma (in wf_ast_problem2) t_goal_wf:
+lemma (in wf_ast_classical_problem2) t_goal_wf:
   "p2.wf_fmla p2.objT (goal P2)"
   using t_fmla_wf[OF t_objT_Some_r] wf_P(5) by auto
 
-  theorem (in ast_domain2) dom_detyped:
+  theorem (in ast_classical_domain2) dom_detyped:
     "d2.typeless_dom"
   proof -
-    have c1: "types D2 = []" using detype_dom_def by simp
+    have c1: "types D2 = []" using detype_classical_dom_def by simp
     note c2 = preds_detyped
     have c3: "\<forall>(n, T) \<in> set (consts D2). T = \<omega>"
-      by (simp add: detype_dom_def ents_detyped)
+      by (simp add: detype_classical_dom_def ents_detyped)
     note c4 = ac_params_detyped
   
     from c1 c2 c3 c4 show ?thesis
       using d2.typeless_dom_def by simp
   qed
 
-  theorem (in ast_problem2) prob_detyped:
+  theorem (in ast_classical_problem2) prob_detyped:
     "p2.typeless_prob"
   proof -
     have "\<forall>(n, T) \<in> set (objects P2). T = \<omega>"
-      by (simp add: detype_prob_def ents_detyped)
-    thus ?thesis using dom_detyped p2.typeless_prob_def detype_prob_def by simp
+      by (simp add: detype_classical_prob_def ents_detyped)
+    thus ?thesis using dom_detyped p2.typeless_prob_def detype_classical_prob_def by simp
   qed
 
-  theorem (in restrict_domain2) detype_dom_wf:
+  theorem (in restrict_domain2) detype_classical_dom_wf:
     shows "d2.wf_domain"
   proof -
     (* Types are well-formed because they are simply empty. *)
-    have c1: "d2.wf_types" using d2.wf_types_def detype_dom_def by simp
+    have c1: "d2.wf_types" using d2.wf_types_def detype_classical_dom_def by simp
     note c2 = t_preds_dis
     note c3 = t_preds_wf
     note c4 = t_ents_dis[OF wf_D(4)]
@@ -717,35 +739,35 @@ lemma (in wf_ast_problem2) t_goal_wf:
     note c7 = t_acs_wf
 
     from c1 c2 c3 c4 c5 c6 c7 show ?thesis
-      using d2.wf_domain_def detype_dom_def by auto
+      using d2.wf_domain_def detype_classical_dom_def by auto
   qed
 
-  theorem (in restrict_problem2) detype_prob_wf:
+  theorem (in restrict_problem2) detype_classical_prob_wf:
     shows "p2.wf_problem"
   proof -
-    note c1 = detype_dom_wf
+    note c1 = detype_classical_dom_wf
     have c2: "distinct (map fst (objects P2) @ map fst (consts D2))"
-      using t_ents_names wf_P(1) by (metis detype_prob_sel(2) detype_dom_sel(3))
+      using t_ents_names wf_P(1) by (metis detype_classical_prob_sel(2) detype_classical_dom_sel(3))
     have c3: "\<forall>(n, y) \<in> set (objects P2). p2.wf_type y"
-      using t_ents_wf detype_prob_def by fastforce
+      using t_ents_wf detype_classical_prob_def by fastforce
     note c4 = t_init_dis
     note c5 = t_init_wf
     note c6 = t_goal_wf
     
     from c1 c2 c3 c4 c5 c6 show ?thesis
-      using p2.wf_problem_def detype_prob_def detype_dom_def by simp
+      using p2.wf_problem_def detype_classical_prob_def detype_classical_dom_def by simp
   qed
 end
 
-sublocale restrict_domain2 \<subseteq> d2: wf_ast_domain D2
-  using detype_dom_wf wf_ast_domain.intro by simp
+sublocale restrict_domain2 \<subseteq> d2: wf_ast_classical_domain D2
+  using detype_classical_dom_wf wf_ast_classical_domain.intro by simp
 
-sublocale restrict_problem2 \<subseteq> p2: wf_ast_problem P2
-  using detype_prob_wf wf_ast_problem.intro by simp
+sublocale restrict_problem2 \<subseteq> p2: wf_ast_classical_problem P2
+  using detype_classical_prob_wf wf_ast_classical_problem.intro by simp
 
 subsubsection \<open> Type Normalization Preserves Semantics \<close>
 
-context ast_domain
+context ast_classical_domain
 begin
 
 text \<open> Supertype Facts logic \<close>
@@ -775,7 +797,7 @@ lemma single_of_type_iff:
   using of_type_iff_reach by simp
 
 end
-context ast_problem
+context ast_classical_problem
 begin
 
   
@@ -950,14 +972,14 @@ end
 
 lemma (in restrict_problem2) t_resinst:
   assumes "resolve_action_schema n = Some ac"
-  shows "d2.resolve_action_schema n = Some (detype_ac ac)"
+  shows "d2.resolve_action_schema n = Some (detype_classical_ac ac)"
 proof -
   from assms have a: "ac \<in> set (actions D)"
     by (metis index_by_eq_SomeD resolve_action_schema_def)
   from assms have b: "ac_name ac = n"
     by (metis resolve_action_schema_def index_by_eq_SomeD)
-  hence "ac_name (detype_ac ac) = n" by simp
-  moreover have "detype_ac ac \<in> set (actions D2)"
+  hence "ac_name (detype_classical_ac ac) = n" by simp
+  moreover have "detype_classical_ac ac \<in> set (actions D2)"
     using a by auto
   ultimately show ?thesis using d2.wf_D(6)
     by (simp add: d2.resolve_action_schema_def)
@@ -966,13 +988,13 @@ qed
 lemma (in restrict_problem2) t_resinst_inv:
   assumes "p2.resolve_action_schema n = Some ac2"
   obtains ac where
-    "detype_ac ac = ac2"
+    "detype_classical_ac ac = ac2"
     "ac \<in> set (actions D)"
     "resolve_action_schema n = Some ac"
 proof -
-  from assms obtain ac where ac: "detype_ac ac = ac2" and ac_in: "ac \<in> set (actions D)"
+  from assms obtain ac where ac: "detype_classical_ac ac = ac2" and ac_in: "ac \<in> set (actions D)"
     using p2.res_aux by auto
-  hence "ac_name (detype_ac ac) = n"
+  hence "ac_name (detype_classical_ac ac) = n"
     using p2.resolve_action_schema_def index_by_eq_SomeD assms by metis
   hence "ac_name ac = n" by simp
   thus ?thesis using that ac ac_in resolve_action_schema_def wf_DP(6) by simp
@@ -984,7 +1006,7 @@ subsubsection \<open> Semantics \<close>
 text \<open> Type atom/Supertype facts inclusion/exclusion/overlap \<close>
 (* TODO: reevaluate what is necessary, maybe use fmla_preds in proofs *)
 
-context ast_domain begin
+context ast_classical_domain begin
 lemma wf_patm_neq_type_patm:
   assumes "wf_pred_atom tyt (p, xs)"
   shows "type_predatm x t \<noteq> map_atom f (predAtm p xs)"
@@ -1116,11 +1138,11 @@ proof -
   with map_fmla_preserves_istypeatm show ?thesis by blast
 qed
 
-lemma (in ast_problem) wf_wm_no_typeatms:
+lemma (in ast_classical_problem) wf_wm_no_typeatms:
   "wf_world_model wm \<Longrightarrow> type_atom x t \<notin> wm"
   unfolding wf_world_model_def using wf_fmla_atom_neq_type_atom by fastforce
 
-lemma (in ast_problem) wf_wm_disj_param_pre:
+lemma (in ast_classical_problem) wf_wm_disj_param_pre:
   assumes "wf_world_model wm"
   shows "wm \<inter> Atom ` atoms (map_atom_fmla f (param_precond params)) = {}"
   using assms wf_wm_no_typeatms param_pre_typeatms by force
@@ -1152,16 +1174,16 @@ end
 
 (* All of these could maybe be intelligently moved somewhere else... *)
 hide_fact
-  ast_domain.wf_patm_neq_type_patm
-  ast_domain.wf_fmla_no_type_patms
+  ast_classical_domain.wf_patm_neq_type_patm
+  ast_classical_domain.wf_fmla_no_type_patms
   restrict_problem.sf_typeatms
-  ast_domain.wf_fmla_atom_neq_type_atom
-  ast_problem.wf_wm_no_typeatms
-  ast_domain.param_pre_typeatms
-  ast_domain.map_atom_preserves_istypeatm
-  ast_domain.map_fmla_preserves_istypeatm
-  ast_domain.map_fmla_preserves_nistypeatm
-  (* ast_domain.wf_fmla_atom_neq_type_atom_unatm *)
+  ast_classical_domain.wf_fmla_atom_neq_type_atom
+  ast_classical_problem.wf_wm_no_typeatms
+  ast_classical_domain.param_pre_typeatms
+  ast_classical_domain.map_atom_preserves_istypeatm
+  ast_classical_domain.map_fmla_preserves_istypeatm
+  ast_classical_domain.map_fmla_preserves_nistypeatm
+  (* ast_classical_domain.wf_fmla_atom_neq_type_atom_unatm *)
 
 (* ------ end inclusion/exclusion *)
 
@@ -1170,14 +1192,14 @@ begin
 
 lemma t_params_match:
   assumes "action_params_match ac args"
-  shows "p2.action_params_match (detype_ac ac) args"
+  shows "p2.action_params_match (detype_classical_ac ac) args"
 proof -
   from assms have len: "length (ac_params ac) = length args"
     by (simp add: list_all2_lengthD action_params_match_def)
-  hence len2: "length (ac_params (detype_ac ac)) = length args"
+  hence len2: "length (ac_params (detype_classical_ac ac)) = length args"
     by (cases ac; simp; metis length_map detype_ents_def)
 
-  have "p2.is_obj_of_type (args ! i) (snd (ac_params (detype_ac ac) ! i))"
+  have "p2.is_obj_of_type (args ! i) (snd (ac_params (detype_classical_ac ac) ! i))"
     if "i < length args" for i
   proof -
     have "is_obj_of_type (args ! i) (snd ((ac_params ac) ! i))"
@@ -1188,7 +1210,7 @@ proof -
     thus ?thesis using that len2 by (simp add: detype_ent_alt detype_ents_def)
   qed
   thus "?thesis"
-    by (simp add: len2 list_all2_conv_all_nth p2.action_params_match_def del: detype_ac_sel)
+    by (simp add: len2 list_all2_conv_all_nth p2.action_params_match_def del: detype_classical_ac_sel)
 qed
 
 (* TODO clean this up, if possible *)
@@ -1209,19 +1231,19 @@ proof -
     (* actions *)
     from wf obtain ac where res: "resolve_action_schema n = Some ac"
       by fastforce
-    hence res2: "d2.resolve_action_schema n = Some (detype_ac ac)"
+    hence res2: "d2.resolve_action_schema n = Some (detype_classical_ac ac)"
       by (rule t_resinst)
 
     (* parameter mappings *)
     let ?pre_map = "map_atom_fmla (ac_tsubst (parameters ac) args)"
-    let ?pre_map2 = "map_atom_fmla (ac_tsubst (parameters (detype_ac ac)) args)"
-    have "map fst (parameters (detype_ac ac)) = map fst (parameters ac)"
+    let ?pre_map2 = "map_atom_fmla (ac_tsubst (parameters (detype_classical_ac ac)) args)"
+    have "map fst (parameters (detype_classical_ac ac)) = map fst (parameters ac)"
       by (cases ac; simp add: t_ents_names)
     hence premaps: "?pre_map2 = ?pre_map" using ac_tsubst_def by simp
 
     (* "left" side: from wf_plan_action \<pi> show p2.wf_plan_action \<pi> *)
     from wf res have match: "action_params_match ac args" by simp
-    hence "p2.action_params_match (detype_ac ac) args"
+    hence "p2.action_params_match (detype_classical_ac ac) args"
       using t_params_match by simp
     with res2 have wf2: "p2.wf_plan_action ?pi"
       using p2.wf_plan_action_simple by fastforce
@@ -1266,13 +1288,13 @@ proof -
     (* actions *)
     from wf2 obtain ac2 where res2: "p2.resolve_action_schema n = Some ac2"
       using p2.wf_pa_refs_ac by metis
-    then obtain ac where ac[simp]: "ac2 = detype_ac ac" and ac_in: "ac \<in> set (actions D)"
+    then obtain ac where ac[simp]: "ac2 = detype_classical_ac ac" and ac_in: "ac \<in> set (actions D)"
       and res: "resolve_action_schema n = Some ac" by (metis t_resinst_inv)
 
     (* parameter mappings *)
     let ?pre_map2 = "map_atom_fmla (ac_tsubst (ac_params ac2) args)"
     let ?pre_map = "map_atom_fmla (ac_tsubst (ac_params ac) args)"
-    have t_param_names: "map fst (parameters ac) = map fst (parameters (detype_ac ac))"
+    have t_param_names: "map fst (parameters ac) = map fst (parameters (detype_classical_ac ac))"
       by (cases ac; simp add: t_ents_names)
     hence premaps: "?pre_map = ?pre_map2" using ac_tsubst_def by simp
 
@@ -1311,7 +1333,7 @@ proof -
     (* "left" side *)
     hence "length (ac_params ac2) = length args"
       using match2 p2.action_params_match_def by (simp add: list_all2_lengthD)
-    moreover have "length (ac_params ac) = length (ac_params (detype_ac ac))"
+    moreover have "length (ac_params ac) = length (ac_params (detype_classical_ac ac))"
       using t_param_names map_eq_imp_length_eq by blast (*weird way to prove this*)
     ultimately have "length (ac_params ac) = length args"
       using detype_ents_def by simp
@@ -1337,7 +1359,7 @@ proof -
   hence 1: "effect (resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac)"
     using pi instantiate_action_schema_alt by simp
 
-  from pi obtain ac2 where res2: "p2.resolve_action_schema n = Some ac2" and t_ac: "ac2 = detype_ac ac"
+  from pi obtain ac2 where res2: "p2.resolve_action_schema n = Some ac2" and t_ac: "ac2 = detype_classical_ac ac"
     using res t_resinst by simp
   hence 2: "effect (p2.resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac2) args) (ac_eff ac2)"
     using pi instantiate_action_schema_alt by simp
@@ -1372,7 +1394,7 @@ lemma goal_sem:
 proof -  
   have 1: "s \<^sup>c\<TTurnstile>\<^sub>= goal P \<longleftrightarrow> s \<^sup>c\<TTurnstile>\<^sub>= goal P2" by simp
   have c3: "sf_substate \<inter> Atom ` atoms (goal P2) = {}"
-    using detype_prob_sel(4) fmla_map_id sf_disj_wf_fmla[where f = id] wf_P(5) by metis
+    using detype_classical_prob_sel(4) fmla_map_id sf_disj_wf_fmla[where f = id] wf_P(5) by metis
   note entail_adds_irrelevant[OF assms sf_basic c3]
   with 1 show ?thesis by simp
 qed
@@ -1413,7 +1435,7 @@ lemma inits_match:
 
 lemma match_valid_plan:
   assumes "valid_plan \<pi>s" shows "p2.valid_plan \<pi>s"
-  using assms unfolding ast_problem.valid_plan_def
+  using assms unfolding ast_classical_problem.valid_plan_def
   using match_valid_plan_from inits_match by blast
 
 text \<open>Proving: p2.valid_plan \<pi>s \<Longrightarrow> valid_plan \<pi>s \<close>
@@ -1462,7 +1484,7 @@ proof -
   obtain n args where pi: "\<pi> = PAction n args" by (cases \<pi>) simp
   then obtain ac' where res': "p2.resolve_action_schema n = Some ac'"
     using assms(3) p2.plan_action_enabled_def by fastforce
-  then obtain ac where res: "resolve_action_schema n = Some ac" and t_ac: "detype_ac ac = ac'"
+  then obtain ac where res: "resolve_action_schema n = Some ac" and t_ac: "detype_classical_ac ac = ac'"
     using t_resinst_inv by metis
   hence 1: "effect (resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac)"
     using pi instantiate_action_schema_alt by simp
@@ -1470,7 +1492,7 @@ proof -
     using pi instantiate_action_schema_alt by simp
 
   from t_ac have "map fst (ac_params ac) = map fst (ac_params ac')"
-    using t_ents_names detype_ac_sel by metis
+    using t_ents_names detype_classical_ac_sel by metis
   moreover from t_ac have "ac_eff ac = ac_eff ac'" by auto
   ultimately have effeq: "effect (resolve_instantiate \<pi>) = effect (p2.resolve_instantiate \<pi>)"
     using ac_tsubst_def 1 2 by force
@@ -1524,7 +1546,7 @@ qed
 
 lemma match_valid_plan':
   assumes "p2.valid_plan \<pi>s" shows "valid_plan \<pi>s"
-  using assms unfolding ast_problem.valid_plan_def
+  using assms unfolding ast_classical_problem.valid_plan_def
   using match_valid_plan_from' inits_match by blast
 
 (* putting it together: *)
@@ -1538,21 +1560,21 @@ end
 subsection \<open> Code Setup \<close>
 
 lemmas type_norm_code =
-  ast_domain.wf_action_params_def
-  ast_domain.restrict_dom_def
-  ast_domain.pred_for_type_def
-  ast_domain.type_pred.simps
-  ast_domain.type_preds_def
-  ast_domain.type_atom.simps
-  ast_domain.type_precond.simps
-  ast_domain.param_precond_def
-  ast_domain.detype_ac.simps
-  ast_domain.detype_dom_def
-  ast_domain.supertype_facts_for.simps
-  ast_domain.supertype_facts_def
-  ast_problem.detype_prob_def
-  ast_domain.typeless_dom_def
-  ast_problem.typeless_prob_def
+  ast_classical_domain.wf_action_params_def
+  ast_classical_domain.restrict_dom_def
+  ast_classical_domain.pred_for_type_def
+  ast_classical_domain.type_pred.simps
+  ast_classical_domain.type_preds_def
+  ast_classical_domain.type_atom.simps
+  ast_classical_domain.type_precond.simps
+  ast_classical_domain.param_precond_def
+  ast_classical_domain.detype_classical_ac.simps
+  ast_classical_domain.detype_classical_dom_def
+  ast_classical_domain.supertype_facts_for.simps
+  ast_classical_domain.supertype_facts_def
+  ast_classical_problem.detype_classical_prob_def
+  ast_classical_domain.typeless_dom_def
+  ast_classical_problem.typeless_prob_def
 declare type_norm_code[code]
 
 

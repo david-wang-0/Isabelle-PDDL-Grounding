@@ -1,6 +1,6 @@
 theory Goal_Normalization
-imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
-    PDDL_Sema_Supplement String_Utils Utils DNF
+imports "Classical_Planning.Classical_Abstract_Syntax"
+    PDDL_Sema_Supplement String_Utils Grounding_Utils DNF
 begin
 
 context ast_domain begin

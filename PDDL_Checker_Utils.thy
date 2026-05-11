@@ -1,5 +1,5 @@
 theory PDDL_Checker_Utils
-  imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Checker"
+  imports "Classical_Planning.Classical_PDDL_Checker"
     PDDL_Sema_Supplement
 begin
 

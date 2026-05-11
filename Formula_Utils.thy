@@ -1,7 +1,8 @@
 theory Formula_Utils
   imports "Propositional_Proof_Systems.Sema"
     "Propositional_Proof_Systems.CNF_Formulas"
-    "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics" (* just for the datatype atom *)
+    "Continuous_Planning.Abstract_Syntax" (* just for the datatype atom *)
+    iq.iq
 begin
 
 subsection \<open> pure conjunctions \<close>
@@ -98,8 +99,8 @@ fun is_pos_lit :: "'a atom formula \<Rightarrow> bool" where
   "is_pos_lit (\<^bold>\<not>\<bottom>) = True" |
   "is_pos_lit (Atom (predAtm n args)) = True" |
   "is_pos_lit (\<^bold>\<not>(Atom (predAtm n args))) = False" |
-  "is_pos_lit (Atom (Eq a b)) = True" |
-  "is_pos_lit (\<^bold>\<not>(Atom (Eq a b))) = True" |
+  "is_pos_lit (Atom (eqAtm a b)) = True" |
+  "is_pos_lit (\<^bold>\<not>(Atom (eqAtm a b))) = True" |
   "is_pos_lit _ = False"
 
 fun is_pos_conj :: "'a atom formula \<Rightarrow> bool" where
@@ -107,36 +108,70 @@ fun is_pos_conj :: "'a atom formula \<Rightarrow> bool" where
   "is_pos_conj F \<longleftrightarrow> is_pos_lit F"
 
 lemma conj_induct_atoms [consumes 1, case_names
-    Bot Top Pred NotPred Eq NotEq BotAnd TopAnd PredAnd NotPredAnd EqAnd NotEqAnd]:
+    Bot Top Pred NotPred eqAtm NoteqAtm
+    numericEq NotnumericEq numericLess NotnumericLess numericLE NotnumericLE
+    numericGreater NotnumericGreater numericGE NotnumericGE
+    BotAnd TopAnd PredAnd NotPredAnd eqAtmAnd NoteqAtmAnd
+    numericEqAnd NotnumericEqAnd numericLessAnd NotnumericLessAnd
+    numericLEAnd NotnumericLEAnd
+    numericGreaterAnd NotnumericGreaterAnd numericGEAnd NotnumericGEAnd]:
   assumes "is_conj \<phi>"
-    "P \<bottom>" "P (\<^bold>\<not> \<bottom>)" "\<And>n args. P(Atom (predAtm n args))" "\<And>n args. P(\<^bold>\<not>(Atom (predAtm n args)))"
-    "\<And>a b. P (Atom (Eq a b))" "\<And>a b. P (\<^bold>\<not> (Atom (Eq a b)))"
-    
+    "P \<bottom>" "P (\<^bold>\<not> \<bottom>)"
+    "\<And>n args. P(Atom (predAtm n args))" "\<And>n args. P(\<^bold>\<not>(Atom (predAtm n args)))"
+    "\<And>a b. P (Atom (eqAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (eqAtm a b)))"
+    "\<And>a b. P (Atom (numericEqAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (numericEqAtm a b)))"
+    "\<And>a b. P (Atom (numericLessAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (numericLessAtm a b)))"
+    "\<And>a b. P (Atom (numericLEAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (numericLEAtm a b)))"
+    "\<And>a b. P (Atom (numericGreaterAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (numericGreaterAtm a b)))"
+    "\<And>a b. P (Atom (numericGEAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (numericGEAtm a b)))"
     "\<And>G. P G \<Longrightarrow> P (\<bottom> \<^bold>\<and> G)" "\<And>G. P G \<Longrightarrow> P (\<^bold>\<not>\<bottom> \<^bold>\<and> G)"
     "\<And>G n args. P G \<Longrightarrow> P(Atom (predAtm n args) \<^bold>\<and> G)"
     "\<And>G n args. P G \<Longrightarrow> P(\<^bold>\<not>(Atom (predAtm n args)) \<^bold>\<and> G)"
-    "\<And>G a b. P G \<Longrightarrow> P (Atom (Eq a b) \<^bold>\<and> G)" "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (Eq a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (eqAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (eqAtm a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (numericEqAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (numericEqAtm a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (numericLessAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (numericLessAtm a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (numericLEAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (numericLEAtm a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (numericGreaterAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (numericGreaterAtm a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (numericGEAtm a b) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (numericGEAtm a b)) \<^bold>\<and> G)"
   shows "P \<phi>"
 using assms proof (induction \<phi>)
   case (Atom x)
   thus ?case by (cases x) simp_all
 next
   case (Not l)
-  thus ?case by (cases l rule: is_pos_lit.cases) simp_all
+  thus ?case
+  proof (cases l)
+    case (Atom a) with Not show ?thesis by (cases a) simp_all
+  qed (use Not in simp_all)
 next
   case (And F G)
-  thus ?case by (cases F rule: is_pos_lit.cases) simp_all
+  thus ?case
+  proof (cases F)
+    case (Atom a) with And show ?thesis by (cases a) simp_all
+  next
+    case (Not k)
+    show ?thesis
+    proof (cases k)
+      case (Atom a) with And \<open>F = \<^bold>\<not> k\<close> show ?thesis by (cases a) simp_all
+    qed (use And \<open>F = \<^bold>\<not> k\<close> in simp_all)
+  qed (use And in simp_all)
 qed simp_all
 
 lemma pos_conj_induct [consumes 1, case_names
-    Bot Top PredAtom Eq NotEq BotAnd TopAnd PredAtomAnd EqAnd NotEqAnd]:
+    Bot Top PredAtom eqAtm NoteqAtm BotAnd TopAnd PredAtomAnd eqAtmAnd NoteqAtmAnd]:
   assumes "is_pos_conj \<phi>"
     "P \<bottom>" "P (\<^bold>\<not> \<bottom>)" "\<And>n args. P(Atom (predAtm n args))"
-    "\<And>a b. P (Atom (Eq a b))" "\<And>a b. P (\<^bold>\<not> (Atom (Eq a b)))"
+    "\<And>a b. P (Atom (eqAtm a b))" "\<And>a b. P (\<^bold>\<not> (Atom (eqAtm a b)))"
     
     "\<And>G. P G \<Longrightarrow> P (\<bottom> \<^bold>\<and> G)" "\<And>G. P G \<Longrightarrow> P (\<^bold>\<not>\<bottom> \<^bold>\<and> G)"
     "\<And>G n args. P G \<Longrightarrow> P(Atom (predAtm n args) \<^bold>\<and> G)"
-    "\<And>G a b. P G \<Longrightarrow> P (Atom (Eq a b) \<^bold>\<and> G)" "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (Eq a b)) \<^bold>\<and> G)"
+    "\<And>G a b. P G \<Longrightarrow> P (Atom (eqAtm a b) \<^bold>\<and> G)" "\<And>G a b. P G \<Longrightarrow> P (\<^bold>\<not> (Atom (eqAtm a b)) \<^bold>\<and> G)"
   shows "P \<phi>"
 using assms proof (induction \<phi>)
   case (Atom x)
@@ -155,14 +190,38 @@ lemma pos_conj_conj: "is_pos_conj F \<Longrightarrow> is_conj F"
 lemma is_pos_conj_alt: "is_pos_conj F \<longleftrightarrow> (\<forall>l \<in> set (un_and F). is_pos_lit l)"
   by (induction F) simp_all
 
-lemma pos_lit_vs_plus: "is_lit_plus l \<longleftrightarrow> is_pos_lit l \<or> (\<exists>n args. l = \<^bold>\<not>(Atom(predAtm n args)))"
-  by (cases l rule: is_pos_lit.cases) simp_all
+lemma pos_lit_vs_plus: "is_lit_plus l \<longleftrightarrow> is_pos_lit l
+    \<or> (\<exists>n args. l = \<^bold>\<not>(Atom(predAtm n args)))
+    \<or> (\<exists>a b. l = Atom (numericEqAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericEqAtm a b)))
+    \<or> (\<exists>a b. l = Atom (numericLessAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericLessAtm a b)))
+    \<or> (\<exists>a b. l = Atom (numericLEAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericLEAtm a b)))
+    \<or> (\<exists>a b. l = Atom (numericGreaterAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericGreaterAtm a b)))
+    \<or> (\<exists>a b. l = Atom (numericGEAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericGEAtm a b)))"
+proof (cases l)
+  case (Atom a) thus ?thesis by (cases a) auto
+next
+  case (Not k)
+  show ?thesis
+  proof (cases k)
+    case (Atom a) with \<open>l = \<^bold>\<not> k\<close> show ?thesis by (cases a) auto
+  qed (use \<open>l = \<^bold>\<not> k\<close> in auto)
+qed auto
 
 text\<open> formula relaxation. Not in Formula_Utils because it uses PDDL atoms. \<close>
 
 (* expects is_lit_plus *)
 fun relax_lit :: "'a atom formula \<Rightarrow> 'a atom formula" where
   "relax_lit (\<^bold>\<not>(Atom (predAtm n args))) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (Atom (numericEqAtm a b)) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (\<^bold>\<not>(Atom (numericEqAtm a b))) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (Atom (numericLessAtm a b)) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (\<^bold>\<not>(Atom (numericLessAtm a b))) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (Atom (numericLEAtm a b)) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (\<^bold>\<not>(Atom (numericLEAtm a b))) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (Atom (numericGreaterAtm a b)) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (\<^bold>\<not>(Atom (numericGreaterAtm a b))) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (Atom (numericGEAtm a b)) = \<^bold>\<not>\<bottom>" |
+  "relax_lit (\<^bold>\<not>(Atom (numericGEAtm a b))) = \<^bold>\<not>\<bottom>" |
   "relax_lit l = l"
 (* expects is_conj *)
 fun relax_conj :: "'a atom formula \<Rightarrow> 'a atom formula" where
@@ -170,10 +229,14 @@ fun relax_conj :: "'a atom formula \<Rightarrow> 'a atom formula" where
   "relax_conj f = relax_lit f"
 
 lemma relax_conj_un_and: "un_and (relax_conj F) = map relax_lit (un_and F)"
-  apply (induction F) apply auto
-  subgoal for F apply (cases F rule: is_pos_lit.cases)
-    by auto
-  done
+proof (induction F)
+  case (Atom x) thus ?case by (cases x) auto
+next
+  case (Not x) thus ?case
+  proof (cases x)
+    case (Atom a) thus ?thesis by (cases a) auto
+  qed auto
+qed auto
 
 lemma relax_lit_pos: "is_lit_plus f \<Longrightarrow> is_pos_lit (relax_lit f)"
   by (cases f rule: is_pos_lit.cases) simp_all

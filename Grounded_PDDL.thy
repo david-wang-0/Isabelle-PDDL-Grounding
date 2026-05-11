@@ -1,7 +1,7 @@
 theory Grounded_PDDL
-imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
+imports "Classical_Planning.Classical_Abstract_Syntax"
     PDDL_Sema_Supplement Normalization_Definitions
-    Utils String_Utils
+    Grounding_Utils String_Utils
 begin
 
 type_synonym facty = "object atom formula" (* maybe fact_atom? *)

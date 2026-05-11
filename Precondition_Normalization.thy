@@ -1,5 +1,5 @@
 theory Precondition_Normalization
-imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
+imports "Classical_Planning.Classical_Abstract_Syntax"
     Normalization_Definitions String_Utils DNF Normalization_Definitions
 begin
 

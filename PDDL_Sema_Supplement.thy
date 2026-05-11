@@ -1,24 +1,37 @@
-theory PDDL_Sema_Supplement
-  imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
-  Utils Formula_Utils
+theory PDDL_Sema_Supplement                
+  imports Classical_Planning.Classical_Happening_Semantics
+  Grounding_Utils Formula_Utils iq.iq
 begin
+
+subsection \<open>Formulas\<close>
+
+lemma BigOr_map_semantics[simp]: "A \<Turnstile>\<^sub>m \<^bold>\<Or>F = ((\<forall>f\<in>set F. atoms f \<subseteq> dom A) \<and> (\<exists>f \<in> set F. A \<Turnstile>\<^sub>m f))"
+  by (induction F) auto
+
+lemma BigAnd_map_semantics[simp]: "A \<Turnstile>\<^sub>m \<^bold>\<And>F = ((\<forall>f\<in>set F. A \<Turnstile>\<^sub>m f))"
+  by (induction F) auto
 
 subsection \<open> sugar \<close>
 
 (* not much here yet *)
-find_theorems name: "wf_ast_domain."
-find_theorems name: "wf_ast_problem."
+
+lemmas (in wf_domain_signature) wf_D_sig = conj_split_7[OF wf_domain_signature[unfolded wf_domain_signature_def]]
+
+lemmas (in wf_problem_signature) wf_P_sig = conj_split_3[OF wf_problem_signature[unfolded wf_problem_signature_def]]
+
+lemmas (in wf_problem_signature) wf_sig = wf_D_sig wf_P_sig
 
 (* wf_domain unfolded and split *)
-lemmas (in wf_ast_domain) wf_D = conj_split_7[OF wf_domain[unfolded wf_domain_def]]
+lemmas (in wf_ast_classical_domain) wf_D =
+  conj_split_3[OF wf_classical_domain[unfolded wf_classical_domain_def]]
 
 (* wf_problem unfolded and split, but omitting the first fact "wf_domain" *)
-lemmas (in wf_ast_problem) wf_P =
-  conj_split_5[OF wf_problem[unfolded wf_problem_def, THEN conjunct2]]
+lemmas (in wf_ast_classical_problem) wf_P =
+  conj_split_5[OF wf_classical_problem[unfolded wf_classical_problem_def]]
 
-lemmas (in wf_ast_problem) wf_DP = wf_D wf_domain wf_P
+lemmas (in wf_ast_classical_problem) wf_DP = wf_D wf_P wf_D_sig wf_P_sig
 
-declare ast_problem.I_def[simp]
+declare ast_classical_problem.I_def[simp]
 
 subsection \<open> Accessor functions \<close>
 
@@ -41,10 +54,10 @@ lemma is_predAtom_decomp:
     by (cases x) simp_all
   by simp_all
 
-abbreviation (in ast_domain) pred_names :: "name list" where
-    "pred_names \<equiv> map (predicate.name \<circ> pred) (predicates D)"
+abbreviation (in domain_signature) pred_names :: "name list" where
+    "pred_names \<equiv> map (predicate.name \<circ> pred) predicates"
 
-abbreviation (in ast_problem) "all_consts \<equiv> consts D @ objects P"
+abbreviation (in problem_signature) "all_consts \<equiv> consts @ objs"
 
 subsection \<open>Alternative definitions\<close>
 
@@ -57,111 +70,180 @@ text \<open>Alternative definitions. Most of these just remove pattern matching
 
 abbreviation "map_atom_fmla \<equiv> map_formula \<circ> map_atom"
 
-abbreviation "ac_name \<equiv> ast_action_schema.name"
-abbreviation "ac_params \<equiv> ast_action_schema.parameters"
-abbreviation "ac_pre \<equiv> ast_action_schema.precondition"
-abbreviation "ac_eff \<equiv> ast_action_schema.effect"
+abbreviation "ac_head \<equiv> ast_classical_action_schema.head"
+abbreviation "ac_name a \<equiv> ast_action_head.name (ac_head a)"
+abbreviation "ac_params a \<equiv> ast_action_head.parameters (ac_head a)"
 
-context ast_domain begin
+fun ac_body :: "ast_classical_action_schema \<Rightarrow> ast_simple_action_body" where
+  "ac_body (SimpleActionSchema _ b) = b"
+abbreviation "ac_pre a \<equiv> ast_simple_action_body.precondition (ac_body a)"
+abbreviation "ac_eff a \<equiv> ast_simple_action_body.effect (ac_body a)"
+
+(* effect of a single ground action on a (logical, numeric) world model *)
+lemma apply_ground_action_alt:
+  "apply_ground_actions [a] (L, N) =
+     ((L - set (dels (effect a))) \<union> set (adds (effect a)),
+      action_numeric_update_function a N)"
+  by (simp add: action_list_numeric_update_function_def)
+
+(* These two are useful to adapt to new semantics *)
+context ast_classical_problem
+begin
+lemma (in wf_ast_classical_problem) valid_classical_plan2_alt: "valid_classical_plan2 \<pi> \<longleftrightarrow>
+  (wf_classical_plan \<pi> \<and> (\<exists>M'. valid_classical_plan I (map (the o res_inst) \<pi>) M' \<and> valuation M' \<Turnstile>\<^sub>m goal P))"
+  unfolding valid_classical_plan2_def valid_classical_plan_from2_def classical_plan_happ_path_def
+  using ind_classical_plan_def by simp
+
+definition "plan_action_enabled a M \<equiv> 
+let 
+  a' = (the o res_inst) a
+in
+  numeric_effects_non_intrf a' \<and> wf_classical_plan_action a \<and> valuation M \<Turnstile>\<^sub>m precondition a'"
+
+definition "execute_plan_action a M \<equiv>
+  apply_ground_actions [(the o res_inst) a] M"
+
+fun valid_classical_plan_alt where
+"valid_classical_plan_alt M [] M' = (M = M')" |
+"valid_classical_plan_alt M (a#as) M' = (
+  plan_action_enabled a M
+\<and> valid_classical_plan_alt (execute_plan_action a M) as M'
+)"
+
+lemma (in wf_ast_classical_problem) valid_classical_plan_alt_correct:
+  "(wf_classical_plan \<pi> \<and> classical_plan_happ_path M \<pi> M') = valid_classical_plan_alt M \<pi> M'"
+proof (induction \<pi>)
+  case Nil
+  then show ?case by (simp add: Let_def plan_action_enabled_def execute_plan_action_def 
+        classical_plan_happ_path_def wf_classical_plan_def ind_classical_plan_def)
+next
+  case (Cons a \<pi>)
+  then show ?case sorry
+qed
+  subgoal 
+  subgoal for a as apply (auto simp: Let_def plan_action_enabled_def execute_plan_action_def 
+        classical_plan_happ_path_def wf_classical_plan_def ind_classical_plan_def)
+end
+
+context domain_signature 
+begin
 lemma wf_fmla_alt: "wf_fmla tyt \<phi> = (\<forall>a\<in>atoms \<phi>. wf_atom tyt a)"
       by (induction \<phi>) auto
-
-(* unnecessary? *)
-lemma apply_effect_alt: "apply_effect \<epsilon> s = (s - set (dels \<epsilon>)) \<union> (set (adds \<epsilon>))"
-  by (cases \<epsilon>; simp_all)
 
 lemma subtype_edge_swap: "subtype_edge = prod.swap"
   by (intro ext; auto)
 
-lemma subtype_rel_alt: "subtype_rel = (set (types D))\<inverse>"
+lemma subtype_rel_alt: "subtype_rel = (set ty_decl)\<inverse>"
   unfolding subtype_rel_def
   by (subst subtype_edge_swap; auto)
 
-lemma subtype_rel_star_alt: "subtype_rel\<^sup>* = ((set (types D))\<^sup>*)\<inverse>"
+lemma subtype_rel_star_alt: "subtype_rel\<^sup>* = ((set ty_decl)\<^sup>*)\<inverse>"
     using subtype_rel_alt rtrancl_converse by simp
 
 (* useless? *)
 lemmas wf_atom_deep = wf_atom.simps[unfolded wf_pred_atom.simps]
 
+
 lemma wf_effect_alt:
     "wf_effect tyt \<epsilon> \<longleftrightarrow>
-        (list_all1 (wf_fmla_atom tyt) (adds \<epsilon>))
-      \<and> (list_all1 (wf_fmla_atom tyt) (dels \<epsilon>))"
-  by (cases \<epsilon>; simp add: list_all_def)
+        (list_all (wf_fmla_atom tyt) (adds \<epsilon>))
+      \<and> (list_all (wf_fmla_atom tyt) (dels \<epsilon>))
+      \<and> (list_all (wf_numeric_effect tyt) (numeric_effects \<epsilon>))"
+  by (cases \<epsilon>; auto simp: list_all_iff)
 
-abbreviation "ac_tyt a \<equiv> ty_term (map_of (ac_params a)) constT"
+definition "ac_tyt a \<equiv> ty_term (map_of (ac_params a)) constT"
 
-lemma wf_action_schema_alt: "wf_action_schema ac \<longleftrightarrow>
+lemma (in domain_signature) wf_action_head_alt: "wf_action_head h \<longleftrightarrow> 
+  distinct (map fst (ast_action_head.parameters h))" by (cases h) simp
+
+lemma (in domain_signature) wf_simple_action_body_alt: "wf_simple_action_body tyt b \<longleftrightarrow>
+  wf_fmla tyt (ast_simple_action_body.precondition b) \<and> wf_effect tyt (ast_simple_action_body.effect b)"
+  by (cases b) simp
+
+lemma (in domain_signature) wf_classical_action_schema_alt: "wf_classical_action_schema ac \<longleftrightarrow>
     distinct (map fst (ac_params ac))
   \<and> wf_fmla (ac_tyt ac) (ac_pre ac)
   \<and> wf_effect (ac_tyt ac) (ac_eff ac)"
-  apply (cases ac; simp)
-  unfolding Let_def by simp
+  by (cases ac, simp add: Let_def wf_action_head_alt wf_simple_action_body_alt ac_tyt_def)
+  
 
 (* unnecessary? *)
-lemma wf_type_alt: "wf_type T \<longleftrightarrow> set (primitives T) \<subseteq> insert ''object'' (fst ` set (types D))"
+lemma wf_type_alt: "wf_type T \<longleftrightarrow> set (primitives T) \<subseteq> insert (STR ''object'') (fst ` set ty_decl)"
   by (cases T; simp)
 
 (* unnecessary? *)
-lemma wf_predicate_decl_alt: "wf_predicate_decl pd \<longleftrightarrow> list_all1 wf_type (argTs pd)"
+lemma wf_predicate_decl_alt: "wf_predicate_decl pd \<longleftrightarrow> list_all1 wf_type (predicate_decl.argTs pd)"
   by (cases pd; simp)
 
-lemma (in wf_ast_domain) resolve_action_schema_cond:
-  assumes "Action_Schema n params pre eff \<in> set (actions D)"
-  shows "resolve_action_schema n = Some (Action_Schema n params pre eff)"
-  using assms wf_D(6)
-  by (simp add: resolve_action_schema_def)
-
-definition (in -) ac_tsubst :: "(variable \<times> type) list \<Rightarrow> object list \<Rightarrow> (PDDL_STRIPS_Semantics.term \<Rightarrow> object)" where
-  [simp]: "ac_tsubst params args \<equiv> ast_domain.subst_term (the \<circ> (map_of (zip (map fst params) args)))"
-
-lemma instantiate_action_schema_alt: "instantiate_action_schema ac args = Ground_Action
-  (map_atom_fmla (ac_tsubst (ac_params ac) args) (ac_pre ac))
-  (map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac))"
-  apply (cases ac; simp)
-  using ac_tsubst_def by metis
+lemma wf_function_decl_alt: "wf_function_decl fd \<longleftrightarrow> list_all1 wf_type (function_decl.argTs fd)"
+  by (cases fd; simp)
 
 end
-context ast_problem begin
 
-lemma resolve_instantiate_alt: "resolve_instantiate \<pi> =
-  instantiate_action_schema (the (resolve_action_schema (name \<pi>))) (arguments \<pi>)"
+context wf_ast_classical_domain
+begin
+
+lemma resolve_classical_action_schema_cond:
+  assumes "SimpleActionSchema h b \<in> set (actions D)"
+  shows "resolve_classical_action_schema (ast_action_head.name h) = Some (SimpleActionSchema h b)"
+  using assms wf_D_sig wf_D
+  unfolding resolve_classical_action_schema_def by simp
+
+definition (in -) ac_tsubst :: "(variable \<times> type) list \<Rightarrow> object list \<Rightarrow> (term \<Rightarrow> object)" where
+  [simp]: "ac_tsubst params args \<equiv> subst_term (the \<circ> (map_of (zip (map fst params) args)))"
+
+find_theorems name: "ast_simple_action_body.indu"
+
+lemma instantiate_classical_action_schema_alt: "instantiate_classical_action_schema ac args = 
+  GroundAction
+  (map_atom_fmla (ac_tsubst (ac_params ac) args) (ac_pre ac))
+  (map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac))"
+  apply (cases ac rule: ast_classical_action_schema_cases_unfold)
+  by simp
+
+end
+
+context ast_classical_problem begin
+
+lemma res_inst_alt: "res_inst \<pi> =
+  Some (instantiate_classical_action_schema (the (resolve_classical_action_schema (name \<pi>))) (arguments \<pi>))"
   by (cases \<pi>; simp)
 
-lemma (in wf_ast_problem) resolve_instantiate_cond:
-  assumes "Action_Schema n params pre eff \<in> set (actions D)"
-  shows "resolve_instantiate (PAction n args) = Ground_Action
+lemma (in wf_ast_classical_problem) res_inst_cond:
+  assumes "SimpleActionSchema (ActionHead n params) (SimpleActionBody pre eff) \<in> set (actions D)"
+  shows "res_inst (SimplePlanAction n args) = Some (GroundAction
     (map_atom_fmla (ac_tsubst params args) pre)
-    (map_ast_effect (ac_tsubst params args) eff)"
-  using assms apply (simp add: resolve_action_schema_cond del: instantiate_action_schema.simps)
-  by (simp add: instantiate_action_schema_alt)
+    (map_ast_effect (ac_tsubst params args) eff))"
+  using assms by (auto 
+      dest: resolve_classical_action_schema_cond 
+      simp: instantiate_classical_action_schema_alt)
 
-(* removing the redundant conjunct from the definition of wf_plan_action *)
-lemma (in wf_ast_problem) wf_plan_action_simple:
-  "wf_plan_action (PAction n args) \<longleftrightarrow> (case resolve_action_schema n of
-    None \<Rightarrow> False | Some a \<Rightarrow> action_params_match a args)"
-  apply (rule iffI)
-   apply (simp_all split: option.splits)
-  using wf_DP(7)
-  by (metis ground_action.collapse index_by_eq_SomeD wf_instantiate_action_schema resolve_action_schema_def wf_effect_inst_alt wf_ground_action.simps)
+(* removing the redundant conjunct from the definition of wf_classical_plan_action *)
+lemma (in wf_ast_classical_problem) wf_classical_plan_action_simple:
+  "wf_classical_plan_action (SimplePlanAction n args) \<longleftrightarrow> (case resolve_classical_action_schema n of
+    None \<Rightarrow> False | Some a \<Rightarrow> action_params_match (head a) args)"
+  by (auto split: option.splits ast_classical_action_schema.splits)
+  
 
 (* unnecessary? *)
-lemma (in wf_ast_problem) wf_plan_action_alt: "wf_plan_action \<pi> \<longleftrightarrow>
-  (case resolve_action_schema (name \<pi>) of
+lemma (in wf_ast_classical_problem) wf_classical_plan_action_alt: "wf_classical_plan_action \<pi> \<longleftrightarrow>
+  (case resolve_classical_action_schema (name \<pi>) of
     None \<Rightarrow> False |
-    Some a \<Rightarrow> action_params_match a (arguments \<pi>))"
-  apply (cases \<pi>)
-  using wf_plan_action_simple plan_action.sel by presburger
+    Some a \<Rightarrow> action_params_match (head a) (arguments \<pi>))"
+  apply (induction \<pi>)
+  unfolding wf_classical_plan_action_simple ast_classical_plan_action.sel by simp 
 
-lemma (in wf_ast_problem) wf_plan_action_cond:
-  assumes "Action_Schema n params pre eff \<in> set (actions D)"
-  shows "wf_plan_action (PAction n args) \<longleftrightarrow>
-    action_params_match (Action_Schema n params pre eff) args"
-  using assms wf_plan_action_simple resolve_action_schema_cond
-  by (metis option.simps(5))
+lemma (in wf_ast_classical_problem) wf_classical_plan_action_cond:
+  assumes "a \<in> set (actions D)"
+      and "ac_name a = n"
+  shows "wf_classical_plan_action (SimplePlanAction n args) \<longleftrightarrow>
+    action_params_match (ac_head a) args"
+  using assms wf_classical_plan_action_simple resolve_classical_action_schema_cond
+  apply (cases a rule: ast_classical_action_schema_cases_unfold)
+  by force
 
 (* unnecessary? *)
-lemma wf_ground_action_alt: "wf_ground_action ga \<longleftrightarrow>
+lemma (in problem_signature) wf_ground_action_alt: "wf_ground_action ga \<longleftrightarrow>
   wf_fmla objT (precondition ga) \<and> wf_effect objT (effect ga)"
   by (cases ga; simp)
 
@@ -173,63 +255,91 @@ end
 
 subsection \<open> Further properties \<close>
 
-lemma (in wf_ast_problem) consts_objs_disj:
-  "fst ` set (consts D) \<inter> fst ` set (objects P) = {}"
-  using list.set_map wf_P(1) by auto
+lemma (in wf_problem_signature) consts_objs_disj:
+  "fst ` set consts \<inter> fst ` set objs = {}"
+  using list.set_map wf_P_sig by auto
 
-lemma (in wf_ast_problem) objm_le_objT: "map_of (objects P) \<subseteq>\<^sub>m objT"
+lemma (in wf_problem_signature) objm_le_objT: "map_of objs \<subseteq>\<^sub>m objT"
 proof -
-  have "dom constT \<inter> dom (map_of (objects P)) = {}"
+  have "dom constT \<inter> dom (map_of objs) = {}"
     using constT_def consts_objs_disj
     by (simp add: dom_map_of_conv_image_fst)
   thus ?thesis using objT_def
     by (simp add: map_add_comm map_le_iff_map_add_commute)  
 qed
 
-lemma (in ast_domain) bigand_wf:
+lemma (in domain_signature) bigand_wf:
   assumes "\<forall>\<phi> \<in> set \<phi>s. wf_fmla tyt \<phi>"
   shows "wf_fmla tyt (\<^bold>\<And> \<phi>s)"
   using assms by (induction \<phi>s; simp)
 
-lemma (in ast_domain) bigor_wf:
+lemma (in domain_signature) bigor_wf:
   assumes "\<forall>\<phi> \<in> set \<phi>s. wf_fmla tyt \<phi>"
   shows "wf_fmla tyt (\<^bold>\<Or> \<phi>s)"
   using assms by (induction \<phi>s; simp)
 
-lemma (in ast_problem) wf_wm_basic:
-  "wf_world_model M \<Longrightarrow> wm_basic M"
-  using wf_world_model_def wf_fmla_atom_alt wm_basic_def by metis
+lemma (in domain_signature) wf_fmla_atom_pred:
+  "wf_fmla_atom tyt f \<Longrightarrow> is_predAtom f"
+  apply (cases f)
+  subgoal for a
+    by (cases a) auto
+  by auto
 
-lemma (in wf_ast_problem) i_basic:
-  "wm_basic I"
-  using wf_I wf_wm_basic by simp
+lemma (in problem_signature) wf_lwm_basic:
+  "wf_world_model M \<Longrightarrow> lwm_basic (fst M)"
+  using wf_fmla_atom_pred unfolding lwm_basic_def 
+  by (cases M) auto
 
-(* could be in ast_domain but wf_atom_mono is in ast_problem *)
-lemma (in ast_problem) wf_fmla_mono:
+lemma (in problem_signature) wf_func_assign_imp_not_predAtm:
+  "wf_func_assign x \<Longrightarrow> \<not>is_predAtom x"
+  apply (cases x)
+  subgoal for a
+    apply (cases a)
+    by auto
+  by auto
+
+lemma (in wf_ast_classical_problem) wf_I:
+  "wf_world_model I" unfolding I_def
+  using wf_P wf_func_assign_imp_not_predAtm by auto
+
+lemma (in wf_ast_classical_problem) i_basic:
+  "lwm_basic (fst I)"
+  using wf_I wf_lwm_basic by blast
+
+lemma (in domain_signature) wf_fmla_mono:
   assumes "tys \<subseteq>\<^sub>m tys'" "wf_fmla tys \<phi>"
   shows "wf_fmla tys' \<phi>"
   using assms apply (induction \<phi>)
-  apply (simp add: wf_atom_mono) by simp_all
+       apply (simp add: wf_atom_mono) by simp_all
 
-(* could be in ast_domain but wf_fmla_atom_mono is in ast_problem *)
-lemma (in ast_problem) wf_eff_mono:
+find_theorems name: "wf*mono"
+
+lemma (in domain_signature) wf_numeric_effect_mono:
+  assumes "tys \<subseteq>\<^sub>m tys'" "wf_numeric_effect tys f"
+  shows "wf_numeric_effect tys' f"
+  using assms(2) apply (induction f)
+  using wf_numeric_expression_mono[OF assms(1)] wf_pne_mono[OF assms(1)]
+  by simp
+
+lemma (in domain_signature) wf_effect_mono:
   assumes "tys \<subseteq>\<^sub>m tys'" "wf_effect tys eff"
   shows "wf_effect tys' eff"
   using assms apply (cases eff)
-  using wf_fmla_atom_mono by auto
+  using wf_fmla_atom_mono[OF assms(1)] wf_numeric_effect_mono[OF assms(1)]
+  by simp
 
 text \<open> Properties of sig \<close>
 
 abbreviation "split_pred \<equiv> (\<lambda>PredDecl p n \<Rightarrow> (p, n))"
 
-lemma split_pred_alt: "split_pred p = (pred p, argTs p)"
+lemma split_pred_alt: "split_pred p = (pred p, predicate_decl.argTs p)"
   using predicate_decl.case_eq_if by auto
 
-lemma (in ast_domain) pred_resolve:
-  assumes "distinct (map pred (predicates D))"
-  shows "sig p = Some Ts \<longleftrightarrow> PredDecl p Ts \<in> set (predicates D)"
+lemma (in domain_signature) pred_resolve:
+  assumes "distinct (map pred predicates)"
+  shows "sig p = Some Ts \<longleftrightarrow> PredDecl p Ts \<in> set predicates"
 proof -
-  let ?preds = "predicates D"
+  let ?preds = "predicates"
   have "map (fst \<circ> split_pred) ?preds = map pred ?preds"
     using split_pred_alt by simp
   hence dis: "distinct (map (fst \<circ> split_pred) ?preds)"
@@ -244,21 +354,59 @@ proof -
   ultimately show ?thesis using sig_def by simp
 qed
 
-lemmas (in wf_ast_domain) sig_Some = pred_resolve[OF wf_D(2)]
+lemmas (in wf_domain_signature) sig_Some = pred_resolve[OF wf_D_sig(2)]
 
-lemma (in ast_domain) sig_None:
-    "sig p = None \<longleftrightarrow> p \<notin> pred ` set (predicates D)"
+lemma (in domain_signature) sig_None:
+    "sig p = None \<longleftrightarrow> p \<notin> pred ` set predicates"
   proof -
-    have "sig p = None \<longleftrightarrow> p \<notin> fst ` set (map split_pred (predicates D))"
+    have "sig p = None \<longleftrightarrow> p \<notin> fst ` set (map split_pred predicates)"
       using sig_def by (simp add: map_of_eq_None_iff)
-    also have "... \<longleftrightarrow> p \<notin> pred ` set (predicates D)"
+    also have "... \<longleftrightarrow> p \<notin> pred ` set predicates"
       using split_pred_alt by auto
+    ultimately show ?thesis by simp
+  qed
+
+text \<open> Properties of func_sig \<close>
+
+abbreviation "split_func \<equiv> (\<lambda>FuncDecl f n \<Rightarrow> (f, n))"
+
+lemma split_func_alt: "split_func f = (function_decl.func f, function_decl.argTs f)"
+  using function_decl.case_eq_if by auto
+
+lemma (in domain_signature) func_resolve:
+  assumes "distinct (map function_decl.func functions)"
+  shows "func_sig f = Some Ts \<longleftrightarrow> FuncDecl f Ts \<in> set functions"
+proof -
+  let ?funcs = "functions"
+  have "map (fst \<circ> split_func) ?funcs = map function_decl.func ?funcs"
+    using split_func_alt by simp
+  hence dis: "distinct (map (fst \<circ> split_func) ?funcs)"
+    using assms by metis
+
+  have "FuncDecl f Ts \<in> set ?funcs
+    \<longleftrightarrow> (f, Ts) \<in> set (map split_func ?funcs)"
+    using split_func_alt by force
+  also have "... \<longleftrightarrow> map_of (map split_func ?funcs) f = Some Ts"
+    using dis by simp
+
+  ultimately show ?thesis using func_sig_def by simp
+qed
+
+lemmas (in wf_domain_signature) func_sig_Some = func_resolve[OF wf_D_sig(4)]
+
+lemma (in domain_signature) func_sig_None:
+    "func_sig f = None \<longleftrightarrow> f \<notin> function_decl.func ` set functions"
+  proof -
+    have "func_sig f = None \<longleftrightarrow> f \<notin> fst ` set (map split_func functions)"
+      using func_sig_def by (simp add: map_of_eq_None_iff)
+    also have "... \<longleftrightarrow> f \<notin> function_decl.func ` set functions"
+      using split_func_alt by auto
     ultimately show ?thesis by simp
   qed
 
 text \<open> action parameters \<close>
 
-lemma (in ast_domain) ac_tsubst_intro:
+lemma (in -) ac_tsubst_intro:
   assumes "distinct (map fst params)" "params ! i = (v, vT)" "args ! i = n" "i < length params" "i < length args"
   shows "ac_tsubst params args (term.VAR v) = n"
 proof -
@@ -273,40 +421,52 @@ qed
 
 text \<open> (Plan) Action instantiation \<close>
 
-(* only first condition matters in wf_ast_problem. See: res_aux*)
-lemma (in ast_problem) wf_pa_refs_ac:
-  assumes "wf_plan_action (PAction n args)"
-  obtains ac where "resolve_action_schema n = Some ac" "ac \<in> set (actions D)"
-    "ac_name ac = n" "action_params_match ac args"
-  using assms apply (cases "resolve_action_schema n")
+(* only first condition matters in wf_ast_classical_problem. See: res_aux*)
+lemma (in ast_classical_problem) wf_pa_refs_ac:
+  assumes "wf_classical_plan_action (SimplePlanAction n args)"
+  obtains ac where 
+    "resolve_classical_action_schema n = Some ac" 
+    "ac \<in> set (actions D)"
+    "ac_name ac = n" 
+    "action_params_match (head ac) args"
+  using assms
+  apply (cases "resolve_classical_action_schema n")
    apply simp
-  using resolve_action_schema_def index_by_eq_SomeD by fastforce
+  subgoal for a
+    apply (cases a)
+    by (force simp: resolve_classical_action_schema_def dest: index_by_eq_SomeD)
+  done
 
-lemma (in wf_ast_domain) res_aux:
-  "resolve_action_schema n = Some ac \<longleftrightarrow>
+
+lemma (in wf_ast_classical_domain) res_aux:
+  "resolve_classical_action_schema n = Some ac \<longleftrightarrow>
      ac \<in> set (actions D) \<and> ac_name ac = n"
-  by (simp add: resolve_action_schema_def wf_D(6))
+  by (simp add: resolve_classical_action_schema_def wf_D)
 
-theorem (in wf_ast_problem) wf_resolve_instantiate:
-  assumes "wf_plan_action \<pi>"
-  shows "wf_ground_action (resolve_instantiate \<pi>)"
+
+theorem (in wf_ast_classical_problem) wf_resolve_instantiate:
+  assumes "wf_classical_plan_action \<pi>"
+  shows "wf_ground_action (the (res_inst \<pi>))"
 proof (cases \<pi>)
-  case [simp]: (PAction n args)
+  case [simp]: (SimplePlanAction n args)
   with assms obtain ac where
-    "resolve_action_schema n = Some ac" and
-    "action_params_match ac args" and
+    ac: "resolve_classical_action_schema n = Some ac" and
+    "action_params_match (head ac) args" and
     "ac \<in> set (actions D)"
     using wf_pa_refs_ac by metis
-  thus ?thesis using wf_D(7) wf_instantiate_action_schema by simp
+  thus ?thesis 
+    apply (induction ac rule: ast_classical_action_schema_induct_unfold)
+    using wf_inst_action_schema wf_D by fastforce
 qed
-
-theorem (in wf_ast_problem) wf_execute_stronger:
-    assumes "wf_plan_action \<pi>"
+(* 
+(* maybe not needed *)
+theorem (in wf_ast_classical_problem) wf_execute_stronger:
+    assumes "wf_classical_plan_action \<pi>"
     assumes "wf_world_model s"
     shows "wf_world_model (execute_plan_action \<pi> s)"
   proof (cases \<pi>)
-    case [simp]: (PAction name args)
-    from assms(1) have "wf_ground_action (resolve_instantiate \<pi>)"
+    case [simp]: (SimplePlanAction name args)
+    from assms(1) have "wf_ground_action (res_inst \<pi>)"
       using wf_resolve_instantiate by blast
     thus ?thesis
       apply (simp add: execute_plan_action_def execute_ground_action_def)
@@ -317,46 +477,46 @@ theorem (in wf_ast_problem) wf_execute_stronger:
 
 text \<open> Semantics \<close>
 
-lemma (in ast_problem) plan_action_path_append_intro:
+lemma (in ast_classical_problem) plan_action_path_append_intro:
   assumes "plan_action_path M1 \<pi>s M2 \<and> plan_action_path M2 \<mu>s M3"
   shows "plan_action_path M1 (\<pi>s @ \<mu>s) M3"
   using assms apply (induction \<pi>s arbitrary: M1)
   using plan_action_path_def apply simp
   using plan_action_path_def plan_action_path_Cons
-  by (metis append_Cons)
+  sorry
 
-lemma (in ast_problem) plan_action_path_append_elim:
+lemma (in ast_classical_problem) plan_action_path_append_elim:
   assumes "plan_action_path M1 (\<pi>s @ \<mu>s) M3"
   shows "\<exists>M2. plan_action_path M1 \<pi>s M2 \<and> plan_action_path M2 \<mu>s M3"
 using assms by (induction \<pi>s arbitrary: M1) auto
 
-lemma (in wf_ast_problem) valid_plan_from_Cons[simp]:
+lemma (in wf_ast_classical_problem) valid_plan_from_Cons[simp]:
   "valid_plan_from M (\<pi> # \<pi>s)
     \<longleftrightarrow> valid_plan_from (execute_plan_action \<pi> M) \<pi>s \<and> plan_action_enabled \<pi> M"
   using valid_plan_from_def by auto
 
-lemma (in wf_ast_problem) valid_plan_from_snoc:
+lemma (in wf_ast_classical_problem) valid_plan_from_snoc:
   "valid_plan_from M (\<pi>s @ [\<pi>])
     \<longleftrightarrow> (\<exists>M'. plan_action_path M \<pi>s M' \<and> plan_action_enabled \<pi> M' \<and>
     execute_plan_action \<pi> M' \<^sup>c\<TTurnstile>\<^sub>= goal P)"
   using valid_plan_from_def by (induction \<pi>s arbitrary: M; simp)
 
 lemma entail_adds_irrelevant:
-  assumes "wm_basic M" "wm_basic A"
+  assumes "lwm_basic M" "lwm_basic A"
           "A \<inter> Atom ` atoms \<F> = {}"
-  shows "M \<union> A \<^sup>c\<TTurnstile>\<^sub>= \<F> \<longleftrightarrow> M \<^sup>c\<TTurnstile>\<^sub>= \<F>"
+  shows "M \<union> A \<Turnstile>\<^sub>= \<F> \<longleftrightarrow> M \<Turnstile>\<^sub>= \<F>"
 proof -
   from assms(3) have "valuation (M \<union> A) \<Turnstile> \<F> \<longleftrightarrow> valuation M \<Turnstile> \<F>"
   proof (induction \<F>)
     case (Atom x)
     thus ?case unfolding valuation_def by (cases x) simp_all
   qed auto
-  moreover have "wm_basic (M \<union> A)" using assms(1-2) wm_basic_def by blast
+  moreover have "lwm_basic (M \<union> A)" using assms(1-2) lwm_basic_def by blast
   ultimately show ?thesis using assms valuation_iff_close_world by metis
 qed
 
 lemma entail_dels_irrelevant:
-  assumes "wm_basic M" "wm_basic D"
+  assumes "lwm_basic M" "lwm_basic D"
           "D \<inter> Atom ` atoms \<F> = {}"
   shows "M - D \<^sup>c\<TTurnstile>\<^sub>= \<F> \<longleftrightarrow> M \<^sup>c\<TTurnstile>\<^sub>= \<F>"
 proof -
@@ -365,9 +525,9 @@ proof -
     case (Atom x)
     thus ?case unfolding valuation_def by (cases x) simp_all
   qed auto
-  moreover have "wm_basic (M - D)" using assms(1-2) wm_basic_def by blast
+  moreover have "lwm_basic (M - D)" using assms(1-2) lwm_basic_def by blast
   ultimately show ?thesis using assms valuation_iff_close_world by metis
-qed
+qed *)
 
 subsection \<open>PDDL Instance Relationships\<close>
 
@@ -376,33 +536,70 @@ text \<open>This subsection concerns itself mostly with relationships between tw
   new instances that retain some of the previous properties.\<close>
 
 lemma co_fmla_wf:
-  assumes "\<And>a. ast_domain.wf_atom d1 tyt1 a \<Longrightarrow> ast_domain.wf_atom d2 tyt2 a"
-  shows "ast_domain.wf_fmla d1 tyt1 \<phi> \<Longrightarrow> ast_domain.wf_fmla d2 tyt2 \<phi>"
-  using assms apply (induction \<phi>)
-  using ast_domain.wf_fmla.simps apply metis+
-  done
+  assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1 tyt1 a
+            \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2 tyt2 a"
+  shows "domain_signature.wf_fmla ty1 preds1 funs1 tyt1 \<phi>
+       \<Longrightarrow> domain_signature.wf_fmla ty2 preds2 funs2 tyt2 \<phi>"
+  apply (induction \<phi>)
+  unfolding domain_signature.wf_fmla.simps
+  subgoal for x apply (induction x) 
+    by (auto intro: assms) 
+  by auto
 
 lemma co_fmla_atom_wf:
-  assumes "\<And>a. ast_domain.wf_atom d1 tyt1 a \<Longrightarrow> ast_domain.wf_atom d2 tyt2 a"
-  shows "ast_domain.wf_fmla_atom d1 tyt1 \<phi> \<Longrightarrow> ast_domain.wf_fmla_atom d2 tyt2 \<phi>"
-  using assms co_fmla_wf ast_domain.wf_fmla_atom_alt by metis
+  assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1 tyt1 a
+            \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2 tyt2 a"
+  shows "domain_signature.wf_fmla_atom ty1 preds1 tyt1 \<phi>
+       \<Longrightarrow> domain_signature.wf_fmla_atom ty2 preds2 tyt2 \<phi>"
+  apply (subst domain_signature.wf_fmla_atom_alt)
+  apply (subst (asm) domain_signature.wf_fmla_atom_alt)
+  by (auto intro: assms co_fmla_wf)
+
+lemma co_numeric_expression_wf:
+  assumes "\<And>p. domain_signature.wf_primitive_numeric_expression ty1 funs1 tyt1 p
+            \<Longrightarrow> domain_signature.wf_primitive_numeric_expression ty2 funs2 tyt2 p"
+  shows "domain_signature.wf_numeric_expression ty1 funs1 tyt1 n
+       \<Longrightarrow> domain_signature.wf_numeric_expression ty2 funs2 tyt2 n"
+  apply (induction n)
+  unfolding domain_signature.wf_numeric_expression.simps
+  by (auto intro: assms)
+
+lemma co_numeric_effect_wf:
+  assumes "\<And>p. domain_signature.wf_primitive_numeric_expression ty1 funs1 tyt1 p
+            \<Longrightarrow> domain_signature.wf_primitive_numeric_expression ty2 funs2 tyt2 p"
+  shows "domain_signature.wf_numeric_effect ty1 funs1 tyt1 ne
+       \<Longrightarrow> domain_signature.wf_numeric_effect ty2 funs2 tyt2 ne"
+  apply (induction ne)
+  unfolding domain_signature.wf_numeric_effect.simps
+  by (blast intro: assms co_numeric_expression_wf)
+  
 
 lemma co_effect_wf:
-  assumes "\<And>a. ast_domain.wf_atom d1 tyt1 a \<Longrightarrow> ast_domain.wf_atom d2 tyt2 a"
-  shows "ast_domain.wf_effect d1 tyt1 \<epsilon> \<Longrightarrow> ast_domain.wf_effect d2 tyt2 \<epsilon>"
-  using assms co_fmla_atom_wf ast_domain.wf_effect_alt by metis
+  assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1 tyt1 a
+            \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2 tyt2 a"
+      and "\<And>p. domain_signature.wf_primitive_numeric_expression ty1 funs1 tyt1 p
+            \<Longrightarrow> domain_signature.wf_primitive_numeric_expression ty2 funs2 tyt2 p"
+  shows "domain_signature.wf_effect ty1 preds1 funs1 tyt1 \<epsilon>
+       \<Longrightarrow> domain_signature.wf_effect ty2 preds2 funs2 tyt2 \<epsilon>"
+  unfolding domain_signature.wf_effect_alt list_all_iff
+  by (auto intro: assms co_fmla_atom_wf co_numeric_effect_wf)
 
 lemma co_wm_wf:
-  assumes "\<And>a. ast_domain.wf_atom (domain p1) (ast_problem.objT p1) a
-    \<Longrightarrow> ast_domain.wf_atom (domain p2) (ast_problem.objT p2) a"
-  shows "ast_problem.wf_world_model p1 m \<Longrightarrow> ast_problem.wf_world_model p2 m"
-  using assms co_fmla_atom_wf ast_problem.wf_world_model_def by metis
+  assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1
+                 (problem_signature.objT consts1 objs1) a
+            \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2
+                 (problem_signature.objT consts2 objs2) a"
+  shows "problem_signature.wf_world_model ty1 preds1 consts1 objs1 m
+       \<Longrightarrow> problem_signature.wf_world_model ty2 preds2 consts2 objs2 m"
+  apply (induction m)
+  unfolding problem_signature.wf_world_model.simps
+  by (auto intro: assms co_fmla_atom_wf)
 
 subsection \<open> Formula Preds \<close>
 
 fun fmla_preds :: "'ent atom formula \<Rightarrow> predicate set" where
   "fmla_preds (Atom (predAtm p xs)) = {p}" |
-  "fmla_preds (Atom (Eq a b)) = {}" |
+  "fmla_preds (Atom _) = {}" |
   "fmla_preds \<bottom> = {}" |
   "fmla_preds (\<^bold>\<not> \<phi>) = fmla_preds \<phi>" |
   "fmla_preds (\<phi>\<^sub>1 \<^bold>\<and> \<phi>\<^sub>2) = fmla_preds \<phi>\<^sub>1 \<union> fmla_preds \<phi>\<^sub>2" |

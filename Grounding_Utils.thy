@@ -1,4 +1,4 @@
-theory Utils
+theory Grounding_Utils
   imports Main
 begin
 
@@ -16,6 +16,10 @@ abbreviation (input) list_all1 where
   "list_all1 P xs \<equiv> \<forall>x \<in> set xs. P x"
 
 (* rule rewriting *)
+lemma conj_split_3:
+  assumes "A \<and> B \<and> C"
+  shows "A" "B" "C"
+  using assms by simp_all
 
 lemma conj_split_4:
   assumes "A \<and> B \<and> C \<and> D"
@@ -25,6 +29,11 @@ lemma conj_split_4:
 lemma conj_split_5:
   assumes "A \<and> B \<and> C \<and> D \<and> E"
   shows "A" "B" "C" "D" "E"
+  using assms by simp_all
+
+lemma conj_split_6:
+  assumes "A \<and> B \<and> C \<and> D \<and> E \<and> F"
+  shows "A" "B" "C" "D" "E" "F"
   using assms by simp_all
 
 lemma conj_split_7:
@@ -82,7 +91,7 @@ definition to_front :: "'a list \<Rightarrow> nat \<Rightarrow> 'a list" where
 lemma map_inj_distinct:
   assumes "distinct xs" "inj f"
   shows "distinct (map f xs)"
-  using assms distinct_map subset_inj_on by blast
+  using assms distinct_map inj_on_subset by blast
 
 lemma map_set_comprehension:
   "{f (xs ! i) | i. i < length xs} = set (map f xs)"
@@ -197,5 +206,6 @@ lemma (in -) set_image_minus_un:
 (* Concatenate two lists at once *)
 fun (in -) concat2 :: "('a list \<times> 'b list) list \<Rightarrow> ('a list \<times> 'b list)" where
   "concat2 xs = (concat (map fst xs), concat (map snd xs))"
+
 
 end

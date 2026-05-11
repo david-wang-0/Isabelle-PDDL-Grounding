@@ -1,6 +1,6 @@
 theory PDDL_Relaxation
-imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
-    Utils PDDL_Sema_Supplement Formula_Utils Normalization_Definitions
+imports "Classical_Planning.Classical_Abstract_Syntax"
+    Grounding_Utils PDDL_Sema_Supplement Formula_Utils Normalization_Definitions
 begin
 
 subsection \<open> Relaxation Procedure \<close>

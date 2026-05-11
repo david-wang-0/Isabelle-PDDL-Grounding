@@ -1,5 +1,5 @@
 theory STRIPS_Sema_Supplement
-  imports "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
+  imports "Classical_Planning.Classical_Happening_Semantics"
 begin
 
 locale strips =

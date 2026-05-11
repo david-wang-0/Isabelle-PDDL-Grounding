@@ -1,7 +1,6 @@
 theory PDDL_to_STRIPS
-  imports "AI_Planning_Languages_Semantics.PDDL_STRIPS_Semantics"
-    "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
-    "AI_Planning_Languages_Semantics.Option_Monad_Add"
+  imports "Classical_Planning.Classical_Abstract_Syntax"
+    "Classical_Planning.Classical_Happening_Semantics"
     PDDL_Sema_Supplement STRIPS_Sema_Supplement Normalization_Definitions
     (* list linorder: *) "HOL-Library.List_Lexorder" "HOL-Library.Char_ord" (* only used to minimize negative literals *)
 begin

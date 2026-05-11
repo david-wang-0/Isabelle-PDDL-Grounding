@@ -1,22 +1,145 @@
 theory String_Utils
-imports Main Nat_Show_Utils "HOL-Library.Sublist"
+imports Main Nat_Show_Utils "HOL-Library.Sublist" iq.iq
 begin
 
 abbreviation max_length :: "'a list list \<Rightarrow> nat" where
   "max_length xss \<equiv> Max (length ` set xss)"
 
-definition safe_prefix :: "string list \<Rightarrow> string" where
-  "safe_prefix ss \<equiv> replicate (max_length ss + 1) (CHR ''_'')"
+lemma inj_prepend: "inj ((+) (s::String.literal))"
+  apply (rule injI)
+  by (metis String.implode_explode_eq plus_literal.rep_eq same_append_eq)
 
-lemma safe_prefix_correct: "safe_prefix xs @ x \<notin> set xs"
-proof -
-  have "\<forall>s \<in> set ss. length s \<le> max_length ss" for ss :: "string list"
-    by simp
-  thus ?thesis using safe_prefix_def by fastforce
+definition safe_prefix :: "String.literal list \<Rightarrow> String.literal" where
+  "safe_prefix ss \<equiv>
+    String.implode (replicate (max_length (map literal.explode ss) + 1) (CHR ''_''))"
+
+lemma safe_prefix_explode:
+  "literal.explode (safe_prefix xs)
+     = replicate (max_length (map literal.explode xs) + 1) (CHR ''_'')"
+  unfolding safe_prefix_def
+  by (simp add: String.explode_implode_eq String.ascii_of_idem map_replicate_const)
+
+lemma safe_prefix_correct: "safe_prefix xs + x \<notin> set xs"
+proof
+  assume "safe_prefix xs + x \<in> set xs"
+  hence "length (literal.explode (safe_prefix xs + x))
+           \<le> max_length (map literal.explode xs)" by force
+  moreover have "length (literal.explode (safe_prefix xs + x))
+                   = length (literal.explode (safe_prefix xs)) + length (literal.explode x)"
+    by (simp add: plus_literal.rep_eq)
+  moreover have "length (literal.explode (safe_prefix xs))
+                   = max_length (map literal.explode xs) + 1"
+    using safe_prefix_explode by simp
+  ultimately show False by simp
 qed
 
-lemma dist_prefix: "distinct xs \<Longrightarrow> distinct (map ((@) (safe_prefix ys)) xs)"
-  by (simp add: distinct_conv_nth)
+lemma dist_prefix: "distinct xs \<Longrightarrow> distinct (map (\<lambda>x. safe_prefix ys + x) xs)"
+  by (simp add: distinct_map inj_on_def inj_prepend[unfolded inj_def])
+
+
+
+lemma implode_inj_on:
+  "inj_on String.implode {s. \<forall>n \<in> set s. \<not>digit7 n}"
+proof -
+  have 1: "String.implode x \<noteq> String.implode y" 
+    if "\<forall>n \<in> set x. \<not>digit7 n"
+    and "\<forall>n \<in> set y. \<not>digit7 n"
+    and "x \<noteq> y" for x y
+  proof (rule notI)
+    assume "String.implode x = String.implode y"
+    hence "literal.explode (String.implode x) = literal.explode (String.implode y)"
+      by presburger
+    moreover
+    have "literal.explode (String.implode x) = x" using that
+      by (simp add: String.ascii_of_idem list.map_ident_strong)
+    moreover
+    have "literal.explode (String.implode y) = y" using that
+      by (simp add: String.ascii_of_idem list.map_ident_strong)
+    ultimately show False using that by simp
+  qed
+  show ?thesis by (rule inj_onI) (use 1 in auto)
+qed
+
+function (domintros) safe_suffix'::"String.literal list \<Rightarrow> String.literal \<Rightarrow> nat \<Rightarrow> String.literal" where
+"safe_suffix' S s n = (
+  let s' = s + String.implode (show n) 
+  in if (s' \<in> set S) then safe_suffix' S s (Suc n) else s')"
+  by pat_completeness auto
+
+lemma show_no_digit7: "\<forall>c \<in> set (show (m::nat)). \<not>digit7 c"
+  using show_nat_chars[of m] by auto
+
+lemma inj_show_prepend: "inj (\<lambda>m::nat. s + String.implode (show m))"
+proof (rule injI)
+  fix x y :: nat
+  assume "s + String.implode (show x) = s + String.implode (show y)"
+  hence "String.implode (show x) = String.implode (show y)"
+    using inj_prepend by (simp add: inj_eq)
+  hence "show x = show y"
+    using show_no_digit7 implode_inj_on by (auto simp: inj_on_def)
+  thus "x = y" using show_nat_inj by blast
+qed
+
+lemma finite_show_preimage: "finite {j::nat. s + String.implode (show j) \<in> set S}"
+  using finite_inverse_image[OF finite_set[of S] inj_show_prepend] by blast
+
+lemma safe_suffix'_dom:
+  shows "safe_suffix'_dom (S, s, n)"
+proof (induction "card {m. n \<le> m \<and> s + String.implode (show m) \<in> set S}"
+                 arbitrary: n rule: less_induct)
+  case (less n)
+  let ?A = "\<lambda>k. {m::nat. k \<le> m \<and> s + String.implode (show m) \<in> set S}"
+  have sub: "?A k \<subseteq> {j::nat. s + String.implode (show j) \<in> set S}" for k by auto
+  have fin: "finite (?A k)" for k
+    using finite_show_preimage by (rule finite_subset[OF sub])
+  show ?case
+  proof (rule safe_suffix'.domintros)
+    assume H: "s + String.implode (show n) \<in> set S"
+    have eq: "?A (Suc n) = ?A n - {n}" by auto
+    have nin: "n \<in> ?A n" using H by simp
+    have "card (?A n - {n}) < card (?A n)"
+      using fin[of n] nin by (rule card_Diff1_less)
+    hence "card (?A (Suc n)) < card (?A n)" using eq by simp
+    thus "safe_suffix'_dom (S, s, Suc n)"
+      using less.hyps by blast
+  qed
+qed
+
+termination safe_suffix' using safe_suffix'_dom by simp
+
+fun safe_suffix::"String.literal list \<Rightarrow> String.literal \<Rightarrow> String.literal" where
+"safe_suffix S s = (if (s \<in> set S) then safe_suffix' S s 0 else s)"
+
+lemma safe_suffix'_correct:
+  "safe_suffix' S s n \<notin> set S"
+proof (induction "card {m. n \<le> m \<and> s + String.implode (show m) \<in> set S}"
+                 arbitrary: n rule: less_induct)
+  case (less n)
+  show ?case
+  proof (cases "s + String.implode (show n) \<in> set S")
+    case False
+    thus ?thesis by simp
+  next
+    case True
+    let ?A = "\<lambda>k. {m::nat. k \<le> m \<and> s + String.implode (show m) \<in> set S}"
+    have eq: "?A (Suc n) = ?A n - {n}" by auto
+    have sub: "?A n \<subseteq> {j::nat. s + String.implode (show j) \<in> set S}" by auto
+    have fin: "finite (?A n)"
+      using finite_show_preimage by (rule finite_subset[OF sub])
+    have nin: "n \<in> ?A n" using True by simp
+    have "card (?A n - {n}) < card (?A n)"
+      using fin nin by (rule card_Diff1_less)
+    hence "card (?A (Suc n)) < card (?A n)" using eq by simp
+    hence "safe_suffix' S s (Suc n) \<notin> set S"
+      using less.hyps by blast
+    thus ?thesis using True by simp
+  qed
+qed
+
+lemma safe_suffix_correct:
+  "safe_suffix S s \<notin> set S"
+  using safe_suffix'_correct
+  by simp
 
 
 (* padding *)
