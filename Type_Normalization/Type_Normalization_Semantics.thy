@@ -232,7 +232,7 @@ proof -
   hence "ac_name (detype_classical_ac ac) = n" by simp
   moreover have "detype_classical_ac ac \<in> set (actions D2)"
     using a by auto
-  ultimately show ?thesis using wf_D
+  ultimately show ?thesis using d2_wf.wf_D
     by (simp add: d2.resolve_classical_action_schema_def)
 qed
 
@@ -244,7 +244,7 @@ lemma (in restrict_classical_problem2) t_resinst_inv:
     "resolve_classical_action_schema n = Some ac"
 proof -
   from assms obtain ac where ac: "detype_classical_ac ac = ac2" and ac_in: "ac \<in> set (actions D)"
-    using res_aux by auto
+    using d2_wf.res_aux by auto
   hence "ac_name (detype_classical_ac ac) = n"
     using p2.resolve_classical_action_schema_def index_by_eq_SomeD assms by metis
   hence "ac_name ac = n" by simp
@@ -472,339 +472,408 @@ begin
 (* TODO clean this up, if possible *)
 theorem detyped_planaction_enabled_iff:
   assumes "wf_world_model s"
-  shows "plan_action_enabled \<pi> s \<longleftrightarrow> p2.plan_action_enabled \<pi> (s \<union> sf_substate)"
+  shows "plan_action_enabled \<pi> s \<longleftrightarrow> p2.plan_action_enabled \<pi> (fst s \<union> sf_substate, snd s)"
 proof -
-  obtain n args where pi: "\<pi> = PAction n args" by (cases \<pi>; simp)
-  let ?pi = "PAction n args"
+  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>; simp)
+  let ?pi = "SimplePlanAction n args"
 
-  from assms have s_basic: "wm_basic s" using wf_wm_basic by simp
+  have s_basic: "lwm_basic (fst s)" using wf_lwm_basic[OF assms] .
 
   {
     assume assm: "plan_action_enabled ?pi s"
-    hence wf: "wf_plan_action ?pi" and entail: "s \<^sup>c\<TTurnstile>\<^sub>= precondition (resolve_instantiate ?pi)"
-      using plan_action_enabled_def by simp_all
+    hence wf: "wf_classical_plan_action ?pi" 
+      and entail: "valuation s \<Turnstile>\<^sub>m precondition ((the o res_inst) ?pi)"
+      using plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
-    from wf obtain ac where res: "resolve_action_schema n = Some ac"
+    from wf obtain ac where res: "resolve_classical_action_schema n = Some ac"
       by fastforce
-    hence res2: "d2.resolve_action_schema n = Some (detype_classical_ac ac)"
+    hence res2: "d2.resolve_classical_action_schema n = Some (detype_classical_ac ac)"
       by (rule t_resinst)
 
     (* parameter mappings *)
-    let ?pre_map = "map_atom_fmla (ac_tsubst (parameters ac) args)"
-    let ?pre_map2 = "map_atom_fmla (ac_tsubst (parameters (detype_classical_ac ac)) args)"
-    have "map fst (parameters (detype_classical_ac ac)) = map fst (parameters ac)"
-      by (cases ac; simp add: t_ents_names)
+    let ?pre_map = "map_atom_fmla (ac_tsubst (ac_params ac) args)"
+    let ?pre_map2 = "map_atom_fmla (ac_tsubst (ac_params (detype_classical_ac ac)) args)"
+    have "map fst (ac_params (detype_classical_ac ac)) = map fst (ac_params ac)"
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
     hence premaps: "?pre_map2 = ?pre_map" using ac_tsubst_def by simp
 
-    (* "left" side: from wf_plan_action \<pi> show p2.wf_plan_action \<pi> *)
-    from wf res have match: "action_params_match ac args" by simp
-    hence "p2.action_params_match (detype_classical_ac ac) args"
+    (* "left" side: from wf_classical_plan_action \<pi> show p2.wf_classical_plan_action \<pi> *)
+    from wf res have match: "action_params_match (head ac) args" by (cases ac) simp
+    hence "p2.action_params_match (head (detype_classical_ac ac)) args"
       using t_params_match by simp
-    with res2 have wf2: "p2.wf_plan_action ?pi"
-      using p2.wf_plan_action_simple by fastforce
+    with res2 have wf2: "p2.wf_classical_plan_action ?pi" by (cases ac) simp
+
+    have wf_params: "wf_action_params ac"
+      using res restrict_D res_aux 
+      by blast
+
+    have wf_ac: "wf_classical_action_schema ac"
+      using res wf_D(3) res_aux by blast
 
     (* "middle": from action_params_match ac args show s \<union> sf_substate satisfy the param precond of the instantiated action.*)
-    from match have entail_typ: "sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (param_precond (ac_params ac))"
-      using params_match_iff_type_precond res res_aux wf_D(7) by simp
+    have entail_typ: "valuation (sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (param_precond (ac_params ac))"
+      using params_match_iff_type_precond
+      using match using wf_params wf_ac by auto
     (* Since init doesn't interfere with the type predicates,
        we can add it to sf_substate here and still satisfy them. *)
-    from assms have "s \<inter> Atom ` atoms (?pre_map (param_precond (ac_params ac))) = {}"
+    from assms have "fst s \<inter> Atom ` atoms (?pre_map (param_precond (ac_params ac))) = {}"
       using wf_wm_disj_param_pre by simp
-    with entail_typ have entail_L: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (param_precond (ac_params ac))"
-      using entail_adds_irrelevant[OF sf_basic s_basic] Un_commute by metis
+    with entail_typ have entail_L: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (param_precond (ac_params ac))"
+      using sf_basic s_basic Un_commute entail_adds_irrelevant
+      by metis
     
     (* "right" side: show s satisfies action precond \<Longrightarrow> s \<union> sf_substate satisfies instantiated action precond in P2 *)
-    have entail_pre: "s \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (ac_pre ac)"
-      using entail res instantiate_action_schema_alt by force
+    have entail_pre: "valuation s \<Turnstile>\<^sub>m ?pre_map (ac_pre ac)"
+      using entail comp_def res res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold) auto
     (* Since sf_substate doesn't interfere with the precondition,
        we can add it to init here and still satisfy it. *)
-    have "wf_classical_action_schema ac" using res wf_D(7) res_aux by simp
+    have "wf_classical_action_schema ac" using res wf_D res_aux by simp
     hence "wf_fmla (ty_term (map_of (ac_params ac)) constT) (ac_pre ac)"
-      using wf_classical_action_schema_alt by simp
+      using wf_classical_action_schema_alt ac_tyt_def by simp
     hence "sf_substate \<inter> Atom ` atoms (?pre_map (ac_pre ac)) = {}"
       using sf_disj_wf_fmla by blast
-    with entail_pre have entail_R: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (ac_pre ac)"
+    with entail_pre have entail_R: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (ac_pre ac)"
       using entail_adds_irrelevant[OF s_basic sf_basic] by simp
 
     (* putting it together *)
     from entail_L entail_R have entail_map2:
-      "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map2 ((param_precond (ac_params ac)) \<^bold>\<and> (ac_pre ac))"
+      "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map2 ((param_precond (ac_params ac)) \<^bold>\<and> (ac_pre ac))"
       using entail_and premaps by auto
-    hence entail2: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= precondition (p2.resolve_instantiate ?pi)"
-      using entail_map2 res2 by (simp add: p2.instantiate_action_schema_alt)
-    with wf2 have "p2.plan_action_enabled ?pi (s \<union> sf_substate)"
-      by (simp add: p2.plan_action_enabled_def)
+    hence entail2: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m precondition ((the o p2.res_inst) ?pi)"
+      using entail_map2 res2 p2.res_inst_alt by (cases ac rule: ast_classical_action_schema_cases_unfold) auto
+    have nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
+      using assm plan_action_enabled_def by (auto simp: Let_def)
+    have nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
+      using nintrf res res2 res_inst_alt p2.res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: numeric_effects_non_intrf_def t_ents_names)
+    with wf2 entail2 have "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
+      by (simp add: p2.plan_action_enabled_def Let_def)
   }
   moreover {
-    assume "p2.plan_action_enabled ?pi (s \<union> sf_substate)"
-    hence wf2: "p2.wf_plan_action ?pi" and entail2: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= precondition (p2.resolve_instantiate ?pi)"
-      using p2.plan_action_enabled_def by simp_all
+    assume p2en: "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
+    hence wf2: "p2.wf_classical_plan_action ?pi"
+      and entail2: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m precondition ((the o p2.res_inst) ?pi)"
+      using p2.plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
-    from wf2 obtain ac2 where res2: "p2.resolve_action_schema n = Some ac2"
+    from wf2 obtain ac2 where res2: "p2.resolve_classical_action_schema n = Some ac2"
       using p2.wf_pa_refs_ac by metis
     then obtain ac where ac[simp]: "ac2 = detype_classical_ac ac" and ac_in: "ac \<in> set (actions D)"
-      and res: "resolve_action_schema n = Some ac" by (metis t_resinst_inv)
+      and res: "resolve_classical_action_schema n = Some ac" by (metis t_resinst_inv)
 
     (* parameter mappings *)
     let ?pre_map2 = "map_atom_fmla (ac_tsubst (ac_params ac2) args)"
     let ?pre_map = "map_atom_fmla (ac_tsubst (ac_params ac) args)"
-    have t_param_names: "map fst (parameters ac) = map fst (parameters (detype_classical_ac ac))"
-      by (cases ac; simp add: t_ents_names)
+    have t_param_names: "map fst (ac_params ac) = map fst (ac_params (detype_classical_ac ac))"
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
     hence premaps: "?pre_map = ?pre_map2" using ac_tsubst_def by simp
 
     (* "right" side *)
-    have "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map2 (ac_pre ac2)"
-      using entail2 res2 instantiate_action_schema_alt by force
-    hence entail2: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (param_precond (ac_params ac)) \<^bold>\<and> ?pre_map (ac_pre ac)"
-      using premaps by force
-    hence entail_a: "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (ac_pre ac)"
-      using entail_and by blast
+    have "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map2 (ac_pre ac2)"
+      using entail2 res2 p2.res_inst_alt
+      by (cases ac2 rule: ast_classical_action_schema_cases_unfold) auto
+    hence "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (ac_pre ac2)"
+      using premaps by simp
+    moreover have "ac_pre ac2 = param_precond (ac_params ac) \<^bold>\<and> (ac_pre ac)"
+      by (cases ac rule: ast_classical_action_schema_cases_unfold) simp
+    ultimately have entail2': "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (param_precond (ac_params ac)) \<^bold>\<and> ?pre_map (ac_pre ac)"
+      by simp
+    hence entail_a: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (ac_pre ac)"
+      by simp
     (* Since sf_substate doesn't interfere with the precondition,
        we can remove it from init here and still satisfy it. *)
-    from ac_in have wf_ac: "wf_classical_action_schema ac" using wf_D(7) by simp
+    from ac_in have wf_ac: "wf_classical_action_schema ac" using wf_D(3) by simp
     hence "wf_fmla (ty_term (map_of (ac_params ac)) constT) (ac_pre ac)"
-      using wf_classical_action_schema_alt by simp
+      using wf_classical_action_schema_alt ac_tyt_def by simp
     hence "sf_substate \<inter> Atom ` atoms (?pre_map (ac_pre ac)) = {}"
       using sf_disj_wf_fmla by simp
-    with entail_a have "s \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (ac_pre ac)"
+    with entail_a have entail_s: "valuation s \<Turnstile>\<^sub>m ?pre_map (ac_pre ac)"
       using entail_adds_irrelevant[OF s_basic sf_basic] by simp
-    hence entail: "s \<^sup>c\<TTurnstile>\<^sub>= precondition (resolve_instantiate ?pi)"
-      using res instantiate_action_schema_alt by simp
+    hence entail: "valuation s \<Turnstile>\<^sub>m precondition ((the o res_inst) ?pi)"
+      using res res_inst_alt by (cases ac rule: ast_classical_action_schema_cases_unfold) auto
 
     (* "middle" *)
-    from wf2 res2 have match2: "p2.action_params_match ac2 args" by simp
+    from wf2 res2 have match2: "p2.action_params_match (head ac2) args"
+      by (cases ac2) simp
     (* Since init doesn't interfere with the type predicates,
        we can remove it from i2 here and still satisfy them. *)
-    have "\<forall>\<phi> \<in> s. wf_fmla_atom objT \<phi>"
-      using assms wf_fmla_atom_alt wf_world_model_def by simp
-    from assms have "s \<inter> Atom ` atoms (?pre_map (param_precond (ac_params ac))) = {}"
+    from assms have "fst s \<inter> Atom ` atoms (?pre_map (param_precond (ac_params ac))) = {}"
       using wf_wm_disj_param_pre by simp
-    moreover from entail2 have "s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (param_precond (ac_params ac))"
-      using entailment_def entail_and by blast
-    ultimately have entail_typ: "sf_substate \<^sup>c\<TTurnstile>\<^sub>= ?pre_map (param_precond (ac_params ac))"
+    moreover from entail2' have "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (param_precond (ac_params ac))"
+      by simp
+    ultimately have entail_typ: "valuation (sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (param_precond (ac_params ac))"
       using entail_adds_irrelevant[OF sf_basic s_basic] by (simp add: Set.Un_commute)
 
     (* "left" side *)
-    hence "length (ac_params ac2) = length args"
-      using match2 p2.action_params_match_def by (simp add: list_all2_lengthD)
-    moreover have "length (ac_params ac) = length (ac_params (detype_classical_ac ac))"
-      using t_param_names map_eq_imp_length_eq by blast (*weird way to prove this*)
-    ultimately have "length (ac_params ac) = length args"
-      using detype_ents_def by simp
-    hence "action_params_match ac args"
-      using params_match_iff_type_precond[OF wf_ac] entail_typ by simp
-    with res have wf: "wf_plan_action ?pi" using wf_plan_action_simple by fastforce
+    have wf_params: "wf_action_params ac"
+      using res restrict_D res_aux by blast
+    have len: "length (ac_params ac) = length args"
+      using match2 p2.action_params_match_def t_param_names
+      by (cases ac2) (auto simp: list_all2_lengthD detype_ents_def)
+    hence match: "action_params_match (ac_head ac) args"
+      using params_match_iff_type_precond[OF wf_ac wf_params] entail_typ by metis
+    with res have wf: "wf_classical_plan_action ?pi"
+      by (cases ac) simp
 
-    from entail wf have "plan_action_enabled ?pi s"
-      by (simp add: plan_action_enabled_def)
+    have nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
+      using p2en p2.plan_action_enabled_def by (auto simp: Let_def)
+    have nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
+      using nintrf2 res res2 res_inst_alt p2.res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: numeric_effects_non_intrf_def t_ents_names)
+
+    from entail wf nintrf have "plan_action_enabled ?pi s"
+      by (simp add: plan_action_enabled_def Let_def)
   }
   ultimately show ?thesis using pi by auto
 qed
 
-abbreviation "states_match s s' \<equiv> wf_world_model s \<and> s \<union> sf_substate = s'"
+abbreviation "logical_states_match s s' \<equiv> wf_world_model s \<and> fst s \<union> sf_substate = fst s'"
 
 lemma match_state_step:
-  assumes "states_match s s'" "execute_plan_action \<pi> s = t" "wf_plan_action \<pi>"
-  shows "states_match t (p2.execute_plan_action \<pi> s')"
+  assumes "logical_states_match s s'" "execute_plan_action \<pi> s = t" "wf_classical_plan_action \<pi>"
+  shows "logical_states_match t (p2.execute_plan_action \<pi> s')"
 proof -
-  obtain n args where pi: "\<pi> = PAction n args" by (cases \<pi>) simp
-  then obtain ac where res: "resolve_action_schema n = Some ac"
-    using assms(3) plan_action_enabled_def by fastforce
-  hence 1: "effect (resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac)"
-    using pi instantiate_action_schema_alt by simp
+  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>) simp
+  let ?a = "(the o res_inst) \<pi>"
+  let ?a2 = "(the o p2.res_inst) \<pi>"
 
-  from pi obtain ac2 where res2: "p2.resolve_action_schema n = Some ac2" and t_ac: "ac2 = detype_classical_ac ac"
-    using res t_resinst by simp
-  hence 2: "effect (p2.resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac2) args) (ac_eff ac2)"
-    using pi instantiate_action_schema_alt by simp
+  from assms(3) have wfa: "wf_ground_action ?a"
+    using wf_resolve_instantiate by simp
+  hence wf_eff: "wf_effect objT (ground_action.effect ?a)"
+    using wf_ground_action_alt by simp
 
-  from t_ac have "map fst (ac_params ac) = map fst (ac_params ac2)"
-    by (simp add: t_ents_names)
-  moreover from t_ac have "ac_eff ac = ac_eff ac2" by simp
-  ultimately have effeq: "effect (resolve_instantiate \<pi>) = effect (p2.resolve_instantiate \<pi>)"
-    using ac_tsubst_def 1 2 by force
+  from assms(3) obtain ac where res: "resolve_classical_action_schema n = Some ac"
+    and ac_in: "ac \<in> set (actions D)"
+    using wf_pa_refs_ac pi by metis
+  from res have res2: "p2.resolve_classical_action_schema n = Some (detype_classical_ac ac)"
+    by (rule t_resinst)
 
-  note wf_resolve_instantiate[OF assms(3)]
-  hence "wf_effect objT (effect (resolve_instantiate \<pi>))"
-    by (simp add: wf_ground_action_alt)
-  with sf_disj_wf_eff[OF this, where f = id] have
-    "sf_substate \<inter> set (adds (effect (resolve_instantiate \<pi>))) = {}"
-    "sf_substate \<inter> set (dels (effect (resolve_instantiate \<pi>))) = {}"
-    by (simp_all add: ast_effect.map_id)
+  have a_eq: "?a = instantiate_classical_action_schema ac args"
+    using pi res res_inst_alt by simp
+  have a2_eq: "?a2 = instantiate_classical_action_schema (detype_classical_ac ac) args"
+    using pi res2 p2.res_inst_alt by simp
 
-  hence "apply_effect (effect (resolve_instantiate \<pi>)) (s \<union> sf_substate) =
-    apply_effect (effect (resolve_instantiate \<pi>)) s \<union> sf_substate"
-    using 1 apply_effect_alt sf_disj_wf_wm by auto
-  hence "p2.execute_plan_action \<pi> s' = execute_plan_action \<pi> s \<union> sf_substate"
-    using effeq execute_plan_action_def
-    using p2.execute_plan_action_def assms(1) by simp
-  moreover have "wf_world_model (execute_plan_action \<pi> s)" using wf_execute_stronger assms by auto
-  ultimately show ?thesis using assms(2) by simp
+  have eff_eq: "ground_action.effect ?a = ground_action.effect ?a2"
+  proof -
+    have "map fst (ac_params ac) = map fst (ac_params (detype_classical_ac ac))"
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
+    moreover have "ac_eff ac = ac_eff (detype_classical_ac ac)" by simp
+    ultimately show ?thesis
+      unfolding a_eq a2_eq
+      by (cases ac rule: ast_classical_action_schema_cases_unfold) (simp add: ac_tsubst_def)
+  qed
+
+  have t_eq: "t = (fst s - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a)),
+                  action_numeric_update_function ?a (snd s))"
+    using assms(2) execute_plan_action_def apply_ground_action_alt
+    by (cases s) auto
+  have p2t_eq: "p2.execute_plan_action \<pi> s' =
+    (fst s' - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a)),
+     action_numeric_update_function ?a2 (snd s'))"
+    using p2.execute_plan_action_def apply_ground_action_alt eff_eq
+    by (cases s') auto
+
+  have sf_disj_dels: "sf_substate \<inter> set (dels (ground_action.effect ?a)) = {}"
+    using sf_disj_wf_eff(2)[OF wf_eff, where f=id]
+    by (simp add: ast_effect.map_id)
+  have sf_disj_adds: "sf_substate \<inter> set (adds (ground_action.effect ?a)) = {}"
+    using sf_disj_wf_eff(1)[OF wf_eff, where f=id]
+    by (simp add: ast_effect.map_id)
+
+  have "fst t \<union> sf_substate = fst (p2.execute_plan_action \<pi> s')"
+  proof -
+    have "fst t \<union> sf_substate
+      = (fst s - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a))) \<union> sf_substate"
+      using t_eq by simp
+    also have "... = (fst s \<union> sf_substate) - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a))"
+      using sf_disj_dels sf_disj_adds by blast
+    also have "... = fst s' - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a))"
+      using assms(1) by simp
+    also have "... = fst (p2.execute_plan_action \<pi> s')" using p2t_eq by simp
+    finally show ?thesis .
+  qed
+  moreover have "wf_world_model t"
+    using assms wf_execute_stronger by blast
+  ultimately show ?thesis by simp
 qed
 
+abbreviation "numeric_states_match s s' \<equiv> snd s = snd s'"
+
 lemma goal_sem:
-  assumes "wm_basic s"
-  shows "s \<^sup>c\<TTurnstile>\<^sub>= goal P \<longleftrightarrow> s \<union> sf_substate \<^sup>c\<TTurnstile>\<^sub>= goal P2"
+  assumes "lwm_basic (fst s)"
+  shows "valuation s \<Turnstile>\<^sub>m goal P \<longleftrightarrow> valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m goal P2"
 proof -  
-  have 1: "s \<^sup>c\<TTurnstile>\<^sub>= goal P \<longleftrightarrow> s \<^sup>c\<TTurnstile>\<^sub>= goal P2" by simp
+  have 1: "valuation s \<Turnstile>\<^sub>m goal P \<longleftrightarrow> valuation s \<Turnstile>\<^sub>m goal P2" by simp
   have c3: "sf_substate \<inter> Atom ` atoms (goal P2) = {}"
     using detype_classical_prob_sel(4) fmla_map_id sf_disj_wf_fmla[where f = id] wf_P(5) by metis
   note entail_adds_irrelevant[OF assms sf_basic c3]
   with 1 show ?thesis by simp
 qed
+
 lemma match_goal:
-  assumes "states_match s s'"
-  shows "s \<^sup>c\<TTurnstile>\<^sub>= goal P \<longleftrightarrow> s' \<^sup>c\<TTurnstile>\<^sub>= goal P2"
-  using assms goal_sem wf_wm_basic by simp
+  assumes "logical_states_match s s'"
+      and "numeric_states_match s s'"
+  shows "valuation s \<Turnstile>\<^sub>m goal P \<longleftrightarrow> valuation s' \<Turnstile>\<^sub>m goal P2"
+  using assms wf_lwm_basic[THEN goal_sem] by auto
 
 lemma match_valid_classical_plan_from2:
-  assumes "states_match s s'" "valid_classical_plan_from2 s \<pi>s"
+  assumes "logical_states_match s s'"
+      and "numeric_states_match s s'"
+      and "valid_classical_plan_from2 s \<pi>s"
   shows "p2.valid_classical_plan_from2 s' \<pi>s"
 using assms proof (induction \<pi>s arbitrary: s s')
   case Nil
-  hence "s \<^sup>c\<TTurnstile>\<^sub>= goal P"
-    using valid_classical_plan_from2_def by simp
-  hence "s' \<^sup>c\<TTurnstile>\<^sub>= goal P2" using assms match_goal Nil.prems by simp
-  thus ?case using p2.valid_classical_plan_from2_def by auto
+  hence "valuation s \<Turnstile>\<^sub>m goal P" by simp
+  hence "valuation s' \<Turnstile>\<^sub>m goal P2" using Nil match_goal by simp
+  thus ?case by simp
 next
   case (Cons p ps)
   let ?t = "execute_plan_action p s"
   let ?t' = "p2.execute_plan_action p s'"
   from Cons have enab1: "plan_action_enabled p s" and valid1: "valid_classical_plan_from2 ?t ps"
-    using valid_classical_plan_from2_def plan_action_path_Cons by auto
-  from enab1 have enab2: "p2.plan_action_enabled p s'"
-    using detyped_planaction_enabled_iff assms(1) Cons.prems by simp
-  
-  have "states_match ?t ?t'"
-    using assms(1) enab1 Cons.prems match_state_step plan_action_enabled_def
-    by blast
-
-  hence "p2.valid_classical_plan_from2 ?t' ps"
-    using Cons.IH[OF _ valid1] by simp
-  with enab2 show ?case using p2.valid_classical_plan_from2_def plan_action_path_Cons by simp
+    by simp_all
+  from enab1 Cons.prems have enab2: "p2.plan_action_enabled p s'"
+    using detyped_planaction_enabled_iff by simp
+  from enab1 have wf_pa: "wf_classical_plan_action p"
+    using plan_action_enabled_def by (simp add: Let_def)
+  from Cons.prems wf_pa have logmatch': "logical_states_match ?t ?t'"
+    using match_state_step by blast
+  have nummatch': "numeric_states_match ?t ?t'"
+  proof -
+    obtain n args where pi: "p = SimplePlanAction n args" by (cases p) simp
+    from wf_pa obtain ac where res: "resolve_classical_action_schema n = Some ac"
+      using wf_pa_refs_ac pi by metis
+    from res have res2: "p2.resolve_classical_action_schema n = Some (detype_classical_ac ac)"
+      by (rule t_resinst)
+    have a_eq: "(the o res_inst) p = instantiate_classical_action_schema ac args"
+      using pi res res_inst_alt by simp
+    have a2_eq: "(the o p2.res_inst) p = instantiate_classical_action_schema (detype_classical_ac ac) args"
+      using pi res2 p2.res_inst_alt by simp
+    have eff_eq: "ground_action.effect ((the o res_inst) p) = ground_action.effect ((the o p2.res_inst) p)"
+    proof -
+      have "map fst (ac_params ac) = map fst (ac_params (detype_classical_ac ac))"
+        by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
+      moreover have "ac_eff ac = ac_eff (detype_classical_ac ac)" by simp
+      ultimately show ?thesis
+        unfolding a_eq a2_eq
+        by (cases ac rule: ast_classical_action_schema_cases_unfold) (simp add: ac_tsubst_def)
+    qed
+    have "snd ?t = action_numeric_update_function ((the o res_inst) p) (snd s)"
+      using execute_plan_action_def apply_ground_action_alt by (cases s) auto
+    also have "... = action_numeric_update_function ((the o p2.res_inst) p) (snd s')"
+      using eff_eq Cons.prems(2) action_numeric_update_function_def by simp
+    also have "... = snd ?t'"
+      using p2.execute_plan_action_def apply_ground_action_alt by (cases s') auto
+    finally show ?thesis .
+  qed
+  from logmatch' nummatch' valid1 have "p2.valid_classical_plan_from2 ?t' ps"
+    using Cons.IH by simp
+  with enab2 show ?case by simp
 qed
 
 lemma inits_match:
-  shows "states_match I p2.I" using wf_I by auto
+  shows "logical_states_match I p2.I"
+  using wf_I p2_I_eq by (metis fst_conv Un_commute)
+
+lemma inits_num_match:
+  shows "numeric_states_match I p2.I"
+  using p2_I_eq by simp
 
 lemma match_valid_classical_plan:
-  assumes "valid_classical_plan \<pi>s" shows "p2.valid_classical_plan \<pi>s"
-  using assms unfolding ast_classical_problem.valid_classical_plan_def
-  using match_valid_classical_plan_from2 inits_match by blast
+  assumes "valid_classical_plan2 \<pi>s" shows "p2.valid_classical_plan2 \<pi>s"
+  using assms unfolding valid_classical_plan2_def p2.valid_classical_plan2_def
+  using match_valid_classical_plan_from2 inits_match inits_num_match by presburger
 
-text \<open>Proving: p2.valid_classical_plan \<pi>s \<Longrightarrow> valid_classical_plan \<pi>s \<close>
+text \<open>Proving: p2.valid_classical_plan2 \<pi>s \<Longrightarrow> valid_classical_plan2 \<pi>s\<close>
 
-
-abbreviation reachable_prop :: "world_model \<Rightarrow> bool" where
-  "reachable_prop s' \<equiv> \<exists>s. states_match s s'"
-abbreviation (input) "RP \<equiv> reachable_prop"
-
-lemma rp_props:
-  assumes "RP M"
-  shows
-    "p2.wf_world_model M"
-    "\<forall>x t. type_atom x t \<in> M \<longleftrightarrow> type_atom x t \<in> sf_substate"
-    "wf_world_model (M - sf_substate)"
-proof -
-  from assms show "p2.wf_world_model M" using t_wm_wf
-    using p2.wf_world_model_def super_facts_wf by auto
-  (* if problem: super_facts_wf might need wf_wm_def *)
-  from assms show "\<forall>x t. type_atom x t \<in> M \<longleftrightarrow> type_atom x t \<in> sf_substate"
-    using wf_wm_no_typeatms by force
-  from assms obtain s where "states_match s M" by blast
-  thus "wf_world_model (M - sf_substate)"
-    using wf_world_model_def by auto
-qed
-
-lemma rp_init: "RP p2.I"
-proof -
-  have "p2.I = I \<union> sf_substate" by auto
-  thus ?thesis using wf_P(4) by auto
-qed
-
-lemma rp_sf: "RP (sf_substate)"
-  using wf_world_model_def by auto
-
-lemma rp_enabled_iff:
-  assumes "RP M"
-  shows "plan_action_enabled \<pi> (M - sf_substate) \<longleftrightarrow> p2.plan_action_enabled \<pi> M"
-  using assms detyped_planaction_enabled_iff rp_props by auto
-
-(* TODO: lots of duplication from match_state_step*)
 lemma match_state_step':
-  assumes "states_match s s'" "p2.execute_plan_action \<pi> s' = t'" "p2.plan_action_enabled \<pi> s'"
-  shows "states_match (execute_plan_action \<pi> s) t'"
+  assumes logmatch: "logical_states_match s s'"
+      and nummatch: "numeric_states_match s s'"
+      and p2en: "p2.plan_action_enabled \<pi> s'"
+  shows "logical_states_match (execute_plan_action \<pi> s) (p2.execute_plan_action \<pi> s')"
+    and "numeric_states_match (execute_plan_action \<pi> s) (p2.execute_plan_action \<pi> s')"
 proof -
-  obtain n args where pi: "\<pi> = PAction n args" by (cases \<pi>) simp
-  then obtain ac' where res': "p2.resolve_action_schema n = Some ac'"
-    using assms(3) p2.plan_action_enabled_def by fastforce
-  then obtain ac where res: "resolve_action_schema n = Some ac" and t_ac: "detype_classical_ac ac = ac'"
-    using t_resinst_inv by metis
-  hence 1: "effect (resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac)"
-    using pi instantiate_action_schema_alt by simp
-  from res' have 2: "effect (p2.resolve_instantiate \<pi>) = map_ast_effect (ac_tsubst (ac_params ac') args) (ac_eff ac')"
-    using pi instantiate_action_schema_alt by simp
+  from logmatch nummatch have s'_eq: "s' = (fst s \<union> sf_substate, snd s)"
+    by (cases s'; cases s) simp
+  with p2en have p2en': "p2.plan_action_enabled \<pi> (fst s \<union> sf_substate, snd s)" by simp
+  from logmatch have wfs: "wf_world_model s" by simp
+  from wfs p2en' have en: "plan_action_enabled \<pi> s"
+    using detyped_planaction_enabled_iff by simp
+  hence wf_pa: "wf_classical_plan_action \<pi>"
+    using plan_action_enabled_def by (simp add: Let_def)
 
-  from t_ac have "map fst (ac_params ac) = map fst (ac_params ac')"
-    using t_ents_names detype_classical_ac_sel by metis
-  moreover from t_ac have "ac_eff ac = ac_eff ac'" by auto
-  ultimately have effeq: "effect (resolve_instantiate \<pi>) = effect (p2.resolve_instantiate \<pi>)"
-    using ac_tsubst_def 1 2 by force
+  from logmatch wf_pa
+  show logmatch': "logical_states_match (execute_plan_action \<pi> s) (p2.execute_plan_action \<pi> s')"
+    using match_state_step by blast
 
-  from assms(1,3) have wf: "wf_plan_action \<pi>"
-    using detyped_planaction_enabled_iff plan_action_enabled_def by auto
-  hence "wf_ground_action (resolve_instantiate \<pi>)"
-    using wf_resolve_instantiate by simp
-  hence "wf_effect objT (effect (resolve_instantiate \<pi>))"
-    by (simp add: wf_ground_action_alt)
-  with sf_disj_wf_eff[OF this, where f = id] have
-    "sf_substate \<inter> set (adds (effect (resolve_instantiate \<pi>))) = {}"
-    "sf_substate \<inter> set (dels (effect (resolve_instantiate \<pi>))) = {}"
-    by (simp_all add: ast_effect.map_id)
-
-  hence "apply_effect (effect (resolve_instantiate \<pi>)) (s \<union> sf_substate) =
-    apply_effect (effect (resolve_instantiate \<pi>)) s \<union> sf_substate"
-    using 1 apply_effect_alt sf_disj_wf_wm by auto
-  hence "p2.execute_plan_action \<pi> s' = execute_plan_action \<pi> s \<union> sf_substate"
-    using effeq execute_plan_action_def
-    using p2.execute_plan_action_def assms(1) by simp
-  moreover have "wf_world_model (execute_plan_action \<pi> s)"
-    using wf_execute_stronger wf assms(1) by auto
-  ultimately show ?thesis using assms(2) by simp
+  show "numeric_states_match (execute_plan_action \<pi> s) (p2.execute_plan_action \<pi> s')"
+  proof -
+    obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>) simp
+    from wf_pa obtain ac where res: "resolve_classical_action_schema n = Some ac"
+      using wf_pa_refs_ac pi by metis
+    from res have res2: "p2.resolve_classical_action_schema n = Some (detype_classical_ac ac)"
+      by (rule t_resinst)
+    have a_eq: "(the o res_inst) \<pi> = instantiate_classical_action_schema ac args"
+      using pi res res_inst_alt by simp
+    have a2_eq: "(the o p2.res_inst) \<pi> = instantiate_classical_action_schema (detype_classical_ac ac) args"
+      using pi res2 p2.res_inst_alt by simp
+    have eff_eq: "ground_action.effect ((the o res_inst) \<pi>) = ground_action.effect ((the o p2.res_inst) \<pi>)"
+    proof -
+      have "map fst (ac_params ac) = map fst (ac_params (detype_classical_ac ac))"
+        by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
+      moreover have "ac_eff ac = ac_eff (detype_classical_ac ac)" by simp
+      ultimately show ?thesis
+        unfolding a_eq a2_eq
+        by (cases ac rule: ast_classical_action_schema_cases_unfold) (simp add: ac_tsubst_def)
+    qed
+    have "snd (execute_plan_action \<pi> s) = action_numeric_update_function ((the o res_inst) \<pi>) (snd s)"
+      using execute_plan_action_def apply_ground_action_alt by (cases s) auto
+    also have "... = action_numeric_update_function ((the o p2.res_inst) \<pi>) (snd s')"
+      using eff_eq nummatch action_numeric_update_function_def by simp
+    also have "... = snd (p2.execute_plan_action \<pi> s')"
+      using p2.execute_plan_action_def apply_ground_action_alt by (cases s') auto
+    finally show ?thesis .
+  qed
 qed
 
 lemma match_valid_classical_plan_from2':
-  assumes "states_match s s'" "p2.valid_classical_plan_from2 s' \<pi>s"
+  assumes "logical_states_match s s'"
+      and "numeric_states_match s s'"
+      and "p2.valid_classical_plan_from2 s' \<pi>s"
   shows "valid_classical_plan_from2 s \<pi>s"
 using assms proof (induction \<pi>s arbitrary: s s')
   case Nil
-  hence "s' \<^sup>c\<TTurnstile>\<^sub>= goal P2"
-    using p2.valid_classical_plan_from2_def by simp
-  hence "s \<^sup>c\<TTurnstile>\<^sub>= goal P" using assms match_goal Nil.prems by simp
-  thus ?case using valid_classical_plan_from2_def by auto
+  hence "valuation s' \<Turnstile>\<^sub>m goal P2" by simp
+  hence "valuation s \<Turnstile>\<^sub>m goal P" using Nil match_goal by simp
+  thus ?case by simp
 next
   case (Cons p ps)
   let ?t = "execute_plan_action p s"
   let ?t' = "p2.execute_plan_action p s'"
   from Cons have enab2: "p2.plan_action_enabled p s'" and valid2: "p2.valid_classical_plan_from2 ?t' ps"
-    using p2.valid_classical_plan_from2_def p2.plan_action_path_Cons by simp_all
-  from enab2 have enab1: "plan_action_enabled p s"
-    using detyped_planaction_enabled_iff assms(1) Cons.prems by simp
-  
-  have "states_match ?t ?t'"
-    using assms(1) enab2 match_state_step' Cons.prems by blast
-  hence "valid_classical_plan_from2 ?t ps"
-    using Cons.IH[OF _ valid2] by simp
-  with enab1 show ?case using valid_classical_plan_from2_def plan_action_path_Cons by simp
+    by simp_all
+  from Cons.prems(1,2) enab2 have logmatch': "logical_states_match ?t ?t'"
+    and nummatch': "numeric_states_match ?t ?t'"
+    using match_state_step' by blast+
+  from Cons.prems(1,2) have s'_eq: "s' = (fst s \<union> sf_substate, snd s)"
+    by (cases s'; cases s) simp
+  with enab2 have "p2.plan_action_enabled p (fst s \<union> sf_substate, snd s)" by simp
+  with Cons.prems(1) have enab1: "plan_action_enabled p s"
+    using detyped_planaction_enabled_iff by simp
+  from logmatch' nummatch' valid2 have "valid_classical_plan_from2 ?t ps"
+    using Cons.IH by blast
+  with enab1 show ?case by simp
 qed
 
 lemma match_valid_classical_plan':
   assumes "p2.valid_classical_plan2 \<pi>s"
   shows "valid_classical_plan2 \<pi>s"
-  using assms unfolding valid_classical_plan2_def
-  using match_valid_classical_plan_from2' inits_match by blast
+  using assms unfolding valid_classical_plan2_def p2.valid_classical_plan2_def
+  using match_valid_classical_plan_from2' inits_match inits_num_match by blast
 
 (* putting it together: *)
 
@@ -817,21 +886,21 @@ end
 subsection \<open> Code Setup \<close>
 
 lemmas type_norm_code =
-  ast_classical_domain.wf_action_params_def
+  domain_signature.wf_action_params_def
   ast_classical_domain.restrict_dom_def
-  ast_classical_domain.pred_for_type_def
-  ast_classical_domain.type_pred.simps
-  ast_classical_domain.type_preds_def
-  ast_classical_domain.type_atom.simps
-  ast_classical_domain.type_precond.simps
-  ast_classical_domain.param_precond_def
-  ast_classical_domain.detype_classical_ac.simps
+  domain_signature.pred_for_type_def
+  domain_signature.type_pred.simps
+  domain_signature.type_preds_def
+  domain_signature.type_atom.simps
+  domain_signature.type_precond.simps
+  domain_signature.param_precond_def
+  domain_signature.detype_classical_ac.simps
   ast_classical_domain.detype_classical_dom_def
-  ast_classical_domain.supertype_facts_for.simps
-  ast_classical_domain.supertype_facts_def
+  domain_signature.supertype_facts_for.simps
+  domain_signature.supertype_facts_def
   ast_classical_problem.detype_classical_prob_def
-  ast_classical_domain.typeless_dom_def
-  ast_classical_problem.typeless_prob_def
+  ast_classical_domain.typeless_classical_domain_def
+  ast_classical_problem.typeless_classical_problem_def
 declare type_norm_code[code]
 
 

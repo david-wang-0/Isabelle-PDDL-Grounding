@@ -89,10 +89,11 @@ lemma apply_ground_action_alt:
 (* These two are useful to adapt to new semantics *)
 context ast_classical_problem
 begin
-lemma (in wf_ast_classical_problem) valid_classical_plan2_alt: "valid_classical_plan2 \<pi> \<longleftrightarrow>
-  (wf_classical_plan \<pi> \<and> (\<exists>M'. valid_classical_plan I (map (the o res_inst) \<pi>) M' \<and> valuation M' \<Turnstile>\<^sub>m goal P))"
-  unfolding valid_classical_plan2_def valid_classical_plan_from2_def classical_plan_happ_path_def
-  using ind_classical_plan_def by simp
+lemma classical_plan_happ_path_alt: 
+  "classical_plan_happ_path M \<pi> M' \<longleftrightarrow>
+  valid_classical_plan M (map (the o res_inst) \<pi>) M'"
+  using classical_plan_happ_path_def ind_classical_plan_def by simp
+
 
 definition "plan_action_enabled a M \<equiv> 
 let 
@@ -110,19 +111,58 @@ fun valid_classical_plan_alt where
 \<and> valid_classical_plan_alt (execute_plan_action a M) as M'
 )"
 
-lemma (in wf_ast_classical_problem) valid_classical_plan_alt_correct:
-  "(wf_classical_plan \<pi> \<and> classical_plan_happ_path M \<pi> M') = valid_classical_plan_alt M \<pi> M'"
-proof (induction \<pi>)
+lemma valid_classical_plan_alt_correct:
+  "valid_classical_plan_alt M \<pi> M' = (wf_classical_plan \<pi> \<and> classical_plan_happ_path M \<pi> M')"
+proof (induction \<pi> arbitrary: M)
   case Nil
   then show ?case by (simp add: Let_def plan_action_enabled_def execute_plan_action_def 
         classical_plan_happ_path_def wf_classical_plan_def ind_classical_plan_def)
 next
-  case (Cons a \<pi>)
-  then show ?case sorry
+  case (Cons a as)
+  have "valid_classical_plan_alt M (a # as) M' = 
+    (let a' = (the o res_inst) a 
+    in wf_classical_plan (a#as) 
+    \<and> classical_plan_happ_path (apply_ground_actions [a'] M) as M'
+    \<and> numeric_effects_non_intrf a' 
+    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a')" 
+    by (auto simp: Let_def Cons.IH
+        wf_classical_plan_def execute_plan_action_def plan_action_enabled_def)
+  also have "... = (wf_classical_plan (a#as) \<and> 
+    (let a' = (the o res_inst) a 
+    in classical_plan_happ_path (apply_ground_actions [a'] M) as M'
+    \<and> numeric_effects_non_intrf a' 
+    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a'))" by (simp add: Let_def)
+  also have "... = (wf_classical_plan (a#as) \<and> classical_plan_happ_path M (a#as) M')"
+    unfolding classical_plan_happ_path_alt 
+    by (auto simp: Let_def classical_plan_happ_path_alt)
+  finally show ?case by simp
+  (* show ?case by (auto simp: Let_def Cons.IH
+          wf_classical_plan_def execute_plan_action_def plan_action_enabled_def
+          classical_plan_happ_path_alt) *)
 qed
-  subgoal 
-  subgoal for a as apply (auto simp: Let_def plan_action_enabled_def execute_plan_action_def 
-        classical_plan_happ_path_def wf_classical_plan_def ind_classical_plan_def)
+
+lemma valid_classical_plan_from2_alt:
+  "valid_classical_plan_from2 M \<pi> \<longleftrightarrow>
+    (\<exists>M'. valid_classical_plan_alt M \<pi> M' \<and> valuation M' \<Turnstile>\<^sub>m goal P)"
+  unfolding valid_classical_plan_from2_def
+  using valid_classical_plan_alt_correct
+  by presburger
+
+lemma valid_classical_plan_from2_Nil[simp]:
+  "valid_classical_plan_from2 M [] \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m goal P"
+  by (simp add: valid_classical_plan_from2_alt)
+
+lemma valid_classical_plan_from2_Cons[simp]:
+  "valid_classical_plan_from2 M (a # as) \<longleftrightarrow>
+    plan_action_enabled a M \<and> valid_classical_plan_from2 (execute_plan_action a M) as"
+  by (auto simp: valid_classical_plan_from2_alt)
+
+lemma valid_classical_plan2_alt:
+  "valid_classical_plan2 \<pi> \<longleftrightarrow>
+    (\<exists>M'. valid_classical_plan_alt I \<pi> M' \<and> valuation M' \<Turnstile>\<^sub>m goal P)"
+  unfolding valid_classical_plan2_def
+  by (rule valid_classical_plan_from2_alt)
+
 end
 
 context domain_signature 
@@ -458,22 +498,31 @@ proof (cases \<pi>)
     apply (induction ac rule: ast_classical_action_schema_induct_unfold)
     using wf_inst_action_schema wf_D by fastforce
 qed
-(* 
-(* maybe not needed *)
+
 theorem (in wf_ast_classical_problem) wf_execute_stronger:
-    assumes "wf_classical_plan_action \<pi>"
-    assumes "wf_world_model s"
-    shows "wf_world_model (execute_plan_action \<pi> s)"
-  proof (cases \<pi>)
-    case [simp]: (SimplePlanAction name args)
-    from assms(1) have "wf_ground_action (res_inst \<pi>)"
-      using wf_resolve_instantiate by blast
-    thus ?thesis
-      apply (simp add: execute_plan_action_def execute_ground_action_def)
-      apply (rule wf_apply_effect)
-      apply (cases "resolve_instantiate \<pi>"; simp)
-      by (rule \<open>wf_world_model s\<close>)
-  qed
+  assumes "wf_classical_plan_action \<pi>"
+  assumes "wf_world_model s"
+  shows "wf_world_model (execute_plan_action \<pi> s)"
+proof -
+  let ?a = "(the o res_inst) \<pi>"
+  from assms(1) have wfa: "wf_ground_action ?a"
+    using wf_resolve_instantiate by simp
+  hence wf_eff: "wf_effect objT (ground_action.effect ?a)"
+    using wf_ground_action_alt by simp
+  have t_eq: "execute_plan_action \<pi> s =
+    (fst s - set (dels (ground_action.effect ?a)) \<union> set (adds (ground_action.effect ?a)),
+     action_numeric_update_function ?a (snd s))"
+    using execute_plan_action_def apply_ground_action_alt
+    by (cases s) simp
+  have "Ball (fst s) (wf_fmla_atom objT)"
+    using assms(2) by (cases s) simp
+  moreover have "Ball (set (adds (ground_action.effect ?a))) (wf_fmla_atom objT)"
+    using wf_eff wf_effect_alt list_all_iff by metis
+  ultimately have "Ball (fst (execute_plan_action \<pi> s)) (wf_fmla_atom objT)"
+    using t_eq by auto
+  thus ?thesis by (cases "execute_plan_action \<pi> s") simp
+qed
+(*
 
 text \<open> Semantics \<close>
 
@@ -500,34 +549,200 @@ lemma (in wf_ast_classical_problem) valid_plan_from_snoc:
     \<longleftrightarrow> (\<exists>M'. plan_action_path M \<pi>s M' \<and> plan_action_enabled \<pi> M' \<and>
     execute_plan_action \<pi> M' \<^sup>c\<TTurnstile>\<^sub>= goal P)"
   using valid_plan_from_def by (induction \<pi>s arbitrary: M; simp)
+*)
+
+
+lemma formula_atom_simps[simp]:
+  "atoms (Atom a) = {a}"
+  "atoms \<bottom> = {}"
+  "atoms (\<^bold>\<not> F) = atoms F"
+  "atoms (F \<^bold>\<and> G) = atoms F \<union> atoms G"
+  "atoms (F \<^bold>\<or> G) = atoms F \<union> atoms G"
+  "atoms (F \<^bold>\<rightarrow> G) = atoms F \<union> atoms G"
+  by auto
+
+lemma atoms_dom_valuation_Un_eq:
+  assumes "A \<inter> Atom ` atoms \<F> = {}"
+  shows "(atoms \<F> \<subseteq> dom (valuation (M, X))) = (atoms \<F> \<subseteq> dom (valuation (M \<union> A, X)))"
+  using assms
+proof (induction \<F>)
+  case (Atom x)
+  then show ?case unfolding valuation_def by (induction x) auto
+next
+  case Bot
+  then show ?case by auto
+next
+  case (Not \<F>)
+  then show ?case by auto
+next
+  case (And \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))" using And by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))" using And by fastforce
+  ultimately 
+  show ?case by simp
+next
+  case (Or \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))" using Or by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))" using Or by fastforce
+  ultimately 
+  show ?case by simp
+next
+  case (Imp \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))" using Imp by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))" using Imp by fastforce
+  ultimately 
+  show ?case by simp
+qed
+
+lemma atoms_dom_valuation_Diff_eq:
+  assumes "D \<inter> Atom ` atoms \<F> = {}"
+  shows "(atoms \<F> \<subseteq> dom (valuation (M, X))) = (atoms \<F> \<subseteq> dom (valuation (M - D, X)))"
+  using assms
+proof (induction \<F>)
+  case (Atom x)
+  then show ?case unfolding valuation_def by (induction x) auto
+next
+  case Bot
+  then show ?case by auto
+next
+  case (Not \<F>)
+  then show ?case by auto
+next
+  case (And \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))" using And by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))" using And by fastforce
+  ultimately 
+  show ?case by simp
+next
+  case (Or \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))" using Or by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))" using Or by fastforce
+  ultimately 
+  show ?case by simp
+next
+  case (Imp \<F>1 \<F>2)
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))" using Imp by fastforce
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))" using Imp by fastforce
+  ultimately 
+  show ?case by simp
+qed
+  
 
 lemma entail_adds_irrelevant:
   assumes "lwm_basic M" "lwm_basic A"
           "A \<inter> Atom ` atoms \<F> = {}"
-  shows "M \<union> A \<Turnstile>\<^sub>= \<F> \<longleftrightarrow> M \<Turnstile>\<^sub>= \<F>"
-proof -
-  from assms(3) have "valuation (M \<union> A) \<Turnstile> \<F> \<longleftrightarrow> valuation M \<Turnstile> \<F>"
-  proof (induction \<F>)
-    case (Atom x)
-    thus ?case unfolding valuation_def by (cases x) simp_all
-  qed auto
-  moreover have "lwm_basic (M \<union> A)" using assms(1-2) lwm_basic_def by blast
-  ultimately show ?thesis using assms valuation_iff_close_world by metis
-qed
+  shows "(valuation (M \<union> A, X) \<Turnstile>\<^sub>m \<F>) \<longleftrightarrow> (valuation (M, X) \<Turnstile>\<^sub>m \<F>)"
+  using assms  
+proof (induction \<F>)
+  case (Atom x)
+  thus ?case unfolding valuation_def by (cases x) simp_all
+next
+  case Bot
+  then show ?case by simp
+next
+  case (Not \<F>)
+  have "(atoms \<F> \<subseteq> dom (valuation (M, X))) = (atoms \<F> \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using Not(4) by simp
+  thus ?case unfolding map_formula_semantics_simps using Not by simp 
+next
+  case (And \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using And by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using And by auto
+  ultimately
+  show ?case by auto
+next
+  case (Or \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using Or by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using Or by auto
+  ultimately
+  show ?case by auto
+next
+  case (Imp \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using Imp by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M \<union> A, X)))"
+    apply (rule atoms_dom_valuation_Un_eq)
+    using Imp by auto
+  ultimately
+  show ?case by auto
+qed 
 
 lemma entail_dels_irrelevant:
   assumes "lwm_basic M" "lwm_basic D"
           "D \<inter> Atom ` atoms \<F> = {}"
-  shows "M - D \<^sup>c\<TTurnstile>\<^sub>= \<F> \<longleftrightarrow> M \<^sup>c\<TTurnstile>\<^sub>= \<F>"
-proof -
-  from assms(3) have "valuation (M - D) \<Turnstile> \<F> \<longleftrightarrow> valuation M \<Turnstile> \<F>"
-  proof (induction \<F>)
-    case (Atom x)
-    thus ?case unfolding valuation_def by (cases x) simp_all
-  qed auto
-  moreover have "lwm_basic (M - D)" using assms(1-2) lwm_basic_def by blast
-  ultimately show ?thesis using assms valuation_iff_close_world by metis
-qed *)
+        shows "(valuation (M - D , X) \<Turnstile>\<^sub>m \<F>) \<longleftrightarrow> (valuation (M, X) \<Turnstile>\<^sub>m \<F>)"
+  using assms
+proof (induction \<F>)
+  case (Atom x)
+  then show ?case unfolding valuation_def by (cases x) simp_all    
+next
+  case Bot
+  then show ?case by simp
+next
+  case (Not \<F>)
+  have "(atoms \<F> \<subseteq> dom (valuation (M, X))) = (atoms \<F> \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using Not(4) by simp
+  thus ?case unfolding map_formula_semantics_simps using Not by simp 
+next
+  case (And \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using And by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using And by auto
+  ultimately
+  show ?case by auto
+next
+  case (Or \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using Or by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using Or by auto
+  ultimately
+  show ?case by auto
+next
+  case (Imp \<F>1 \<F>2)
+  moreover
+  have "(atoms \<F>1 \<subseteq> dom (valuation (M, X))) = (atoms \<F>1 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using Imp by auto
+  moreover
+  have "(atoms \<F>2 \<subseteq> dom (valuation (M, X))) = (atoms \<F>2 \<subseteq> dom (valuation (M - D, X)))"
+    apply (rule atoms_dom_valuation_Diff_eq)
+    using Imp by auto
+  ultimately
+  show ?case by auto
+qed 
 
 subsection \<open>PDDL Instance Relationships\<close>
 

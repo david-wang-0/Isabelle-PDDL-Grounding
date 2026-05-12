@@ -7,7 +7,7 @@ begin
 subsection \<open> Important theorems from individual grounding pipeline steps.
   Setting up compact notations for some of them to remove contexts. \<close>
 
-context ast_problem begin
+context ast_classical_problem begin
 thm detype_prob_sel
 thm ast_problem2.prob_detyped
 lemma detype_prob_wf_compact:
