@@ -34,7 +34,9 @@ session Tree_Decomp_Grounding = HOL +
 	"Type_Normalization/Type_Normalization_Locales"
 	"Type_Normalization/Type_Normalization"
 	"Type_Normalization/Type_Normalization_Semantics"
-	Goal_Normalization
+	"Goal_Normalization/Goal_Normalization_Locales"
+	"Goal_Normalization/Goal_Normalization"
+	"Goal_Normalization/Goal_Normalization_Semantics"
 	Precondition_Normalization
 	PDDL_Relaxation
 	Reachability_Analysis

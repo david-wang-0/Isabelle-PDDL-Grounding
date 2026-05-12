@@ -1,6 +1,6 @@
 theory Grounding_Pipeline
   imports "Type_Normalization/Type_Normalization_Semantics" 
-    Goal_Normalization Precondition_Normalization
+    "Goal_Normalization/Goal_Normalization_Semantics" Precondition_Normalization
     PDDL_Relaxation Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
 
@@ -8,19 +8,21 @@ subsection \<open> Important theorems from individual grounding pipeline steps.
   Setting up compact notations for some of them to remove contexts. \<close>
 
 context ast_classical_problem begin
-thm detype_prob_sel
-thm ast_problem2.prob_detyped
+thm detype_classical_prob_sel
+thm restrict_classical_problem2.detype_classical_prob_wf
 lemma detype_prob_wf_compact:
-  "restrict_prob \<Longrightarrow> wf_problem
-  \<Longrightarrow> ast_problem.wf_problem detype_prob"
-  using restrict_classical_problem2.detype_prob_wf
-  using restrict_classical_problem2.intro restrict_classical_problem.intro restrict_classical_problem_axioms.intro wf_ast_problem.intro
+  "restrict_prob \<Longrightarrow> wf_classical_problem
+  \<Longrightarrow> ast_classical_problem.wf_classical_problem detype_classical_prob"
+  using restrict_classical_problem2.detype_classical_prob_wf
+  using restrict_classical_problem2.intro restrict_classical_problem.intro
+        restrict_classical_problem_axioms.intro wf_ast_classical_problem.intro
   by auto
 lemma detyped_valid_iff_compact:
-  "restrict_prob \<Longrightarrow> wf_problem
-  \<Longrightarrow> valid_plan \<pi>s \<longleftrightarrow> ast_problem.valid_plan (detype_prob) \<pi>s"
+  "restrict_prob \<Longrightarrow> wf_classical_problem
+  \<Longrightarrow> valid_classical_plan2 \<pi>s \<longleftrightarrow> ast_classical_problem.valid_classical_plan2 detype_classical_prob \<pi>s"
   using restrict_classical_problem2.detyped_valid_iff
-  using restrict_classical_problem2.intro restrict_classical_problem.intro restrict_classical_problem_axioms.intro wf_ast_problem.intro
+  using restrict_classical_problem2.intro restrict_classical_problem.intro
+        restrict_classical_problem_axioms.intro wf_ast_classical_problem.intro
   by auto
 
 thm ast_problem.degoal_prob_sel
