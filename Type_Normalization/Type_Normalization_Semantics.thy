@@ -483,6 +483,8 @@ proof -
     assume assm: "plan_action_enabled ?pi s"
     hence wf: "wf_classical_plan_action ?pi" 
       and entail: "valuation s \<Turnstile>\<^sub>m precondition ((the o res_inst) ?pi)"
+      and nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
+      and pnesdef: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o res_inst) ?pi))) \<subseteq> dom (snd s)"
       using plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
@@ -494,9 +496,15 @@ proof -
     (* parameter mappings *)
     let ?pre_map = "map_atom_fmla (ac_tsubst (ac_params ac) args)"
     let ?pre_map2 = "map_atom_fmla (ac_tsubst (ac_params (detype_classical_ac ac)) args)"
-    have "map fst (ac_params (detype_classical_ac ac)) = map fst (ac_params ac)"
+
+    have params_fst_match: "map fst (ac_params (detype_classical_ac ac)) = map fst (ac_params ac)"
       by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
     hence premaps: "?pre_map2 = ?pre_map" using ac_tsubst_def by simp
+
+    (* effect mappings *)
+    let ?eff_map = "map_ast_effect (ac_tsubst (ac_params ac) args)"
+    let ?eff_map2 = "map_ast_effect (ac_tsubst (ac_params (detype_classical_ac ac)) args)"
+    have effmaps: "?eff_map2 = ?eff_map" using params_fst_match by simp
 
     (* "left" side: from wf_classical_plan_action \<pi> show p2.wf_classical_plan_action \<pi> *)
     from wf res have match: "action_params_match (head ac) args" by (cases ac) simp
@@ -537,25 +545,36 @@ proof -
     with entail_pre have entail_R: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map (ac_pre ac)"
       using entail_adds_irrelevant[OF s_basic sf_basic] by simp
 
+    (* pnes are defined *)
+    have "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (?eff_map (ac_eff ac))) \<subseteq> dom (snd s)"
+      using pnesdef res
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac") simp
+    hence pnesdef2: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o p2.res_inst) ?pi))) \<subseteq> dom (snd s)"
+      using res2 p2.res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: t_ents_names)
+    
     (* putting it together *)
     from entail_L entail_R have entail_map2:
       "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map2 ((param_precond (ac_params ac)) \<^bold>\<and> (ac_pre ac))"
       using entail_and premaps by auto
     hence entail2: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m precondition ((the o p2.res_inst) ?pi)"
       using entail_map2 res2 p2.res_inst_alt by (cases ac rule: ast_classical_action_schema_cases_unfold) auto
-    have nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
-      using assm plan_action_enabled_def by (auto simp: Let_def)
+   
     have nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
       using nintrf res res2 res_inst_alt p2.res_inst_alt
       by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
          (simp add: numeric_effects_non_intrf_def t_ents_names)
-    with wf2 entail2 have "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
+
+    from nintrf2 wf2 entail2 pnesdef2 have "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
       by (simp add: p2.plan_action_enabled_def Let_def)
   }
   moreover {
     assume p2en: "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
     hence wf2: "p2.wf_classical_plan_action ?pi"
       and entail2: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m precondition ((the o p2.res_inst) ?pi)"
+      and nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
+      and pnesdef2: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o p2.res_inst) ?pi))) \<subseteq> dom (snd s)"
       using p2.plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
@@ -570,6 +589,11 @@ proof -
     have t_param_names: "map fst (ac_params ac) = map fst (ac_params (detype_classical_ac ac))"
       by (cases ac rule: ast_classical_action_schema_cases_unfold; simp add: t_ents_names)
     hence premaps: "?pre_map = ?pre_map2" using ac_tsubst_def by simp
+
+    (* effect mappings *)
+    let ?eff_map = "map_ast_effect (ac_tsubst (ac_params ac) args)"
+    let ?eff_map2 = "map_ast_effect (ac_tsubst (ac_params ac2) args)"
+    have effmaps: "?eff_map2 = ?eff_map" using t_param_names by simp
 
     (* "right" side *)
     have "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m ?pre_map2 (ac_pre ac2)"
@@ -618,14 +642,21 @@ proof -
     with res have wf: "wf_classical_plan_action ?pi"
       by (cases ac) simp
 
-    have nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
-      using p2en p2.plan_action_enabled_def by (auto simp: Let_def)
     have nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
       using nintrf2 res res2 res_inst_alt p2.res_inst_alt
       by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
          (simp add: numeric_effects_non_intrf_def t_ents_names)
 
-    from entail wf nintrf have "plan_action_enabled ?pi s"
+    (* pnes are defined *)
+    have "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (?eff_map (ac_eff ac))) \<subseteq> dom (snd s)"
+      using pnesdef2 res2 p2.res_inst_alt effmaps
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: t_ents_names)
+    hence pnesdef: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o res_inst) ?pi))) \<subseteq> dom (snd s)"
+      using res res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac") simp
+
+    from entail wf nintrf pnesdef have "plan_action_enabled ?pi s"
       by (simp add: plan_action_enabled_def Let_def)
   }
   ultimately show ?thesis using pi by auto

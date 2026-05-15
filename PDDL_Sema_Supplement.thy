@@ -86,6 +86,17 @@ lemma apply_ground_action_alt:
       action_numeric_update_function a N)"
   by (simp add: action_list_numeric_update_function_def)
 
+lemma numeric_effects_non_intrf_no_numeric_effects:
+  assumes "numeric_effects (effect a) = []"
+  shows "numeric_effects_non_intrf a"
+  using assms unfolding numeric_effects_non_intrf_def by simp
+
+lemma enumerate_rhs_pnes_no_numeric_effects:
+  assumes "numeric_effects (effect a) = []"
+  shows "ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a) = []"
+  using assms by (cases "effect a") simp
+
+
 (* These two are useful to adapt to new semantics *)
 context ast_classical_problem
 begin
@@ -95,11 +106,13 @@ lemma classical_plan_happ_path_alt:
   using classical_plan_happ_path_def ind_classical_plan_def by simp
 
 
-definition "plan_action_enabled a M \<equiv> 
-let 
-  a' = (the o res_inst) a
-in
-  numeric_effects_non_intrf a' \<and> wf_classical_plan_action a \<and> valuation M \<Turnstile>\<^sub>m precondition a'"
+definition "plan_action_enabled a M \<equiv>
+wf_classical_plan_action a 
+  \<and> (let 
+     a' = (the o res_inst) a
+  in numeric_effects_non_intrf a' 
+   \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
+   \<and> valuation M \<Turnstile>\<^sub>m precondition a')"
 
 definition "execute_plan_action a M \<equiv>
   apply_ground_actions [(the o res_inst) a] M"
@@ -123,6 +136,7 @@ next
     (let a' = (the o res_inst) a 
     in wf_classical_plan (a#as) 
     \<and> classical_plan_happ_path (apply_ground_actions [a'] M) as M'
+    \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
     \<and> numeric_effects_non_intrf a' 
     \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a')" 
     by (auto simp: Let_def Cons.IH
@@ -130,6 +144,7 @@ next
   also have "... = (wf_classical_plan (a#as) \<and> 
     (let a' = (the o res_inst) a 
     in classical_plan_happ_path (apply_ground_actions [a'] M) as M'
+    \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
     \<and> numeric_effects_non_intrf a' 
     \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a'))" by (simp add: Let_def)
   also have "... = (wf_classical_plan (a#as) \<and> classical_plan_happ_path M (a#as) M')"
@@ -162,6 +177,34 @@ lemma valid_classical_plan2_alt:
     (\<exists>M'. valid_classical_plan_alt I \<pi> M' \<and> valuation M' \<Turnstile>\<^sub>m goal P)"
   unfolding valid_classical_plan2_def
   by (rule valid_classical_plan_from2_alt)
+
+
+
+text \<open> Semantics \<close>
+
+lemma (in ast_classical_problem) plan_action_path_append_intro:
+  assumes "valid_classical_plan_alt M1 \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
+  shows "valid_classical_plan_alt M1 (\<pi>s @ \<mu>s) M3"
+  using assms apply (induction \<pi>s arbitrary: M1) by simp_all
+
+lemma (in ast_classical_problem) plan_action_path_append_elim:
+  assumes "valid_classical_plan_alt M1 (\<pi>s @ \<mu>s) M3"
+  shows "\<exists>M2. valid_classical_plan_alt M1 \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
+using assms by (induction \<pi>s arbitrary: M1) auto
+
+lemma (in wf_ast_classical_problem) valid_plan_from_Cons[simp]:
+  "valid_classical_plan_from2 M (\<pi> # \<pi>s)
+    \<longleftrightarrow> valid_classical_plan_from2 (execute_plan_action \<pi> M) \<pi>s \<and> plan_action_enabled \<pi> M"
+  using valid_classical_plan_from2_alt by auto 
+
+lemma (in wf_ast_classical_problem) valid_plan_from_snoc:
+  "valid_classical_plan_from2 M (\<pi>s @ [\<pi>])
+    \<longleftrightarrow> (\<exists>M'. valid_classical_plan_alt M \<pi>s M' \<and> plan_action_enabled \<pi> M' \<and>
+    valuation (execute_plan_action \<pi> M') \<Turnstile>\<^sub>m goal P)"
+  using valid_classical_plan_from2_alt apply (induction \<pi>s arbitrary: M)
+  apply force
+  by auto
+
 
 end
 
@@ -477,6 +520,14 @@ lemma (in ast_classical_problem) wf_pa_refs_ac:
     by (force simp: resolve_classical_action_schema_def dest: index_by_eq_SomeD)
   done
 
+lemma (in ast_classical_problem) wf_pa_res_sas:
+  assumes "wf_classical_plan_action a"
+  obtains ac where 
+    "resolve_classical_action_schema (name a) = Some ac" 
+    "ac \<in> set (actions D)"
+    "ac_name ac = name a" 
+    "action_params_match (head ac) (arguments a)"
+  using assms wf_pa_refs_ac by (cases a) auto
 
 lemma (in wf_ast_classical_domain) res_aux:
   "resolve_classical_action_schema n = Some ac \<longleftrightarrow>
@@ -522,34 +573,39 @@ proof -
     using t_eq by auto
   thus ?thesis by (cases "execute_plan_action \<pi> s") simp
 qed
-(*
 
-text \<open> Semantics \<close>
 
-lemma (in ast_classical_problem) plan_action_path_append_intro:
-  assumes "plan_action_path M1 \<pi>s M2 \<and> plan_action_path M2 \<mu>s M3"
-  shows "plan_action_path M1 (\<pi>s @ \<mu>s) M3"
-  using assms apply (induction \<pi>s arbitrary: M1)
-  using plan_action_path_def apply simp
-  using plan_action_path_def plan_action_path_Cons
-  sorry
+lemma (in wf_ast_classical_problem) wf_valid_classical_plan_alt:
+  assumes "wf_world_model M" "valid_classical_plan_alt M \<pi>s M'"
+  shows "wf_world_model M'"
+  using assms
+proof (induction \<pi>s arbitrary: M)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a \<pi>s)
+  have "valid_classical_plan_alt (execute_plan_action a M) \<pi>s M'" using Cons by simp
+  moreover
+  have "wf_world_model (execute_plan_action a M)" 
+    using wf_execute_stronger Cons plan_action_enabled_def 
+    by auto
+  ultimately
+  show ?case                                                                                        
+    using Cons.IH by fast
+qed
 
-lemma (in ast_classical_problem) plan_action_path_append_elim:
-  assumes "plan_action_path M1 (\<pi>s @ \<mu>s) M3"
-  shows "\<exists>M2. plan_action_path M1 \<pi>s M2 \<and> plan_action_path M2 \<mu>s M3"
-using assms by (induction \<pi>s arbitrary: M1) auto
+lemma (in ast_classical_problem) valid_classical_plan_alt_append_elim:
+  assumes "valid_classical_plan_alt M (\<pi>s @ \<mu>s) M3"
+  shows "\<exists>M2. valid_classical_plan_alt M \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
+  using assms by (induction \<pi>s arbitrary: M) auto
 
-lemma (in wf_ast_classical_problem) valid_plan_from_Cons[simp]:
-  "valid_plan_from M (\<pi> # \<pi>s)
-    \<longleftrightarrow> valid_plan_from (execute_plan_action \<pi> M) \<pi>s \<and> plan_action_enabled \<pi> M"
-  using valid_plan_from_def by auto
-
-lemma (in wf_ast_classical_problem) valid_plan_from_snoc:
-  "valid_plan_from M (\<pi>s @ [\<pi>])
-    \<longleftrightarrow> (\<exists>M'. plan_action_path M \<pi>s M' \<and> plan_action_enabled \<pi> M' \<and>
-    execute_plan_action \<pi> M' \<^sup>c\<TTurnstile>\<^sub>= goal P)"
-  using valid_plan_from_def by (induction \<pi>s arbitrary: M; simp)
-*)
+lemma (in ast_classical_problem) valid_classical_plan_from2_snoc:
+  "valid_classical_plan_from2 M (\<pi>s @ [\<pi>]) \<longleftrightarrow>
+    (\<exists>M'. valid_classical_plan_alt M \<pi>s M' \<and> plan_action_enabled \<pi> M' \<and>
+      valuation (execute_plan_action \<pi> M') \<Turnstile>\<^sub>m goal P)"
+  unfolding valid_classical_plan_from2_alt
+  apply (induction \<pi>s arbitrary: M)
+  by auto
 
 
 lemma formula_atom_simps[simp]:

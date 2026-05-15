@@ -3,3 +3,6 @@
 *.marks
 
 *exported.sml
+
+.claude/
+CLAUDE.md
