@@ -1,6 +1,7 @@
 theory Grounding_Pipeline
-  imports "Type_Normalization/Type_Normalization_Semantics" 
-    "Goal_Normalization/Goal_Normalization_Semantics" Precondition_Normalization
+  imports "Type_Normalization/Type_Normalization_Semantics"
+    "Goal_Normalization/Goal_Normalization_Semantics"
+    "Precondition_Normalization/Precondition_Normalization_Semantics"
     PDDL_Relaxation Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
 

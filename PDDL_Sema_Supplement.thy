@@ -86,6 +86,32 @@ lemma apply_ground_action_alt:
       action_numeric_update_function a N)"
   by (simp add: action_list_numeric_update_function_def)
 
+
+lemma apply_ground_actions_equiv_weak:
+  assumes "map effect as = map effect bs"
+  shows "apply_ground_actions as = apply_ground_actions bs"
+proof -
+
+  have "map action_numeric_update_function as = map action_numeric_update_function bs"  
+    using assms unfolding map_equality_iff action_numeric_update_function_def by simp
+  hence 1: "action_list_numeric_update_function as = action_list_numeric_update_function bs" 
+    using action_list_numeric_update_function_def by simp
+  
+  have "effect ` set as = effect ` set bs" using assms set_map[where f = effect] by metis
+  hence 2: "(\<Union>x\<in>set as. (f o effect) x) = (\<Union>x\<in>set bs. (f o effect) x)" for f::"object ast_effect \<Rightarrow> 'a set"
+    by (metis image_comp)
+  
+  show ?thesis
+    using assms
+    apply (intro ext)
+    subgoal for M
+      apply (cases M)
+      apply simp
+      using 1
+      using 2[where f1 = "set o adds"] 2[where f1 = "set o dels"] by simp
+    done
+qed
+
 lemma numeric_effects_non_intrf_no_numeric_effects:
   assumes "numeric_effects (effect a) = []"
   shows "numeric_effects_non_intrf a"
@@ -123,6 +149,10 @@ fun valid_classical_plan_alt where
   plan_action_enabled a M
 \<and> valid_classical_plan_alt (execute_plan_action a M) as M'
 )"
+
+lemmas plan_action_enabled_props = conj_split_4[OF plan_action_enabled_def[THEN meta_eq_to_obj_eq, THEN iffD1, simplified Let_def]]
+lemmas plan_action_enabled_elims = plan_action_enabled_props[elim_format]
+
 
 lemma valid_classical_plan_alt_correct:
   "valid_classical_plan_alt M \<pi> M' = (wf_classical_plan \<pi> \<and> classical_plan_happ_path M \<pi> M')"
@@ -213,6 +243,11 @@ begin
 lemma wf_fmla_alt: "wf_fmla tyt \<phi> = (\<forall>a\<in>atoms \<phi>. wf_atom tyt a)"
       by (induction \<phi>) auto
 
+lemma wf_fmla_mono_atoms:
+  assumes "atoms f \<subseteq> atoms g" "wf_fmla tyt g"
+  shows "wf_fmla tyt f"
+  using assms unfolding wf_fmla_alt by blast
+
 lemma subtype_edge_swap: "subtype_edge = prod.swap"
   by (intro ext; auto)
 
@@ -275,9 +310,7 @@ lemma resolve_classical_action_schema_cond:
 definition (in -) ac_tsubst :: "(variable \<times> type) list \<Rightarrow> object list \<Rightarrow> (term \<Rightarrow> object)" where
   [simp]: "ac_tsubst params args \<equiv> subst_term (the \<circ> (map_of (zip (map fst params) args)))"
 
-find_theorems name: "ast_simple_action_body.indu"
-
-lemma instantiate_classical_action_schema_alt: "instantiate_classical_action_schema ac args = 
+lemma (in domain_signature) instantiate_classical_action_schema_alt: "instantiate_classical_action_schema ac args = 
   GroundAction
   (map_atom_fmla (ac_tsubst (ac_params ac) args) (ac_pre ac))
   (map_ast_effect (ac_tsubst (ac_params ac) args) (ac_eff ac))"
@@ -302,14 +335,14 @@ lemma (in wf_ast_classical_problem) res_inst_cond:
       simp: instantiate_classical_action_schema_alt)
 
 (* removing the redundant conjunct from the definition of wf_classical_plan_action *)
-lemma (in wf_ast_classical_problem) wf_classical_plan_action_simple:
+lemma (in ast_classical_problem) wf_classical_plan_action_simple:
   "wf_classical_plan_action (SimplePlanAction n args) \<longleftrightarrow> (case resolve_classical_action_schema n of
     None \<Rightarrow> False | Some a \<Rightarrow> action_params_match (head a) args)"
   by (auto split: option.splits ast_classical_action_schema.splits)
   
 
 (* unnecessary? *)
-lemma (in wf_ast_classical_problem) wf_classical_plan_action_alt: "wf_classical_plan_action \<pi> \<longleftrightarrow>
+lemma (in ast_classical_problem) wf_classical_plan_action_alt: "wf_classical_plan_action \<pi> \<longleftrightarrow>
   (case resolve_classical_action_schema (name \<pi>) of
     None \<Rightarrow> False |
     Some a \<Rightarrow> action_params_match (head a) (arguments \<pi>))"
@@ -395,7 +428,6 @@ lemma (in domain_signature) wf_fmla_mono:
   using assms apply (induction \<phi>)
        apply (simp add: wf_atom_mono) by simp_all
 
-find_theorems name: "wf*mono"
 
 lemma (in domain_signature) wf_numeric_effect_mono:
   assumes "tys \<subseteq>\<^sub>m tys'" "wf_numeric_effect tys f"
