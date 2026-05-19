@@ -33,10 +33,29 @@ definition "split_ac_names ac \<equiv>
   map (\<lambda>prefix. (padl_lit split_pre_pad prefix) + ac_name ac)
     (distinct_strings_lit (n_clauses ac))"
 
+
+thm enumerate_primitive_numeric_expressions.simps
+
+definition (in -) "pnes_def_checks f \<equiv> 
+let pnes = formula_enumerate_primitive_numeric_expressions f;
+    pne_funs = map FunctionExpr pnes
+in map (\<lambda>f. numericEqAtm f f) pne_funs
+"
+
+definition (in -) "prepend_atoms_to_conj as f \<equiv> foldr (\<^bold>\<and>) (map Atom as) f"
+
+definition (in -) "pne_equiv_dnf_list f \<equiv>
+let
+  dnf_pres = dnf_list f;
+  pnes_def_checks = pnes_def_checks f;
+  clauses = map (prepend_atoms_to_conj pnes_def_checks) dnf_pres
+in clauses"
+
 definition split_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema list" where
-  "split_ac ac =
-    (let clauses = dnf_list (ac_pre ac) in
-    map2 (set_n_pre ac) (split_ac_names ac) clauses)"
+  "split_ac ac = (
+let
+  clauses = pne_equiv_dnf_list (ac_pre ac)
+in map2 (set_n_pre ac) (split_ac_names ac) clauses)"
 
 definition "split_acs \<equiv> concat (map split_ac (actions D))"
 

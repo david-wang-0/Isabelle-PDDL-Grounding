@@ -174,8 +174,6 @@ lemma (in ast_classical_problem4) p_effect_same:
   using instantiate_classical_action_schema_alt
   using split_ac_sel[OF assms(1)] assms(2-) by auto
   
-  
-
 lemma (in ast_classical_problem4) p_exec:
   assumes "a' \<in> set (split_ac a)"
     "resolve_classical_action_schema n = Some a" "p4.resolve_classical_action_schema n' = Some a'"
@@ -266,16 +264,24 @@ next
   case (Cons \<pi> \<pi>s)
   then obtain \<pi>' where pi': "p4.plan_action_enabled \<pi>' s" "execute_plan_action \<pi> s = p4.execute_plan_action \<pi>' s"
     using split_pa_enabled valid_plan_from_Cons by blast
-  have "valid_classical_plan_from2 (execute_plan_action \<pi> s) \<pi>s" using Cons(3) 
-    unfolding valid_classical_plan_from2_alt by simp
-  hence "valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s" using pi' by simp
-  moreover
-  have "p4.wf_world_model s" using Cons by simp
-  moreover
-  have "p4.wf_classical_plan_action \<pi>'" using Cons pi'(1) p4.plan_action_enabled_props by simp
-  ultimately
   obtain \<pi>s' where "p4.valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s'"
-    using Cons.IH[OF p4_wf.wf_execute_stronger] by presburger
+  proof -
+    have "valid_classical_plan_from2 (execute_plan_action \<pi> s) \<pi>s" using Cons(3) 
+      unfolding valid_classical_plan_from2_alt by simp
+    hence valid': "valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s" using pi' by simp
+
+    have wf_wm': "p4.wf_world_model s" using Cons by simp
+    
+    have wf_act': "p4.wf_classical_plan_action \<pi>'" using Cons pi'(1) p4.plan_action_enabled_props by simp
+    have "\<exists>\<pi>s'. p4.valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s'" 
+      apply (rule Cons.IH)
+      using  p4_wf.wf_execute_stronger[OF wf_act'] wf_wm' apply simp
+      using valid' by blast
+    moreover
+    assume "\<And>\<pi>s'. p4.valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s' \<Longrightarrow> thesis"
+    ultimately
+    show ?thesis by blast
+  qed
   then obtain M' where
     "p4.valid_classical_plan_alt (p4.execute_plan_action \<pi>' s) \<pi>s' M'" 
     "valuation M' \<Turnstile>\<^sub>m goal split_prob" unfolding p4.valid_classical_plan_from2_alt by blast
@@ -300,6 +306,7 @@ qed
 lemma restore_pa_enabled:
   assumes "p4.plan_action_enabled \<pi>' M"
   defines pi: "\<pi> \<equiv> restore_pa_split \<pi>'"
+  assumes atoms_pi: "atoms (precondition ((the o res_inst) \<pi>)) \<subseteq> dom (valuation M)"
   shows "plan_action_enabled \<pi> M" 
     "(execute_plan_action \<pi> M = p4.execute_plan_action \<pi>' M)"
   using assms
@@ -324,16 +331,52 @@ proof (induction \<pi>')
   obtain ac where
     ac_split: "ac' \<in> set (split_ac ac)"
     and in_acts: "ac \<in> set (actions D)"
-    using in_acts' 
-    unfolding split_dom_sel split_prob_sel split_acs_def by auto
+    using in_acts'
+    unfolding split_dom_sel split_prob_sel split_acs_def 
+    by auto
 
-  have ac_name: "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
+  have name_name': "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
     using restore_split_ac ac_split in_acts by presburger
 
-  have "resolve_classical_action_schema (ac_name ac) = Some ac"
-    using in_acts 
+  have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args" 
+    using name_name' name' SimplePlanAction restore_pa_split.simps by simp
 
-  have "wf_classical_plan_action (SimplePlanAction (ac_name ac) args)"
+  have res: "local.resolve_classical_action_schema (ac_name ac) = Some ac"
+    using wf_ast_classical_domain.resolve_classical_action_schema_name
+    using in_acts wf_P wf_ast_classical_domain_def by blast
+
+  have params_match: "action_params_match (ac_head ac) args" 
+    using p_ac_params_match ac_split params_match' by presburger
+
+  have wf: "wf_classical_plan_action \<pi>"
+    using res params_match \<pi> by (cases ac) simp
+
+  have effs_same: "effect ((the o res_inst) \<pi>) = 
+    effect ((the o p4.res_inst) (SimplePlanAction n' args))" 
+    unfolding \<pi> apply (rule p_effect_same)
+    using res ac_split res' by blast+
+
+  have non_int: "numeric_effects_non_intrf ((the o res_inst) \<pi>)" 
+    using non_int' effs_same numeric_effects_non_intrf_equiv_weak by fast
+
+  have effs_def: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o res_inst) \<pi>))) \<subseteq> dom (snd M)"
+    using effs_def' effs_same by simp
+
+  have pre_atoms: "atoms (precondition (instantiate_classical_action_schema ac args)) \<subseteq> dom (valuation M)"
+    using atoms_pi \<pi> res by simp 
+  have pre_sat: "valuation M \<Turnstile>\<^sub>m precondition ((the o res_inst) \<pi>)"
+    using pre_sat' unfolding comp_def p4.res_inst.simps res'
+    unfolding \<pi> unfolding res_inst.simps res
+    unfolding option.sel
+    using inst_pre_iff_split
+    using pre_atoms ac_split by blast
+
+  show enabled: "plan_action_enabled \<pi> M" unfolding plan_action_enabled_def
+    using wf effs_same non_int effs_def pre_sat by presburger
+
+  show execute: "execute_plan_action \<pi> M = p4.execute_plan_action (SimplePlanAction n' args) M"
+    using p_exec \<pi>
+    using ac_split res res' by presburger
 qed
 
 lemma restore_plan_split_valid_from:
@@ -366,6 +409,8 @@ theorem restore_plan_split_valid:
   using restore_plan_split_valid_from p4.wf_I by simp
 
 end
+
+(* under which conditions does the set of defined pnes not change *)
 
 subsection \<open> Code Setup \<close>
 

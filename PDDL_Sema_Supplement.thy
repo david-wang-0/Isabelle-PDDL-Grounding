@@ -112,6 +112,12 @@ proof -
     done
 qed
 
+lemma numeric_effects_non_intrf_equiv_weak:
+  assumes "effect a = effect b"
+  shows "numeric_effects_non_intrf a = numeric_effects_non_intrf b"
+  unfolding numeric_effects_non_intrf_def 
+  using assms by simp
+
 lemma numeric_effects_non_intrf_no_numeric_effects:
   assumes "numeric_effects (effect a) = []"
   shows "numeric_effects_non_intrf a"
@@ -234,7 +240,6 @@ lemma (in wf_ast_classical_problem) valid_plan_from_snoc:
   using valid_classical_plan_from2_alt apply (induction \<pi>s arbitrary: M)
   apply force
   by auto
-
 
 end
 
@@ -533,6 +538,14 @@ proof -
     by simp
   thus ?thesis using ac_tsubst_def by fastforce
 qed
+
+text \<open> Action resolution \<close>
+
+lemma (in wf_ast_classical_domain) resolve_classical_action_schema_name:
+  assumes "a \<in> set (actions D)"
+  shows "resolve_classical_action_schema (ac_name a) = Some a"
+  unfolding resolve_classical_action_schema_def
+  using wf_D(2) assms by simp
 
 text \<open> (Plan) Action instantiation \<close>
 
@@ -925,6 +938,68 @@ qed auto
 
 lemma notin_fmla_preds_notin_atoms: "p \<notin> fmla_preds \<phi> \<Longrightarrow> predAtm p args \<notin> atoms \<phi>"
   using fmla_preds_alt by blast
+
+subsection \<open> Formula PNEs \<close>
+
+(* wf_numeric_expression implies wf_pnes for all enumerated pnes *)
+lemma (in domain_signature) wf_numeric_expression_imp_wf_pnes:
+  assumes "wf_numeric_expression tyt n"
+      and "p \<in> set (enumerate_primitive_numeric_expressions n)"
+    shows "wf_primitive_numeric_expression tyt p"
+  using assms by (induction n) auto
+
+(* wf_atom implies wf_pnes for all enumerated pnes *)
+lemma (in domain_signature) wf_atom_imp_wf_pnes:
+  assumes "wf_atom tyt a"
+      and "p \<in> set (atom_enumerate_primitive_numeric_expressions a)"
+    shows "wf_primitive_numeric_expression tyt p"
+  using assms by (cases a) (auto intro: wf_numeric_expression_imp_wf_pnes)
+
+(* wf_fmla implies wf_pnes for all formula pnes *)
+lemma (in domain_signature) wf_fmla_imp_wf_pnes:
+  assumes "wf_fmla tyt f"
+      and "p \<in> set (formula_enumerate_primitive_numeric_expressions f)"  
+    shows "wf_primitive_numeric_expression tyt p"
+  using assms by (induction f) (auto intro: wf_atom_imp_wf_pnes)
+
+(* wf_fmla implies wf_pred_atom for every predicate atom in the formula *)
+lemma (in domain_signature) wf_fmla_imp_wf_pred_atom:
+  assumes "wf_fmla tyt f"
+      and "predAtm p xs \<in> atoms f"
+    shows "wf_pred_atom tyt (p, xs)"
+  using assms by (induction f) auto
+
+(* wf_fmla implies that the entities of every equality atom are typed *)
+lemma (in domain_signature) wf_fmla_imp_eqs_def:
+  assumes "wf_fmla tyt f"
+      and "eqAtm a b \<in> atoms f"
+    shows "tyt a \<noteq> None \<and> tyt b \<noteq> None"
+  using assms by (induction f) auto
+
+(* converse: wf_pnes for all enumerated pnes implies wf_numeric_expression *)
+lemma (in domain_signature) wf_numeric_expressionI:
+  assumes "\<And>p. p \<in> set (enumerate_primitive_numeric_expressions n)
+              \<Longrightarrow> wf_primitive_numeric_expression tyt p"
+    shows "wf_numeric_expression tyt n"
+  using assms by (induction n) auto
+
+(* converse: the three conditions imply wf_atom *)
+lemma (in domain_signature) wf_atomI:
+  assumes "\<And>p. p \<in> set (atom_enumerate_primitive_numeric_expressions a)
+              \<Longrightarrow> wf_primitive_numeric_expression tyt p"
+      and "\<And>p xs. a = predAtm p xs \<Longrightarrow> wf_pred_atom tyt (p, xs)"
+      and "\<And>x y. a = eqAtm x y \<Longrightarrow> tyt x \<noteq> None \<and> tyt y \<noteq> None"
+    shows "wf_atom tyt a"
+  using assms by (cases a) (auto intro: wf_numeric_expressionI)
+
+(* converse: the three conditions imply wf_fmla *)
+lemma (in domain_signature) wf_fmlaI:
+  assumes "\<And>p. p \<in> set (formula_enumerate_primitive_numeric_expressions f)
+              \<Longrightarrow> wf_primitive_numeric_expression tyt p"
+      and "\<And>p xs. predAtm p xs \<in> atoms f \<Longrightarrow> wf_pred_atom tyt (p, xs)"
+      and "\<And>x y. eqAtm x y \<in> atoms f \<Longrightarrow> tyt x \<noteq> None \<and> tyt y \<noteq> None"
+    shows "wf_fmla tyt f"
+  using assms by (induction f) (force intro!: wf_atomI)+
 
 
 end
