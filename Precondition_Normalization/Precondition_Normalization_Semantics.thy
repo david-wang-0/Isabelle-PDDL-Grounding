@@ -81,6 +81,53 @@ proof -
   finally show ?thesis unfolding dnf_list_def by simp
 qed
 
+
+
+lemma enumerate_primitive_numeric_expressions_map:
+  "enumerate_primitive_numeric_expressions (map_numeric_expression m e)
+    = map (map_primitive_numeric_expression m) (enumerate_primitive_numeric_expressions e)"
+  by (induction e) auto
+
+lemma atom_enumerate_primitive_numeric_expressions_map:
+  "atom_enumerate_primitive_numeric_expressions (map_atom m a)
+    = map (map_primitive_numeric_expression m) (atom_enumerate_primitive_numeric_expressions a)"
+  by (cases a) (auto simp: enumerate_primitive_numeric_expressions_map)
+
+lemma formula_enumerate_primitive_numeric_expressions_map:
+  "formula_enumerate_primitive_numeric_expressions (map_formula (map_atom m) F)
+    = map (map_primitive_numeric_expression m) (formula_enumerate_primitive_numeric_expressions F)"
+  by (induction F) (auto simp: atom_enumerate_primitive_numeric_expressions_map)
+
+lemma pnes_def_checks_map:
+  "pnes_def_checks (map_formula (map_atom m) F) = map (map_atom m) (pnes_def_checks F)"
+  unfolding pnes_def_checks_def Let_def
+  by (simp add: formula_enumerate_primitive_numeric_expressions_map comp_def)
+
+lemma prepend_atoms_to_conj_map:
+  "map_formula (map_atom m) (prepend_atoms_to_conj as f)
+    = prepend_atoms_to_conj (map (map_atom m) as) (map_formula (map_atom m) f)"
+  unfolding prepend_atoms_to_conj_def by (induction as) auto
+
+lemma pne_equiv_dnf_list_map:
+  "map (map_formula (map_atom m)) (pne_equiv_dnf_list F)
+    = pne_equiv_dnf_list (map_formula (map_atom m) F)"
+proof -
+  let ?h = "map_formula (map_atom m)"
+  let ?ck = "pnes_def_checks F"
+  have "map ?h (pne_equiv_dnf_list F)
+      = map ?h (map (prepend_atoms_to_conj ?ck) (dnf_list F))"
+    unfolding pne_equiv_dnf_list_def Let_def ..
+  also have "... = map (\<lambda>c. prepend_atoms_to_conj (map (map_atom m) ?ck) (?h c)) (dnf_list F)"
+    by (simp add: prepend_atoms_to_conj_map)
+  also have "... = map (prepend_atoms_to_conj (pnes_def_checks (?h F)) \<circ> ?h) (dnf_list F)"
+    by (simp add: pnes_def_checks_map comp_def)
+  also have "... = map (prepend_atoms_to_conj (pnes_def_checks (?h F))) (map ?h (dnf_list F))"
+    by simp
+  also have "... = map (prepend_atoms_to_conj (pnes_def_checks (?h F))) (dnf_list (?h F))"
+    by (simp add: dnf_list_map)
+  finally show ?thesis unfolding pne_equiv_dnf_list_def Let_def .
+qed
+
 (* end map *)
 
 text \<open> \<open>dnf_list\<close> under \<open>map_formula_semantics\<close>. Unlike the total-valuation version, this
@@ -106,7 +153,7 @@ proof -
 qed
 
 lemma dnf_list_map_semantics:
-  shows "\<A> \<Turnstile>\<^sub>m F \<longleftrightarrow> (atoms F \<subseteq> dom \<A> \<and> (\<exists>c\<in>set (dnf_list F). \<A> \<Turnstile>\<^sub>m c))"
+  "\<A> \<Turnstile>\<^sub>m F \<longleftrightarrow> (atoms F \<subseteq> dom \<A> \<and> (\<exists>c\<in>set (dnf_list F). \<A> \<Turnstile>\<^sub>m c))"
 proof (cases "atoms F \<subseteq> dom \<A>")
   case True
   thus ?thesis by (simp add: dnf_list_map_semantics')
@@ -116,48 +163,171 @@ next
   thus ?thesis using False by simp
 qed
 
+lemma prepend_atoms_to_conj_imp_orig:
+  assumes  "\<A> \<Turnstile>\<^sub>m prepend_atoms_to_conj as F"
+  shows "\<A> \<Turnstile>\<^sub>m F"
+  using assms by (induction as arbitrary: F) (simp add: prepend_atoms_to_conj_def)+
+
+lemma pne_equiv_dnf_list_imp_dnf_list:
+  assumes "n < length (dnf_list F)"
+    "\<A> \<Turnstile>\<^sub>m (pne_equiv_dnf_list F ! n)"
+  shows "\<A> \<Turnstile>\<^sub>m (dnf_list F ! n)"
+  using assms by (auto simp: pne_equiv_dnf_list_def intro: prepend_atoms_to_conj_imp_orig)
+
+lemma prepend_atoms_to_conj_if:
+  assumes "\<A> \<Turnstile>\<^sub>m F"
+      and "\<forall>a \<in> (set as). \<A> a = Some True"
+  shows "\<A> \<Turnstile>\<^sub>m prepend_atoms_to_conj as F"
+  using assms 
+proof (induction as)
+  case Nil
+  then show ?case by (simp add: prepend_atoms_to_conj_def)
+next
+  case (Cons a as)
+  have "\<A> \<Turnstile>\<^sub>m prepend_atoms_to_conj as F" using prepend_atoms_to_conj_def Cons by auto
+  moreover
+  have "\<A> \<Turnstile>\<^sub>m Atom a" using Cons by simp
+  moreover
+  have "atoms (prepend_atoms_to_conj (a#as) F) \<subseteq> dom \<A>" using Cons by auto
+  ultimately
+  show ?case by (simp add: comp_def prepend_atoms_to_conj_def)
+qed
+
+lemma pnes_def_check_in_valuationI:
+  assumes "atoms F \<subseteq> dom (valuation M)"
+  shows "set (pnes_def_checks F) \<subseteq> dom (valuation M)"
+proof -
+  have "(set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M))" (is "set ?fpnes \<subseteq> _")
+    using assms formula_atoms_in_dom_valuation_iff by simp
+  hence "set (concat (map enumerate_primitive_numeric_expressions (map FunctionExpr ?fpnes))) \<subseteq> dom (snd M)"
+    (is "set (concat (map enumerate_primitive_numeric_expressions ?fnes)) \<subseteq> _")
+    by simp
+  hence "set (concat (map atom_enumerate_primitive_numeric_expressions (map (\<lambda>f. numericEqAtm f f) ?fnes))) \<subseteq> dom (snd M)"
+    by simp
+  hence "set (concat (map atom_enumerate_primitive_numeric_expressions (pnes_def_checks F))) \<subseteq> dom (snd M)"
+    unfolding  pnes_def_checks_def Let_def by simp
+  thus ?thesis using dom_valuation_iff by (cases M) auto
+qed
+
+
+lemma in_dom_snd_iff_valuation_eq: 
+  assumes "eq_expr = Atom (numericEqAtm (FunctionExpr x) (FunctionExpr x))"
+  shows "x \<in> dom (snd M) \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m eq_expr"
+  unfolding assms valuation_def by (cases "snd M x") auto
+
+lemma pnes_def_check_valuation_semI:
+  assumes "atoms F \<subseteq> dom (valuation M)"
+      and "c \<in> set (pnes_def_checks F)"
+    shows "valuation M \<Turnstile>\<^sub>m Atom c"
+proof -
+  obtain x where
+    x: "c = numericEqAtm (FunctionExpr x) (FunctionExpr x)"
+    "x \<in> set (formula_enumerate_primitive_numeric_expressions F)" 
+    using assms(2) unfolding pnes_def_checks_def Let_def by auto
+  thus ?thesis 
+    apply (subst in_dom_snd_iff_valuation_eq[symmetric])
+    using assms x formula_atoms_in_dom_valuation_iff assms by auto
+qed
+
+lemma pne_equiv_dnf_list_atoms_in_valuation_iff:
+  assumes "c \<in> set (pne_equiv_dnf_list F)"
+  shows "atoms F \<subseteq> dom (valuation M) \<longleftrightarrow> atoms c \<subseteq> dom (valuation M)"
+  using assms by (force dest: pne_equiv_dnf_list_pnes simp: formula_atoms_in_dom_valuation_iff)
+
+lemma pne_equiv_dnf_list_map_semantics:
+  "valuation M \<Turnstile>\<^sub>m F \<longleftrightarrow> (\<exists>c\<in>set (pne_equiv_dnf_list F). valuation M \<Turnstile>\<^sub>m c)"
+proof 
+  assume a: "valuation M \<Turnstile>\<^sub>m F"
+
+  have atoms_in_valuation: "atoms F \<subseteq> dom (valuation M)" using a by blast
+  
+  obtain c where
+    c: "c \<in> set (dnf_list F)"
+    "valuation M \<Turnstile>\<^sub>m c" using a dnf_list_map_semantics by metis
+
+  have pne_checks_in_valuation: "set (pnes_def_checks F) \<subseteq> dom (valuation M)"
+    using pnes_def_check_in_valuationI atoms_in_valuation by blast
+
+  have val: "valuation M \<Turnstile>\<^sub>m prepend_atoms_to_conj (pnes_def_checks F) c" 
+    apply (rule prepend_atoms_to_conj_if)
+    apply (rule c(2))
+    using pne_checks_in_valuation pnes_def_check_valuation_semI atoms_in_valuation by simp
+
+  show "\<exists>c\<in>set (pne_equiv_dnf_list F). valuation M \<Turnstile>\<^sub>m c" 
+    using val c unfolding pne_equiv_dnf_list_def by auto
+next
+  assume a: "\<exists>c\<in>set (pne_equiv_dnf_list F). valuation M \<Turnstile>\<^sub>m c"
+  obtain c where
+    c: "c \<in> set (pne_equiv_dnf_list F)"
+    "valuation M \<Turnstile>\<^sub>m c" using a by blast
+
+  have atoms_in_val: "atoms F \<subseteq> dom (valuation M)" using pne_equiv_dnf_list_atoms_in_valuation_iff c by blast
+  
+  obtain c' where
+    c': "c = prepend_atoms_to_conj (pnes_def_checks F) c'"
+    "c' \<in> set (dnf_list F)"
+    using c unfolding pne_equiv_dnf_list_def by auto
+
+  have val_sat: "valuation M \<Turnstile>\<^sub>m c'" using c c' prepend_atoms_to_conj_imp_orig by fast
+
+  show "valuation M \<Turnstile>\<^sub>m F" using atoms_in_val val_sat c' dnf_list_map_semantics by blast
+qed
+
+lemma pne_equiv_dnf_list_conv_dnf_list_map_semantics:
+  "(\<exists>c\<in>set (pne_equiv_dnf_list F). valuation M \<Turnstile>\<^sub>m c)
+  \<longleftrightarrow> (atoms F \<subseteq> dom (valuation M) \<and> (\<exists>c \<in> set (dnf_list F). (valuation M) \<Turnstile>\<^sub>m c))" 
+  apply (subst pne_equiv_dnf_list_map_semantics[symmetric])
+  apply (subst dnf_list_map_semantics)
+  by simp
 
 context ast_classical_domain4 begin
 
+
 lemma precond_prop_iff_split:
-  "(\<exists>c \<in> set (dnf_list (ac_pre a)). P c) \<longleftrightarrow> (\<exists>a' \<in> set (split_ac a). P (ac_pre a'))"
+  "(\<exists>c \<in> set (pne_equiv_dnf_list (ac_pre a)). P c) \<longleftrightarrow> (\<exists>a' \<in> set (split_ac a). P (ac_pre a'))"
 proof -
-  let ?dnf = "dnf_list (ac_pre a)"
+  let ?dnf = "pne_equiv_dnf_list (ac_pre a)"
   have "(\<exists>c \<in> set ?dnf. P c) \<longleftrightarrow> (\<exists>i < length ?dnf. P (?dnf ! i))"
     using in_set_conv_nth by metis
   also have "... \<longleftrightarrow> (\<exists>i < length ?dnf. P (ac_pre (split_ac a ! i)))"
-    using split_ac_nth by auto
+    using split_ac_nth pne_equiv_dnf_list_map_semantics by auto
   also have "... \<longleftrightarrow> (\<exists>a' \<in> set (split_ac a). P (ac_pre a'))"
-    using in_set_conv_nth split_ac_len by metis
+    using in_set_conv_nth split_ac_length pne_equiv_dnf_list_length by metis
   finally show ?thesis by simp
 qed
 
 lemma inst_pre_iff_split:
   shows "valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a args) \<longleftrightarrow> 
-    (atoms (precondition (instantiate_classical_action_schema a args)) \<subseteq> dom (valuation M) \<and>
-    (\<exists>a' \<in> set (split_ac a). valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a' args)))"
+    (\<exists>a' \<in> set (split_ac a). valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a' args))"
 proof -
-  let ?inst_fmla = "map_atom_fmla (ac_tsubst (ac_params a) args)"
+  let ?h = "ac_tsubst (ac_params a) args"
+  let ?inst_fmla = "map_atom_fmla ?h"
 
-  have "valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a args) \<longleftrightarrow>
-    valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a)"
-    using instantiate_classical_action_schema_alt by simp
-  also have "... \<longleftrightarrow> (atoms (precondition (instantiate_classical_action_schema a args)) \<subseteq> dom (valuation M)
-  \<and> (\<exists>c\<in>set (dnf_list (?inst_fmla (ac_pre a))). valuation M \<Turnstile>\<^sub>m c))"
-    using dnf_list_map_semantics by (cases a rule: ast_classical_action_schema_cases_unfold) simp
-  also have "... \<longleftrightarrow> (atoms (precondition (instantiate_classical_action_schema a args)) \<subseteq> dom (valuation M)
-    \<and> (\<exists>a' \<in> set (split_ac a). 
-    valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a' args)))"
-  proof -
-    have "(\<exists>c\<in>set (dnf_list (?inst_fmla (ac_pre a))). valuation M \<Turnstile>\<^sub>m c)  
-              \<longleftrightarrow> (\<exists>c \<in> set (map ?inst_fmla (dnf_list (ac_pre a))). valuation M \<Turnstile>\<^sub>m c)"
-      using dnf_list_map[of "map_atom (ac_tsubst (ac_params a) args)"] by auto
-    also have "... \<longleftrightarrow> (\<exists>c \<in> set (dnf_list (ac_pre a)). valuation M \<Turnstile>\<^sub>m ?inst_fmla c)" by simp
-    also have "... \<longleftrightarrow> (\<exists>a' \<in> set (split_ac a). valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a'))"
-      using precond_prop_iff_split by simp
-    finally show ?thesis using instantiate_classical_action_schema_alt split_ac_sel by simp
-  qed
-  finally show ?thesis by simp
+  have pre_eq: "ground_action.precondition (instantiate_classical_action_schema a args)
+      = ?inst_fmla (ac_pre a)"
+    by (simp add: instantiate_classical_action_schema_alt)
+
+  have a'_pre: "ground_action.precondition (instantiate_classical_action_schema a' args)
+      = ?inst_fmla (ac_pre a')" if "a' \<in> set (split_ac a)" for a'
+    using instantiate_classical_action_schema_alt split_ac_sel(2)[OF that] by simp
+
+  have map_dnf: "pne_equiv_dnf_list (?inst_fmla (ac_pre a))
+      = map ?inst_fmla (pne_equiv_dnf_list (ac_pre a))"
+    using pne_equiv_dnf_list_map[of ?h "ac_pre a"] by (simp add: comp_def)
+
+  have "valuation M \<Turnstile>\<^sub>m ground_action.precondition (instantiate_classical_action_schema a args)
+      \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a)"
+    by (simp add: pre_eq)
+  also have "... \<longleftrightarrow> (\<exists>c\<in>set (pne_equiv_dnf_list (?inst_fmla (ac_pre a))). valuation M \<Turnstile>\<^sub>m c)"
+    by (rule pne_equiv_dnf_list_map_semantics)
+  also have "... \<longleftrightarrow> (\<exists>c\<in>set (pne_equiv_dnf_list (ac_pre a)). valuation M \<Turnstile>\<^sub>m ?inst_fmla c)"
+    unfolding map_dnf by simp
+  also have "... \<longleftrightarrow> (\<exists>a'\<in>set (split_ac a). valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a'))"
+    by (rule precond_prop_iff_split)
+  also have "... \<longleftrightarrow> (\<exists>a'\<in>set (split_ac a).
+      valuation M \<Turnstile>\<^sub>m ground_action.precondition (instantiate_classical_action_schema a' args))"
+    using a'_pre by metis
+  finally show ?thesis .
 qed
 
 
@@ -212,7 +382,6 @@ proof (cases \<pi>)
   obtain a' where 
     a': "a' \<in> set (split_ac a)"
     "valuation M \<Turnstile>\<^sub>m precondition (instantiate_classical_action_schema a' args)"
-    "atoms (ground_action.precondition (instantiate_classical_action_schema a' args)) \<subseteq> dom (valuation M)"
     using v_pre inst_pre_iff_split by metis
 
   let ?pi = "SimplePlanAction n args"
@@ -251,7 +420,7 @@ proof (cases \<pi>)
   thus ?thesis using p_exec a'(1) a(1) res' by auto
 qed
 
-lemma p_valid_plan_from:
+lemma p_valid_classical_plan_from2:
   assumes "wf_world_model s" "valid_classical_plan_from2 s \<pi>s"
   shows "\<exists>\<pi>s'. p4.valid_classical_plan_from2 s \<pi>s'"
 using assms proof (induction \<pi>s arbitrary: s)
@@ -263,7 +432,7 @@ using assms proof (induction \<pi>s arbitrary: s)
 next
   case (Cons \<pi> \<pi>s)
   then obtain \<pi>' where pi': "p4.plan_action_enabled \<pi>' s" "execute_plan_action \<pi> s = p4.execute_plan_action \<pi>' s"
-    using split_pa_enabled valid_plan_from_Cons by blast
+    using split_pa_enabled valid_classical_plan_from2_Cons by blast
   obtain \<pi>s' where "p4.valid_classical_plan_from2 (p4.execute_plan_action \<pi>' s) \<pi>s'"
   proof -
     have "valid_classical_plan_from2 (execute_plan_action \<pi> s) \<pi>s" using Cons(3) 
@@ -297,18 +466,52 @@ lemma (in ast_classical_domain4) restore_split_ac:
 proof -
   from assms have "ac_name a' \<in> set (map ac_name (split_ac a))" by auto
   hence "ac_name a' \<in> set (split_ac_names a)"
-    unfolding split_ac_def
-    using split_ac_len set_n_pre_mapsel by metis
+    unfolding split_ac_def Let_def
+    using split_ac_names_length pne_equiv_dnf_list_length set_n_pre_mapsel(1) by metis
   thus ?thesis
     using assms split_names_prefix_length drop_lit_prefix by metis
+qed
+
+lemma restore_pa_execute:
+  assumes "p4.wf_classical_plan_action \<pi>'"
+  defines pi: "\<pi> \<equiv> restore_pa_split \<pi>'"
+  shows "execute_plan_action \<pi> M = p4.execute_plan_action \<pi>' M"
+  using assms
+proof (induction \<pi>')
+  case (SimplePlanAction n' args)
+
+  note wf' = SimplePlanAction(1)
+
+  obtain ac' where
+    res': "p4.resolve_classical_action_schema n' = Some ac'"
+    and in_acts': "ac' \<in> set (actions p4.D)"
+    and name': "ac_name ac' = n'"
+    using wf'[THEN p4.wf_pa_res_sas] by auto
+
+  obtain ac where
+    ac_split: "ac' \<in> set (split_ac ac)"
+    and in_acts: "ac \<in> set (actions D)"
+    using in_acts'
+    unfolding split_dom_sel split_prob_sel split_acs_def by auto
+
+  have name_name': "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
+    using restore_split_ac ac_split in_acts by presburger
+
+  have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args"
+    using name_name' name' SimplePlanAction restore_pa_split.simps by simp
+
+  have res: "local.resolve_classical_action_schema (ac_name ac) = Some ac"
+    using wf_ast_classical_domain.resolve_classical_action_schema_name
+    using in_acts wf_P wf_ast_classical_domain_def by blast
+
+  show "execute_plan_action \<pi> M = p4.execute_plan_action (SimplePlanAction n' args) M"
+    using p_exec \<pi> ac_split res res' by presburger
 qed
 
 lemma restore_pa_enabled:
   assumes "p4.plan_action_enabled \<pi>' M"
   defines pi: "\<pi> \<equiv> restore_pa_split \<pi>'"
-  assumes atoms_pi: "atoms (precondition ((the o res_inst) \<pi>)) \<subseteq> dom (valuation M)"
-  shows "plan_action_enabled \<pi> M" 
-    "(execute_plan_action \<pi> M = p4.execute_plan_action \<pi>' M)"
+  shows "plan_action_enabled \<pi> M"
   using assms
 proof (induction \<pi>')
   case (SimplePlanAction n' args)
@@ -321,92 +524,104 @@ proof (induction \<pi>')
     using p4.plan_action_enabled_props[OF SimplePlanAction(1)] by blast+
 
   obtain ac' where
-    res': "p4.resolve_classical_action_schema n' = Some ac'" 
-    and in_acts': "ac' \<in> set (actions p4.D)" 
-    and name': "ac_name ac' = n'" 
+    res': "p4.resolve_classical_action_schema n' = Some ac'"
+    and in_acts': "ac' \<in> set (actions p4.D)"
+    and name': "ac_name ac' = n'"
     and params_match': "p4.action_params_match (ac_head ac') args"
-    using wf'[THEN p4.wf_pa_res_sas]
-    by auto
+    using wf'[THEN p4.wf_pa_res_sas] by auto
 
   obtain ac where
     ac_split: "ac' \<in> set (split_ac ac)"
     and in_acts: "ac \<in> set (actions D)"
     using in_acts'
-    unfolding split_dom_sel split_prob_sel split_acs_def 
-    by auto
+    unfolding split_dom_sel split_prob_sel split_acs_def by auto
 
   have name_name': "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
     using restore_split_ac ac_split in_acts by presburger
 
-  have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args" 
+  have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args"
     using name_name' name' SimplePlanAction restore_pa_split.simps by simp
 
   have res: "local.resolve_classical_action_schema (ac_name ac) = Some ac"
     using wf_ast_classical_domain.resolve_classical_action_schema_name
     using in_acts wf_P wf_ast_classical_domain_def by blast
 
-  have params_match: "action_params_match (ac_head ac) args" 
+  have params_match: "action_params_match (ac_head ac) args"
     using p_ac_params_match ac_split params_match' by presburger
 
   have wf: "wf_classical_plan_action \<pi>"
     using res params_match \<pi> by (cases ac) simp
 
-  have effs_same: "effect ((the o res_inst) \<pi>) = 
-    effect ((the o p4.res_inst) (SimplePlanAction n' args))" 
+  have effs_same: "effect ((the o res_inst) \<pi>) =
+    effect ((the o p4.res_inst) (SimplePlanAction n' args))"
     unfolding \<pi> apply (rule p_effect_same)
     using res ac_split res' by blast+
 
-  have non_int: "numeric_effects_non_intrf ((the o res_inst) \<pi>)" 
+  have non_int: "numeric_effects_non_intrf ((the o res_inst) \<pi>)"
     using non_int' effs_same numeric_effects_non_intrf_equiv_weak by fast
 
   have effs_def: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o res_inst) \<pi>))) \<subseteq> dom (snd M)"
     using effs_def' effs_same by simp
 
-  have pre_atoms: "atoms (precondition (instantiate_classical_action_schema ac args)) \<subseteq> dom (valuation M)"
-    using atoms_pi \<pi> res by simp 
   have pre_sat: "valuation M \<Turnstile>\<^sub>m precondition ((the o res_inst) \<pi>)"
     using pre_sat' unfolding comp_def p4.res_inst.simps res'
     unfolding \<pi> unfolding res_inst.simps res
     unfolding option.sel
     using inst_pre_iff_split
-    using pre_atoms ac_split by blast
+    using ac_split by blast
 
-  show enabled: "plan_action_enabled \<pi> M" unfolding plan_action_enabled_def
+  show "plan_action_enabled \<pi> M" unfolding plan_action_enabled_def
     using wf effs_same non_int effs_def pre_sat by presburger
-
-  show execute: "execute_plan_action \<pi> M = p4.execute_plan_action (SimplePlanAction n' args) M"
-    using p_exec \<pi>
-    using ac_split res res' by presburger
 qed
 
 lemma restore_plan_split_valid_from:
-  assumes "p4.wf_world_model s" "p4.valid_plan_from s \<pi>s'"
-  shows "valid_plan_from s (restore_plan_split \<pi>s')"
+  assumes "p4.wf_world_model s" "p4.valid_classical_plan_from2 s \<pi>s'"
+  shows "valid_classical_plan_from2 s (restore_plan_split \<pi>s')"
 using assms proof (induction \<pi>s' arbitrary: s)
   case Nil thus ?case
-  unfolding ast_classical_problem.valid_plan_def ast_classical_problem.valid_plan_from_def split_prob_sel list.map(1)
-    using ast_classical_problem.plan_action_path_Nil by metis
+    unfolding ast_classical_problem.valid_classical_plan_from2_alt split_prob_sel 
+    by simp
 next
   case (Cons \<pi>' \<pi>s')
-  let ?pi = "restore_pa_split \<pi>'" and ?pis = "restore_plan_split \<pi>s'"
-  from Cons have pi: "plan_action_enabled ?pi s" "execute_plan_action ?pi s = p4.execute_plan_action \<pi>' s"
-    using restore_pa_enabled p4.wf_wm_basic p4.valid_plan_from_Cons wf_wm_basic by simp_all
+  let ?pis = "restore_plan_split \<pi>s'"
 
-  from Cons have "valid_plan_from (execute_plan_action ?pi s) ?pis"
-    using p4.wf_execute p4.valid_plan_from_Cons pi(2) by simp
-  thus ?case using valid_plan_from_Cons p_wf_wm pi(1) by simp
+  have enabled: "plan_action_enabled (restore_pa_split \<pi>') s" 
+    using Cons restore_pa_enabled by auto
+
+  have wf': "p4.wf_classical_plan_action \<pi>'" using Cons 
+    unfolding p4.valid_classical_plan_from2_alt
+    by (auto intro: p4.plan_action_enabled_props)
+
+  have execute_equiv: "execute_plan_action (restore_pa_split \<pi>') s 
+    = p4.execute_plan_action \<pi>' s"
+    apply (rule restore_pa_execute)
+    using wf' by presburger
+
+  have valid: "valid_classical_plan_from2 (execute_plan_action (restore_pa_split \<pi>') s) ?pis"
+  proof (rule Cons.IH)
+    show "p4.wf_world_model (execute_plan_action (restore_pa_split \<pi>') s)"
+      using p4_wf.wf_execute_stronger[OF wf'] \<open>p4.wf_world_model s\<close>
+      using execute_equiv by auto
+    show "p4.valid_classical_plan_from2 (execute_plan_action (restore_pa_split \<pi>') s) \<pi>s'"
+      using \<open>p4.valid_classical_plan_from2 s (\<pi>' # \<pi>s')\<close> 
+      unfolding p4.valid_classical_plan_from2_alt using execute_equiv by simp
+  qed
+  show ?case using valid_classical_plan_from2_Cons enabled valid by simp
 qed
 
+lemma p4_I: "p4.I = I"
+  unfolding p4.I_def split_prob_sel I_def by order
+
 theorem split_valid_iff:
-  "(\<exists>\<pi>s. valid_plan \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. p4.valid_plan \<pi>s')"
-  unfolding ast_classical_problem.valid_plan_def
-  using restore_plan_split_valid_from p_valid_plan_from
-  by (metis I_def p4.I_def p4.wf_I wf_I split_prob_sel(3))
+  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. p4.valid_classical_plan2 \<pi>s')"
+  unfolding valid_classical_plan2_def p4.valid_classical_plan2_def p4_I
+  using restore_plan_split_valid_from p_valid_classical_plan_from2
+  using wf_I by blast
 
 theorem restore_plan_split_valid:
-  "p4.valid_plan \<pi>s' \<Longrightarrow> valid_plan (restore_plan_split \<pi>s')"
-  unfolding ast_classical_problem.valid_plan_def
-  using restore_plan_split_valid_from p4.wf_I by simp
+  "p4.valid_classical_plan2 \<pi>s' \<Longrightarrow> valid_classical_plan2 (restore_plan_split \<pi>s')"
+  unfolding valid_classical_plan2_def p4.valid_classical_plan2_def
+  using restore_plan_split_valid_from wf_I by simp
 
 end
 

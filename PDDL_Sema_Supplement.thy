@@ -1002,4 +1002,11 @@ lemma (in domain_signature) wf_fmlaI:
   using assms by (induction f) (force intro!: wf_atomI)+
 
 
+(* a formula's atoms are in the domain of a valuation if its primitive numeric expressions are defined *)
+lemma formula_atoms_in_dom_valuation_iff:
+  "atoms F \<subseteq> dom (valuation M) \<longleftrightarrow> set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)"
+  by (induction M; induction F; use dom_valuation_iff in simp)
+
+
+
 end
