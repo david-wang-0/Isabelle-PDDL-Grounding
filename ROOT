@@ -40,7 +40,9 @@ session Tree_Decomp_Grounding = HOL +
 	"Precondition_Normalization/Precondition_Normalization_Locales"
 	"Precondition_Normalization/Precondition_Normalization"
 	"Precondition_Normalization/Precondition_Normalization_Semantics"
-	PDDL_Relaxation
+	"PDDL_Relaxation/PDDL_Relaxation_Locales"
+	"PDDL_Relaxation/PDDL_Relaxation"
+	"PDDL_Relaxation/PDDL_Relaxation_Semantics"
 	Reachability_Analysis
 	Grounded_PDDL
 	PDDL_to_STRIPS

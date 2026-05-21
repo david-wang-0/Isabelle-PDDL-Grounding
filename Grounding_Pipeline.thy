@@ -47,11 +47,11 @@ lemma split_prob_wf_compact:
   using wf_ast_classical_problem4.split_prob_wf
   using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
 lemma split_valid_iff_compact:
-  "wf_classical_problem \<Longrightarrow> (\<exists>\<pi>s. valid_classical_plan \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan split_prob \<pi>s')"
+  "wf_classical_problem \<Longrightarrow> (\<exists>\<pi>s. valid_classical_plan2 \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 split_prob \<pi>s')"
   using wf_ast_classical_problem4.split_valid_iff
   using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
 lemma restore_plan_split_valid_compact:
-  "wf_classical_problem \<Longrightarrow> ast_classical_problem.valid_classical_plan split_prob \<pi>s \<Longrightarrow> valid_classical_plan (restore_plan_split \<pi>s)"
+  "wf_classical_problem \<Longrightarrow> ast_classical_problem.valid_classical_plan2 split_prob \<pi>s \<Longrightarrow> valid_classical_plan2 (restore_plan_split \<pi>s)"
   using wf_ast_classical_problem4.restore_plan_split_valid
   using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
 
