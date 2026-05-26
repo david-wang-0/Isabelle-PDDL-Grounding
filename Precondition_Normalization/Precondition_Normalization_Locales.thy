@@ -1,9 +1,9 @@
 theory Precondition_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding.Normalization_Definitions
-    Tree_Decomp_Grounding.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding.String_Utils
-    Tree_Decomp_Grounding.DNF
+    Tree_Decomp_Grounding_Base.Normalization_Definitions
+    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Base.String_Utils
+    Tree_Decomp_Grounding_Base.DNF
     iq.iq
 begin
 
@@ -34,28 +34,8 @@ definition "split_ac_names ac \<equiv>
     (distinct_strings_lit (n_clauses ac))"
 
 
-thm enumerate_primitive_numeric_expressions.simps
-
-definition (in -) "pnes_def_checks f \<equiv> 
-let pnes = formula_enumerate_primitive_numeric_expressions f;
-    pne_funs = map FunctionExpr pnes
-in map (\<lambda>f. numericEqAtm f f) pne_funs
-"
-
-definition (in -) "prepend_atoms_to_conj as f \<equiv> foldr (\<^bold>\<and>) (map Atom as) f"
-
-definition (in -) "pne_equiv_dnf_list f \<equiv>
-let
-  dnf_pres = dnf_list f;
-  pnes_def_checks = pnes_def_checks f;
-  clauses = map (prepend_atoms_to_conj pnes_def_checks) dnf_pres
-in clauses"
-
 definition split_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema list" where
-  "split_ac ac = (
-let
-  clauses = pne_equiv_dnf_list (ac_pre ac)
-in map2 (set_n_pre ac) (split_ac_names ac) clauses)"
+  "split_ac ac = map2 (set_n_pre ac) (split_ac_names ac) (dnf_list (ac_pre ac))"
 
 definition "split_acs \<equiv> concat (map split_ac (actions D))"
 
@@ -147,7 +127,7 @@ sublocale ast_classical_domain4 \<subseteq> d4: ast_classical_domain D4
     and "d4.typeless_domain_signature = typeless_domain_signature"
   by (simp_all only: split_dom_sel)
 
-locale wf_ast_classical_domain4 = wf_ast_classical_domain
+locale wf_ast_classical_domain4 = def_explicated_conj_domain
 sublocale wf_ast_classical_domain4 \<subseteq> ast_classical_domain4 .
 
 locale ast_classical_problem4 = ast_classical_problem
@@ -205,12 +185,16 @@ sublocale ast_classical_problem4 \<subseteq> p4: ast_classical_problem P4
 
   
 
-locale wf_ast_classical_problem4 = wf_ast_classical_problem
+text \<open>Under the pipeline order \<open>\<dots> \<rightarrow> degoal \<rightarrow> explicate_def \<rightarrow> split \<rightarrow> \<dots>\<close>,
+  precondition normalization assumes its input has the conj-prefix definedness
+  shape produced by \<open>Definedness_Normalization\<close>. That structural invariant is
+  what lets DNF-splitting be exact under \<open>\<Turnstile>\<^sub>m\<close>'s strict definedness
+  evaluation without re-explicating definedness atoms onto each disjunct.\<close>
+
+locale wf_ast_classical_problem4 = def_explicated_conj_problem
 sublocale wf_ast_classical_problem4 \<subseteq> ast_classical_problem4 .
 sublocale wf_ast_classical_problem4 \<subseteq> wf_ast_classical_domain4 D
   by unfold_locales
-
-find_theorems name: "ast_classical_problem4"
 
 text \<open> Alternate definitions \<close>
 

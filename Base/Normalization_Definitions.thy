@@ -146,6 +146,41 @@ sublocale typeless_classical_problem \<subseteq>
   unfolding typeless_domain_signature_def typeless_problem_signature_def
   by simp
 
+text \<open> Definedness explication: every PNE appearing in the formula has its
+  definedness atom \<open>numericEqAtm (FunctionExpr p) (FunctionExpr p)\<close> sitting
+  in the formula's top-level conjunctive prefix. This is the syntactic
+  invariant established by the \<open>Definedness_Normalization\<close> step's
+  \<open>prepend_atoms_to_conj\<close> shape and the invariant assumed by
+  \<open>Precondition_Normalization\<close>'s DNF split (otherwise the split would have
+  to re-explicate definedness atoms onto each disjunct). \<close>
+
+fun conj_atom_prefix :: "'a formula \<Rightarrow> 'a list" where
+  "conj_atom_prefix (Atom a \<^bold>\<and> f) = a # conj_atom_prefix f"
+| "conj_atom_prefix _ = []"
+
+lemma conj_atom_prefix_foldr_and_Atom:
+  "conj_atom_prefix (foldr (\<^bold>\<and>) (map Atom as) f) = as @ conj_atom_prefix f"
+  by (induction as) auto
+
+definition "is_def_explicated_conj f \<equiv>
+  \<forall>p \<in> set (formula_enumerate_primitive_numeric_expressions f).
+    numericEqAtm (FunctionExpr p) (FunctionExpr p) \<in> set (conj_atom_prefix f)"
+
+definition (in ast_classical_domain) "def_explicated_conj_dom \<equiv>
+  \<forall>a \<in> set (actions D). is_def_explicated_conj (ac_pre a)"
+
+locale def_explicated_conj_domain = wf_ast_classical_domain +
+  assumes def_explicated_conj_dom: def_explicated_conj_dom
+
+definition (in ast_classical_problem) "def_explicated_conj_prob \<equiv>
+  def_explicated_conj_dom \<and> is_def_explicated_conj (goal P)"
+
+locale def_explicated_conj_problem = wf_ast_classical_problem +
+  assumes def_explicated_conj_prob: def_explicated_conj_prob
+
+sublocale def_explicated_conj_problem \<subseteq> def_explicated_conj_domain D
+  using def_explicated_conj_prob def_explicated_conj_prob_def by (unfold_locales) blast
+
 text \<open> Precondition normalization: all action preconditions are normalized. \<close>
 
 definition (in ast_classical_domain) "prec_normed_dom \<equiv> \<forall>ac \<in> set (actions D). is_conj (ac_pre ac)"
@@ -215,58 +250,162 @@ locale relaxed_problem = normalized_problem +
 sublocale relaxed_problem \<subseteq> relaxed_domain D
   using relaxed_prob normalized_dom relaxed_prob_def relaxed_dom_def
   by (unfold_locales) simp
-(* 
+
+text \<open> Bound-split readiness. A structural restriction on a normalized,
+  definedness-explicated problem, capturing exactly the conditions under
+  which the bound-split transformation (item #7 in \<open>WIP_bound_split.md\<close>)
+  is sound:
+
+  \<^item> every numeric effect uses a monotone or assignment op
+    (\<open>Increase\<close> / \<open>Decrease\<close> / \<open>Assign\<close>; \<open>ScaleUp\<close> / \<open>ScaleDown\<close> are
+    forbidden) with a statically computable \<open>ConstantExpr\<close> rhs;
+  \<^item> every numeric atom in a precondition or in the goal is either a
+    reflexive definedness check
+    \<open>numericEqAtm (FunctionExpr p) (FunctionExpr p)\<close>, or a comparison of
+    one PNE expression against a constant.
+
+  The corresponding locale extends \<open>def_explicated_conj_domain\<close> via a
+  sublocale (preconditions arrive split + def-explicated by the upstream
+  pipeline) but deliberately does NOT extend \<open>relaxed_domain\<close>: the existing
+  \<open>relax_conj\<close> rewrites numeric atoms into \<open>\<not>\<bottom>\<close>, but bound-split must
+  inspect them to rewrite each into the direction-appropriate
+  upper/lower-bound predicate. So bound-split has to run before \<open>relax\<close>.
+\<close>
+
+fun bsplit_ready_cmp :: "'ent numeric_expression \<Rightarrow> 'ent numeric_expression \<Rightarrow> bool" where
+  "bsplit_ready_cmp (FunctionExpr _) (ConstantExpr _) = True"
+| "bsplit_ready_cmp (ConstantExpr _) (FunctionExpr _) = True"
+| "bsplit_ready_cmp _ _ = False"
+
+fun bsplit_ready_natom :: "'ent atom \<Rightarrow> bool" where
+  "bsplit_ready_natom (predAtm _ _) = True"
+| "bsplit_ready_natom (eqAtm _ _) = True"
+| "bsplit_ready_natom (numericEqAtm l r) =
+    (\<exists>p. l = FunctionExpr p \<and> r = FunctionExpr p)"
+| "bsplit_ready_natom (numericLessAtm l r) = bsplit_ready_cmp l r"
+| "bsplit_ready_natom (numericLEAtm l r) = bsplit_ready_cmp l r"
+| "bsplit_ready_natom (numericGreaterAtm l r) = bsplit_ready_cmp l r"
+| "bsplit_ready_natom (numericGEAtm l r) = bsplit_ready_cmp l r"
+
+fun bsplit_ready_fmla :: "'ent atom formula \<Rightarrow> bool" where
+  "bsplit_ready_fmla \<bottom> = True"
+| "bsplit_ready_fmla (Atom a) = bsplit_ready_natom a"
+| "bsplit_ready_fmla (\<^bold>\<not> f) = bsplit_ready_fmla f"
+| "bsplit_ready_fmla (f \<^bold>\<and> g) = (bsplit_ready_fmla f \<and> bsplit_ready_fmla g)"
+| "bsplit_ready_fmla (f \<^bold>\<or> g) = (bsplit_ready_fmla f \<and> bsplit_ready_fmla g)"
+| "bsplit_ready_fmla (f \<^bold>\<rightarrow> g) = (bsplit_ready_fmla f \<and> bsplit_ready_fmla g)"
+
+fun bsplit_ready_neff :: "'ent numeric_effect \<Rightarrow> bool" where
+  "bsplit_ready_neff (NumericEffect Assign _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
+| "bsplit_ready_neff (NumericEffect Increase _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
+| "bsplit_ready_neff (NumericEffect Decrease _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
+| "bsplit_ready_neff (NumericEffect ScaleUp _ _) = False"
+| "bsplit_ready_neff (NumericEffect ScaleDown _ _) = False"
+
+definition (in ast_classical_domain) "bsplit_ready_dom \<equiv>
+  normalized_dom
+  \<and> def_explicated_conj_dom
+  \<and> (\<forall>a \<in> set (actions D).
+        bsplit_ready_fmla (ac_pre a)
+      \<and> list_all1 bsplit_ready_neff (numeric_effects (ac_eff a)))"
+
+locale bsplit_ready_domain = wf_ast_classical_domain +
+  assumes bsplit_ready_dom: bsplit_ready_dom
+
+sublocale bsplit_ready_domain \<subseteq> normalized_domain
+  using bsplit_ready_dom bsplit_ready_dom_def by unfold_locales blast
+
+sublocale bsplit_ready_domain \<subseteq> def_explicated_conj_domain
+  using bsplit_ready_dom bsplit_ready_dom_def by unfold_locales blast
+
+definition (in ast_classical_problem) "bsplit_ready_prob \<equiv>
+  bsplit_ready_dom
+  \<and> normalized_prob
+  \<and> is_def_explicated_conj (goal P)
+  \<and> bsplit_ready_fmla (goal P)"
+
+locale bsplit_ready_problem = wf_ast_classical_problem +
+  assumes bsplit_ready_prob: bsplit_ready_prob
+
+sublocale bsplit_ready_problem \<subseteq> bsplit_ready_domain D
+  using bsplit_ready_prob bsplit_ready_prob_def by unfold_locales blast
+
+sublocale bsplit_ready_problem \<subseteq> normalized_problem
+  using bsplit_ready_prob bsplit_ready_prob_def normalized_prob_def
+  by unfold_locales blast
+
+sublocale bsplit_ready_problem \<subseteq> def_explicated_conj_problem
+  using bsplit_ready_prob bsplit_ready_prob_def
+  by unfold_locales (auto simp: def_explicated_conj_prob_def
+                                bsplit_ready_dom_def)
+
+
 subsection \<open> Reachability Definitions \<close>
 text \<open> A plan action is applicable if there exists some plan that executes it.
   Whether or not this plan actually solves the task doesn't matter.\<close>
-(
-definition (in ast_classical_problem) applicable :: "plan_action \<Rightarrow> bool"
-  where "applicable \<pi> \<equiv> \<exists>\<pi>s M. plan_action_path I \<pi>s M \<and> \<pi> \<in> set \<pi>s"
+
+definition (in ast_classical_problem) applicable :: "ast_classical_plan_action \<Rightarrow> bool"
+  where "applicable \<pi> \<equiv> \<exists>\<pi>s M. valid_classical_plan_alt I \<pi>s M \<and> \<pi> \<in> set \<pi>s"
 
 lemma (in ast_classical_problem) applicable_alt:
-  "applicable \<pi> \<longleftrightarrow> (\<exists>\<pi>s M. plan_action_path I \<pi>s M \<and>
+  "applicable \<pi> \<longleftrightarrow> (\<exists>\<pi>s M. valid_classical_plan_alt I \<pi>s M \<and>
     plan_action_enabled \<pi> M)"
 proof
   assume "applicable \<pi>"
-  then obtain \<pi>s M where 1: "plan_action_path I \<pi>s M \<and> \<pi> \<in> set \<pi>s"
+  then obtain \<pi>s M where 1: "valid_classical_plan_alt I \<pi>s M \<and> \<pi> \<in> set \<pi>s"
     unfolding applicable_def by blast
   then obtain \<pi>s' where "sublist_until \<pi>s \<pi> @ (\<pi> # \<pi>s') = \<pi>s"
     using sublist_just_until by fastforce
-  with 1 show "\<exists>\<pi>s M. plan_action_path I \<pi>s M \<and>
+  with 1 show "\<exists>\<pi>s M. valid_classical_plan_alt I \<pi>s M \<and>
     plan_action_enabled \<pi> M"
-    using plan_action_path_append_elim plan_action_path_Cons by metis
+    using valid_classical_plan_alt_append_elim valid_classical_plan_alt.simps(2) by metis
 next
-  assume "\<exists>\<pi>s M. plan_action_path I \<pi>s M \<and> plan_action_enabled \<pi> M"
-  then obtain \<pi>s M where 1: "plan_action_path I \<pi>s M" "plan_action_enabled \<pi> M"
+  assume "\<exists>\<pi>s M. valid_classical_plan_alt I \<pi>s M \<and> plan_action_enabled \<pi> M"
+  then obtain \<pi>s M where 1: "valid_classical_plan_alt I \<pi>s M" "plan_action_enabled \<pi> M"
     by auto
-  hence "plan_action_path M [\<pi>] (execute_plan_action \<pi> M)"
-    using plan_action_path_def plan_action_enabled_def
-    using execute_plan_action_def execute_ground_action_def by simp
+  hence "valid_classical_plan_alt M [\<pi>] (execute_plan_action \<pi> M)"
+    using valid_classical_plan_alt.simps plan_action_enabled_def
+    using execute_plan_action_def by simp
   moreover have "\<pi> \<in> set (\<pi>s @ [\<pi>])" by simp
-  ultimately show "applicable \<pi>" using 1 applicable_def plan_action_path_append_intro by fast
+  ultimately show "applicable \<pi>" 
+    using 1 valid_classical_plan_alt_append_intro applicable_def by fast
 qed
 
 text \<open> A fact is achievable if there exists some plan that results in a state containing it. \<close>
 
-definition (in ast_classical_problem) achievable :: "object atom formula \<Rightarrow> bool"
-  where "achievable a \<equiv> \<exists>\<pi>s M. plan_action_path I \<pi>s M \<and> a \<in> M"
+definition (in ast_classical_problem) achievable :: "fact \<Rightarrow> bool"
+  where "achievable f \<equiv> \<exists>\<pi>s M. valid_classical_plan_alt I \<pi>s M \<and> Atom (uncurry predAtm f) \<in> fst M"
+
 
 lemma (in wf_ast_classical_problem) init_achievable:
-  "\<forall>a \<in> set (init P). achievable a"
+  assumes "Atom (predAtm p xs) \<in> set (init P)"
+  shows "achievable (p, xs)"
 proof -
-  have "plan_action_path I [] I" by simp
-  thus ?thesis unfolding achievable_def I_def by blast
+  have 1: "valid_classical_plan_alt I [] I" by simp
+  have 2: "Atom (predAtm p xs) \<in> fst I"
+    using assms unfolding I_def by simp
+  show ?thesis
+    unfolding achievable_def
+    by (rule exI[of _ "[]"]; rule exI[of _ I]) (use 1 2 in \<open>simp add: uncurry_def\<close>)
 qed
 
 lemma (in wf_ast_classical_problem) achievable_wf:
-  "achievable a \<Longrightarrow> wf_fmla_atom objT a"
-  unfolding achievable_def
-  using wf_I wf_plan_action_path
-  unfolding wf_world_model_def by meson
+  "achievable (p, xs) \<Longrightarrow> wf_fact (p, xs)"
+proof -
+  assume "achievable (p, xs)"
+  then obtain \<pi>s M where vp: "valid_classical_plan_alt I \<pi>s M"
+    and mem: "Atom (predAtm p xs) \<in> fst M"
+    unfolding achievable_def by (auto simp: uncurry_def)
+  have wm: "wf_world_model M"
+    using wf_I wf_valid_classical_plan_alt vp by blast
+  obtain L N where M_eq: "M = (L, N)" by (cases M)
+  hence "Atom (predAtm p xs) \<in> L" using mem by simp
+  moreover have "\<forall>f \<in> L. wf_fmla_atom objT f" using wm M_eq by simp
+  ultimately have "wf_fmla_atom objT (Atom (predAtm p xs))" by blast
+  thus "wf_fact (p, xs)"
+    unfolding wf_fact_def by simp
+qed
 
-lemma (in wf_ast_classical_problem) achievable_predAtm:
-  "achievable a \<Longrightarrow> is_predAtom a"
-  using achievable_wf wf_fmla_atom_alt by blast
 
 subsection \<open> Grounded PDDL \<close>
 
@@ -278,8 +417,8 @@ text \<open>
 fun grounded_pred :: "predicate_decl \<Rightarrow> bool" where
   "grounded_pred (PredDecl n args) \<longleftrightarrow> args = []"
 
-fun grounded_ac :: "ast_action_schema \<Rightarrow> bool" where
-  "grounded_ac (Action_Schema n params pre effs) \<longleftrightarrow> params = []"
+fun grounded_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
+  "grounded_ac (SimpleActionSchema (ActionHead n params) (SimpleActionBody pre eff)) \<longleftrightarrow> params = []"
 
 definition (in ast_classical_domain) "grounded_dom \<equiv>
   types D = [] \<and>
@@ -300,21 +439,21 @@ sublocale grounded_problem \<subseteq> grounded_domain D
   using grounded_prob grounded_prob_def by (unfold_locales) simp
 
 lemma (in grounded_problem) grounded_pa_nullary:
-  "wf_plan_action (PAction n args) \<longleftrightarrow> n \<in> ac_name ` set (actions D) \<and> args = []" (is "?L \<longleftrightarrow> ?R")
+  "wf_classical_plan_action (SimplePlanAction n args) \<longleftrightarrow> n \<in> ac_name ` set (actions D) \<and> args = []" (is "?L \<longleftrightarrow> ?R")
 proof -
   have empty: "ac_params ac = []" if "ac \<in> set (actions D)" for ac
     using that grounded_dom grounded_dom_def grounded_ac.simps
-    by (metis ast_action_schema.exhaust_sel that)
+    apply (cases ac rule: ast_classical_action_schema_cases_unfold) by auto
   show ?thesis proof
     assume ?L
-    then obtain ac where ac: "ac \<in> set (actions D)" "action_params_match ac args" "ac_name ac = n"
+    then obtain ac where ac: "ac \<in> set (actions D)" "action_params_match (head ac) args" "ac_name ac = n"
       using wf_pa_refs_ac by metis
     with ac show ?R using empty action_params_match_def by auto
   next
     assume ?R
     then obtain ac where ac: "ac \<in> set (actions D)" "ac_name ac = n" by blast
     with \<open>?R\<close> show ?L
-      unfolding wf_plan_action_simple action_params_match_def
+      unfolding wf_classical_plan_action_simple action_params_match_def
       using res_aux[of n ac] empty by simp
   qed
 qed
@@ -330,6 +469,6 @@ locale grounded_normalized_problem = grounded_problem +
 
 sublocale grounded_normalized_problem \<subseteq> grounded_normalized_domain D
   using normed_prob by (unfold_locales) blast
-  *)
+
 
 end

@@ -218,12 +218,12 @@ lemma valid_classical_plan2_alt:
 
 text \<open> Semantics \<close>
 
-lemma (in ast_classical_problem) plan_action_path_append_intro:
+lemma (in ast_classical_problem) valid_classical_plan_alt_append_intro:
   assumes "valid_classical_plan_alt M1 \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
   shows "valid_classical_plan_alt M1 (\<pi>s @ \<mu>s) M3"
   using assms apply (induction \<pi>s arbitrary: M1) by simp_all
 
-lemma (in ast_classical_problem) plan_action_path_append_elim:
+lemma (in ast_classical_problem) valid_classical_plan_alt_append_elim:
   assumes "valid_classical_plan_alt M1 (\<pi>s @ \<mu>s) M3"
   shows "\<exists>M2. valid_classical_plan_alt M1 \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
 using assms by (induction \<pi>s arbitrary: M1) auto
@@ -369,7 +369,7 @@ lemma (in problem_signature) wf_ground_action_alt: "wf_ground_action ga \<longle
   by (cases ga; simp)
 
 text \<open> Note to self: ground_action_path checks if preconditions are enabled,
-but plan_action_path only checks it via ground_action_path.
+but valid_classical_plan_alt only checks it via ground_action_path.
 I don't see any redundancy. plan_action_enabled is only used in proofs. \<close>
 
 end
@@ -639,10 +639,6 @@ next
     using Cons.IH by fast
 qed
 
-lemma (in ast_classical_problem) valid_classical_plan_alt_append_elim:
-  assumes "valid_classical_plan_alt M (\<pi>s @ \<mu>s) M3"
-  shows "\<exists>M2. valid_classical_plan_alt M \<pi>s M2 \<and> valid_classical_plan_alt M2 \<mu>s M3"
-  using assms by (induction \<pi>s arbitrary: M) auto
 
 lemma (in ast_classical_problem) valid_classical_plan_from2_snoc:
   "valid_classical_plan_from2 M (\<pi>s @ [\<pi>]) \<longleftrightarrow>

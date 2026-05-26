@@ -1,9 +1,10 @@
 theory Goal_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding.String_Utils
-    Tree_Decomp_Grounding.Grounding_Utils
-    Tree_Decomp_Grounding.DNF
+    Tree_Decomp_Grounding_Base.Normalization_Definitions
+    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Base.String_Utils
+    Tree_Decomp_Grounding_Base.Grounding_Utils
+    Tree_Decomp_Grounding_Base.DNF
 begin
 
 section ‹Goal Normalization Definitions and Locales›
@@ -92,6 +93,9 @@ text ‹No ‹ast_classical_domain3›: the degoaled domain depends on the probl
 
 locale ast_classical_problem3 = ast_classical_problem
 sublocale ast_classical_problem3 ⊆ p3: ast_classical_problem P3 .
+
+text ‹Goal normalization runs before definedness explication in the pipeline,
+  so its input has no special definedness invariant beyond well-formedness.›
 
 locale wf_ast_classical_problem3 = wf_ast_classical_problem
 sublocale wf_ast_classical_problem3 ⊆ ast_classical_problem3 .

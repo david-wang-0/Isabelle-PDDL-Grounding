@@ -4,102 +4,111 @@ begin
 
 section \<open> Precondition Normalization Well-Formedness Proofs \<close>
 
-subsection \<open> Action splitting properties \<close>
+subsection \<open> Structural lemmas about \<open>dnf_list\<close> \<close>
 
-lemma is_conj_preprend_atoms_to_conj:
-  assumes "is_conj f"
-  shows "is_conj (prepend_atoms_to_conj as f)"
-  using assms apply (induction as arbitrary: f) 
-  by (auto simp: prepend_atoms_to_conj_def)
+text \<open>\<open>dnf_list\<close> propagates a leftmost conjunctive-prefix atom into every
+  output clause. This is the structural fact that lets \<open>is_def_explicated_conj\<close>
+  be preserved across the DNF split: the upstream \<open>Definedness_Normalization\<close>
+  step puts every PNE's definedness atom in the conj-prefix of the source
+  formula, and DNF then carries each of those atoms into every clause.\<close>
 
-lemma pne_equiv_dnf_list_length[simp]:
-  "length (pne_equiv_dnf_list f) = length (dnf_list f)"
-  unfolding pne_equiv_dnf_list_def by simp
-
-lemma pne_equiv_dnf_list_conjs:
-  "\<forall>f \<in> set (pne_equiv_dnf_list F). is_conj f"
-  unfolding pne_equiv_dnf_list_def Let_def 
-  using dnf_list_conjs is_conj_preprend_atoms_to_conj by auto
-
-lemma atoms_prepend_atoms_to_conj[simp]:
-  "atoms (prepend_atoms_to_conj as f) = set as \<union> atoms f"
-  unfolding prepend_atoms_to_conj_def by (induction as) auto
-
-lemma formula_enum_pnes_prepend_atoms_to_conj:
-  "set (formula_enumerate_primitive_numeric_expressions (prepend_atoms_to_conj as f))
-   = (\<Union>a \<in> set as. set (atom_enumerate_primitive_numeric_expressions a))
-     \<union> set (formula_enumerate_primitive_numeric_expressions f)"
-  unfolding prepend_atoms_to_conj_def by (induction as) auto
-
-lemma predAtm_notin_pnes_def_checks: "predAtm p xs \<notin> set (pnes_def_checks f)"
-  unfolding pnes_def_checks_def Let_def by auto
-
-lemma eqAtm_notin_pnes_def_checks: "eqAtm a b \<notin> set (pnes_def_checks f)"
-  unfolding pnes_def_checks_def Let_def by auto
-
-(* the definedness checks enumerate exactly the pnes of the original formula *)
-lemma pnes_of_pnes_def_checks:
-  "(\<Union>a \<in> set (pnes_def_checks f). set (atom_enumerate_primitive_numeric_expressions a))
-   = set (formula_enumerate_primitive_numeric_expressions f)"
-  unfolding pnes_def_checks_def Let_def by auto
-
-lemma pne_equiv_dnf_list_decomp:
-  assumes "g \<in> set (pne_equiv_dnf_list f)"
-  obtains c where "c \<in> set (dnf_list f)"
-    and "g = prepend_atoms_to_conj (pnes_def_checks f) c"
-  using assms by (auto simp: pne_equiv_dnf_list_def Let_def)
-
-text \<open>For each clause of \<open>pne_equiv_dnf_list\<close>, the prepended definedness checks
-  restore exactly the primitive numeric expressions of the original precondition,
-  whereas its predicate and equality atoms can only shrink (they all stem from one
-  DNF clause of the original formula).\<close>
-
-(* pnes: every clause enumerates exactly the pnes of the original formula *)
-lemma pne_equiv_dnf_list_pnes:
-  assumes "g \<in> set (pne_equiv_dnf_list f)"
-  shows "set (formula_enumerate_primitive_numeric_expressions g)
-       = set (formula_enumerate_primitive_numeric_expressions f)"
+lemma dnf_list_Atom_And:
+  "dnf_list (Atom a \<^bold>\<and> f) = map (\<lambda>c. Atom a \<^bold>\<and> c) (dnf_list f)"
 proof -
-  from assms obtain c where c: "c \<in> set (dnf_list f)"
-    and g: "g = prepend_atoms_to_conj (pnes_def_checks f) c"
-    by (rule pne_equiv_dnf_list_decomp)
-  have "atoms c \<subseteq> atoms f" using c dnf_list_atoms by fast
-  hence sub: "set (formula_enumerate_primitive_numeric_expressions c)
+  have CL: "cnf_lists (nnf (\<^bold>\<not> (Atom a \<^bold>\<and> f)))
+          = map (\<lambda>g. a\<inverse> # g) (cnf_lists (nnf (\<^bold>\<not> f)))"
+    by simp
+  have nc: "neg_conj_of_clause (a\<inverse> # c) = Atom a \<^bold>\<and> neg_conj_of_clause c" for c
+    unfolding neg_conj_of_clause_def by simp
+  have "dnf_list (Atom a \<^bold>\<and> f)
+      = map neg_conj_of_clause (map (\<lambda>g. a\<inverse> # g) (cnf_lists (nnf (\<^bold>\<not> f))))"
+    unfolding dnf_list_def by (subst CL) rule
+  also have "... = map (\<lambda>g. Atom a \<^bold>\<and> neg_conj_of_clause g) (cnf_lists (nnf (\<^bold>\<not> f)))"
+    by (simp add: nc)
+  also have "... = map (\<lambda>c. Atom a \<^bold>\<and> c) (map neg_conj_of_clause (cnf_lists (nnf (\<^bold>\<not> f))))"
+    by simp
+  finally show ?thesis unfolding dnf_list_def .
+qed
+
+lemma conj_atom_prefix_dnf_list:
+  assumes "c \<in> set (dnf_list f)" "a \<in> set (conj_atom_prefix f)"
+  shows "a \<in> set (conj_atom_prefix c)"
+  using assms
+proof (induction f arbitrary: c rule: conj_atom_prefix.induct)
+  case (1 a' f)
+  from "1.prems"(1) obtain c' where c': "c' \<in> set (dnf_list f)" "c = Atom a' \<^bold>\<and> c'"
+    unfolding dnf_list_Atom_And by auto
+  from "1.prems"(2) consider "a = a'" | "a \<in> set (conj_atom_prefix f)" by auto
+  thus ?case
+  proof cases
+    case 1 thus ?thesis using c'(2) by simp
+  next
+    case 2
+    hence "a \<in> set (conj_atom_prefix c')"
+      using "1.IH" c'(1) by blast
+    thus ?thesis using c'(2) by simp
+  qed
+qed simp_all
+
+lemma formula_enum_pnes_dnf_list_subset:
+  assumes "c \<in> set (dnf_list f)"
+  shows "set (formula_enumerate_primitive_numeric_expressions c)
        \<subseteq> set (formula_enumerate_primitive_numeric_expressions f)"
+proof -
+  have "atoms c \<subseteq> atoms f" using assms dnf_list_atoms by fast
+  thus ?thesis
     by (auto simp: set_formula_enumerate_primitive_numeric_expressions_conv)
-  show ?thesis
-    unfolding g formula_enum_pnes_prepend_atoms_to_conj pnes_of_pnes_def_checks
-    using sub by auto
 qed
 
-(* predicate atoms: every clause's predicate atoms come from the original formula *)
-lemma pne_equiv_dnf_list_predAtm:
-  assumes "g \<in> set (pne_equiv_dnf_list f)" and "predAtm p xs \<in> atoms g"
-  shows "predAtm p xs \<in> atoms f"
-proof -
-  from assms(1) obtain c where c: "c \<in> set (dnf_list f)"
-    and g: "g = prepend_atoms_to_conj (pnes_def_checks f) c"
-    by (rule pne_equiv_dnf_list_decomp)
-  from assms(2)[unfolded g]
-  have "predAtm p xs \<in> set (pnes_def_checks f) \<union> atoms c" by simp
-  hence "predAtm p xs \<in> atoms c" using predAtm_notin_pnes_def_checks by blast
-  thus "predAtm p xs \<in> atoms f" using c dnf_list_atoms by fast
+text \<open>Under \<open>is_def_explicated_conj\<close>, every clause of \<open>dnf_list\<close> carries the
+  full PNE set: each clause inherits the definedness atoms from the conj-prefix
+  via \<open>conj_atom_prefix_dnf_list\<close>, and each such atom enumerates one PNE of the
+  source formula.\<close>
+
+lemma formula_enum_pnes_dnf_list_def_explicated:
+  assumes "is_def_explicated_conj f" "c \<in> set (dnf_list f)"
+  shows "set (formula_enumerate_primitive_numeric_expressions c)
+       = set (formula_enumerate_primitive_numeric_expressions f)"
+proof
+  show "set (formula_enumerate_primitive_numeric_expressions c)
+      \<subseteq> set (formula_enumerate_primitive_numeric_expressions f)"
+    using assms(2) formula_enum_pnes_dnf_list_subset by blast
+next
+  show "set (formula_enumerate_primitive_numeric_expressions f)
+      \<subseteq> set (formula_enumerate_primitive_numeric_expressions c)"
+  proof
+    fix p assume "p \<in> set (formula_enumerate_primitive_numeric_expressions f)"
+    with assms(1) have "numericEqAtm (FunctionExpr p) (FunctionExpr p)
+                          \<in> set (conj_atom_prefix f)"
+      unfolding is_def_explicated_conj_def by blast
+    with assms(2) have
+      "numericEqAtm (FunctionExpr p) (FunctionExpr p) \<in> set (conj_atom_prefix c)"
+      by (auto dest: conj_atom_prefix_dnf_list) 
+    hence "numericEqAtm (FunctionExpr p) (FunctionExpr p) \<in> atoms c"
+      by (induction c rule: conj_atom_prefix.induct) auto
+    thus "p \<in> set (formula_enumerate_primitive_numeric_expressions c)"
+      unfolding set_formula_enumerate_primitive_numeric_expressions_conv
+      by force
+  qed
 qed
 
-(* equality atoms: every clause's equality atoms come from the original formula *)
-lemma pne_equiv_dnf_list_eqAtm:
-  assumes "g \<in> set (pne_equiv_dnf_list f)" and "eqAtm a b \<in> atoms g"
-  shows "eqAtm a b \<in> atoms f"
-proof -
-  from assms(1) obtain c where c: "c \<in> set (dnf_list f)"
-    and g: "g = prepend_atoms_to_conj (pnes_def_checks f) c"
-    by (rule pne_equiv_dnf_list_decomp)
-  from assms(2)[unfolded g]
-  have "eqAtm a b \<in> set (pnes_def_checks f) \<union> atoms c" by simp
-  hence "eqAtm a b \<in> atoms c" by (simp add: eqAtm_notin_pnes_def_checks)
-  thus "eqAtm a b \<in> atoms f" using c dnf_list_atoms by fast
+lemma is_def_explicated_conj_dnf_list:
+  assumes "is_def_explicated_conj f" "c \<in> set (dnf_list f)"
+  shows "is_def_explicated_conj c"
+  unfolding is_def_explicated_conj_def
+proof
+  fix p assume "p \<in> set (formula_enumerate_primitive_numeric_expressions c)"
+  hence "p \<in> set (formula_enumerate_primitive_numeric_expressions f)"
+    using formula_enum_pnes_dnf_list_def_explicated[OF assms] by blast
+  with assms(1) have "numericEqAtm (FunctionExpr p) (FunctionExpr p)
+                        \<in> set (conj_atom_prefix f)"
+    unfolding is_def_explicated_conj_def by blast
+  with assms(2) show
+    "numericEqAtm (FunctionExpr p) (FunctionExpr p) \<in> set (conj_atom_prefix c)"
+    using conj_atom_prefix_dnf_list by fast
 qed
 
+subsection \<open> Action splitting properties \<close>
 
 lemma (in ast_classical_domain) split_ac_names_length:
   "length (split_ac_names ac) = length (dnf_list (ac_pre ac))"
@@ -107,29 +116,28 @@ lemma (in ast_classical_domain) split_ac_names_length:
 
 lemma (in ast_classical_domain) split_ac_length:
   "length (split_ac ac) = length (dnf_list (ac_pre ac))"
-  unfolding split_ac_def 
-  unfolding Let_def length_map2 
-  unfolding pne_equiv_dnf_list_length split_ac_names_length
+  unfolding split_ac_def
+  unfolding length_map2
+  unfolding split_ac_names_length
   by force
-
 
 lemma (in ast_classical_domain) split_ac_nth:
   assumes "i < length (dnf_list (ac_pre ac))"
   shows "split_ac ac ! i =
     SimpleActionSchema
       (ActionHead (padl_lit split_pre_pad (String.implode (show i)) + ac_name ac) (ac_params ac))
-      (SimpleActionBody (pne_equiv_dnf_list (ac_pre ac) ! i) (ac_eff ac))"
+      (SimpleActionBody (dnf_list (ac_pre ac) ! i) (ac_eff ac))"
   using assms unfolding split_ac_def split_ac_names_def n_clauses_def
-  apply (induction ac rule: ast_classical_action_schema_induct_unfold) 
-  by (simp add: padl_lit_implode pne_equiv_dnf_list_length)
+  apply (induction ac rule: ast_classical_action_schema_induct_unfold)
+  by (simp add: padl_lit_implode)
 
 lemma (in ast_classical_domain4) p_ac:
   "ac' \<in> set (actions D4) \<longleftrightarrow> (\<exists>ac \<in> set (actions D). ac' \<in> set (split_ac ac))"
   unfolding split_dom_sel split_acs_def by simp
 
-lemma (in ast_classical_domain) split_pres: 
-  "map ac_pre (split_ac a) = pne_equiv_dnf_list (ac_pre a)"
-  unfolding split_ac_def Let_def 
+lemma (in ast_classical_domain) split_pres:
+  "map ac_pre (split_ac a) = dnf_list (ac_pre a)"
+  unfolding split_ac_def
   apply (rule set_n_pre_mapsel)
   using split_ac_names_length by simp
 
@@ -138,14 +146,14 @@ lemma (in ast_classical_domain) split_ac_sel:
   shows
     "\<exists>i < length (split_ac a). ac_name a' = padl_lit split_pre_pad (String.implode (show i)) + ac_name a"
     "ac_params a' = ac_params a"
-    "ac_pre a' \<in> set (pne_equiv_dnf_list (ac_pre a))"
+    "ac_pre a' \<in> set (dnf_list (ac_pre a))"
     "ac_eff a' = ac_eff a"
 proof -
   from assms show "ac_params a' = ac_params a" "ac_eff a' = ac_eff a"
-    unfolding split_ac_def Let_def by auto
+    unfolding split_ac_def by auto
   from assms obtain i where i: "i < length (split_ac a)" "a' = split_ac a ! i"
     using in_set_conv_nth by metis
-  from i show "ac_pre a' \<in> set (pne_equiv_dnf_list (ac_pre a))"
+  from i show "ac_pre a' \<in> set (dnf_list (ac_pre a))"
     using split_ac_nth[of i a] split_ac_length split_ac_names_length by auto
   from i show "\<exists>i < length (split_ac a). ac_name a' = padl_lit split_pre_pad (String.implode (show i)) + ac_name a"
     using split_ac_nth split_ac_names_length split_ac_length by auto
@@ -155,7 +163,7 @@ subsection \<open> Output format \<close>
 
 theorem (in ast_classical_problem4) prec_normed_ac:
   "\<forall>ac' \<in> set (split_ac ac). is_conj (ac_pre ac')"
-  using split_ac_sel(3) pne_equiv_dnf_list_conjs by auto
+  using split_ac_sel(3) dnf_list_conjs by auto
 
 theorem (in ast_classical_problem4) prec_normed_dom:
   "d4.prec_normed_dom"
@@ -277,14 +285,18 @@ lemma p_actions_wf: "list_all d4.wf_classical_action_schema (actions D4)"
 proof (subst list_all_iff, intro ballI)
   fix a' assume assm: "a' \<in> set (actions D4)"
   then obtain a where a: "a \<in> set (actions D)" "a' \<in> set (split_ac a)" using p_ac by auto
+  have atoms_sub: "atoms (ac_pre a') \<subseteq> atoms (ac_pre a)"
+    using split_ac_sel(3)[OF a(2)] dnf_list_atoms by fast
+  have pnes_sub: "set (formula_enumerate_primitive_numeric_expressions (ac_pre a'))
+                \<subseteq> set (formula_enumerate_primitive_numeric_expressions (ac_pre a))"
+    using split_ac_sel(3)[OF a(2)] formula_enum_pnes_dnf_list_subset by blast
   have fmla_wf: "d4.wf_fmla tyt (ac_pre a')" if "wf_fmla tyt (ac_pre a)" for tyt
     apply (rule d4.wf_fmlaI)
-    using wf_fmla_imp_wf_pred_atom[OF that] wf_fmla_imp_eqs_def[OF that] wf_fmla_imp_wf_pnes[OF that]
-    by (force simp: pne_equiv_dnf_list_pnes[OF split_ac_sel(3)[OF a(2)]] 
-     dest!: pne_equiv_dnf_list_eqAtm[OF split_ac_sel(3)[OF a(2)]]
-     pne_equiv_dnf_list_predAtm[OF split_ac_sel(3)[OF a(2)]])+
+    using wf_fmla_imp_wf_pred_atom[OF that] wf_fmla_imp_eqs_def[OF that]
+          wf_fmla_imp_wf_pnes[OF that] atoms_sub pnes_sub
+    by blast+
 
-  have ac_tyt: "ac_tyt a' = ac_tyt a" 
+  have ac_tyt: "ac_tyt a' = ac_tyt a"
     using split_ac_sel[OF a(2)] ac_tyt_def by simp
 
   have "d4.wf_classical_action_schema a'" if "wf_classical_action_schema a"
@@ -311,6 +323,37 @@ sublocale wf_ast_classical_domain4 \<subseteq> wf_ast_classical_domain D4
 sublocale wf_ast_classical_problem4 \<subseteq> p4_wf: wf_ast_classical_problem P4
   using split_prob_wf wf_ast_classical_problem.intro by simp_all
 
+subsection \<open>Precondition normalization preserves \<open>def_explicated_conj\<close>\<close>
 
+text \<open>With the input domain already \<open>def_explicated_conj\<close>, every clause of
+  \<open>dnf_list (ac_pre a)\<close> inherits the definedness atoms via
+  \<open>is_def_explicated_conj_dnf_list\<close>, so the property is preserved by the
+  split.\<close>
+
+lemma (in wf_ast_classical_domain4) def_explicated_conj_split_dom:
+  "ast_classical_domain.def_explicated_conj_dom D4"
+  unfolding ast_classical_domain.def_explicated_conj_dom_def
+proof (intro ballI)
+  fix a' assume "a' \<in> set (actions D4)"
+  then obtain a where a: "a \<in> set (actions D)" "a' \<in> set (split_ac a)"
+    using p_ac by auto
+  from a(1) have "is_def_explicated_conj (ac_pre a)"
+    using def_explicated_conj_dom unfolding def_explicated_conj_dom_def by blast
+  thus "is_def_explicated_conj (ac_pre a')"
+    using is_def_explicated_conj_dnf_list split_ac_sel(3)[OF a(2)] by blast
+qed
+
+lemma (in wf_ast_classical_problem4) def_explicated_conj_split_prob:
+  "ast_classical_problem.def_explicated_conj_prob P4"
+  unfolding ast_classical_problem.def_explicated_conj_prob_def
+  using def_explicated_conj_split_dom
+        def_explicated_conj_prob[unfolded def_explicated_conj_prob_def]
+  by simp
+
+sublocale wf_ast_classical_domain4 \<subseteq> p4_de: def_explicated_conj_domain D4
+  by unfold_locales (rule def_explicated_conj_split_dom)
+
+sublocale wf_ast_classical_problem4 \<subseteq> p4_de: def_explicated_conj_problem P4
+  by unfold_locales (rule def_explicated_conj_split_prob)
 
 end

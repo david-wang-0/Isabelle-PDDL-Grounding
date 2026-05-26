@@ -1,8 +1,10 @@
 theory Grounding_Pipeline
-  imports "Type_Normalization/Type_Normalization_Semantics"
-    "Goal_Normalization/Goal_Normalization_Semantics"
-    "Precondition_Normalization/Precondition_Normalization_Semantics"
-    PDDL_Relaxation Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
+  imports Type_Normalization.Type_Normalization_Semantics
+    Goal_Normalization.Goal_Normalization_Semantics
+    Definedness_Normalization.Definedness_Normalization_Semantics
+    Precondition_Normalization.Precondition_Normalization_Semantics
+    PDDL_Relaxation.PDDL_Relaxation
+    Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
 
 subsection \<open> Important theorems from individual grounding pipeline steps.
@@ -40,20 +42,50 @@ lemma degoaled_valid_iff_compact:
   using wf_ast_classical_problem3.degoaled_valid_iff
   using wf_ast_classical_problem3_def wf_ast_classical_problem.intro by simp
 
+thm ast_classical_problem.explicate_def_prob_sel
+lemma explicate_def_prob_wf_compact:
+  "wf_classical_problem \<Longrightarrow> ast_classical_problem.wf_classical_problem explicate_def_prob"
+  using wf_ast_classical_problem_de.explicate_def_prob_wf
+  using wf_ast_classical_problem_de_def wf_ast_classical_problem.intro by simp
+lemma explicate_def_def_explicated_conj_compact:
+  "wf_classical_problem \<Longrightarrow> ast_classical_problem.def_explicated_conj_prob explicate_def_prob"
+  using def_explicated_conj_explicate_def_prob .
+lemma explicate_def_valid_iff_compact:
+  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 explicate_def_prob \<pi>s')"
+  by (rule ast_classical_problem_de.explicate_valid_iff)
+lemma restore_plan_explicate_valid_compact:
+  "ast_classical_problem.valid_classical_plan2 explicate_def_prob \<pi>s \<Longrightarrow>
+    valid_classical_plan2 (restore_plan_explicate \<pi>s)"
+  by (rule ast_classical_problem_de.explicate_plan_restore)
+
 thm ast_classical_problem.split_prob_sel
 thm ast_classical_problem4.prec_normed_dom
 lemma split_prob_wf_compact:
-  "wf_classical_problem \<Longrightarrow> ast_classical_problem.wf_classical_problem (split_prob)"
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow> ast_classical_problem.wf_classical_problem (split_prob)"
   using wf_ast_classical_problem4.split_prob_wf
-  using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
+  unfolding wf_ast_classical_problem4_def
+            def_explicated_conj_problem_def
+            def_explicated_conj_problem_axioms_def
+            wf_ast_classical_problem_def
+  by simp
 lemma split_valid_iff_compact:
-  "wf_classical_problem \<Longrightarrow> (\<exists>\<pi>s. valid_classical_plan2 \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 split_prob \<pi>s')"
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow>
+    (\<exists>\<pi>s. valid_classical_plan2 \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 split_prob \<pi>s')"
   using wf_ast_classical_problem4.split_valid_iff
-  using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
+  unfolding wf_ast_classical_problem4_def
+            def_explicated_conj_problem_def
+            def_explicated_conj_problem_axioms_def
+            wf_ast_classical_problem_def
+  by simp
 lemma restore_plan_split_valid_compact:
-  "wf_classical_problem \<Longrightarrow> ast_classical_problem.valid_classical_plan2 split_prob \<pi>s \<Longrightarrow> valid_classical_plan2 (restore_plan_split \<pi>s)"
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow>
+    ast_classical_problem.valid_classical_plan2 split_prob \<pi>s \<Longrightarrow> valid_classical_plan2 (restore_plan_split \<pi>s)"
   using wf_ast_classical_problem4.restore_plan_split_valid
-  using wf_ast_classical_problem4_def wf_ast_classical_problem.intro by simp
+  unfolding wf_ast_classical_problem4_def
+            def_explicated_conj_problem_def
+            def_explicated_conj_problem_axioms_def
+            wf_ast_classical_problem_def
+  by simp
 
 lemma relax_wf_relaxed_compact:
   "wf_classical_problem \<Longrightarrow> normalized_prob \<Longrightarrow>
@@ -106,11 +138,19 @@ subsection \<open> Normalization correctness \<close>
 
 context ast_classical_problem begin
 
-definition "P\<^sub>N \<equiv> ast_classical_problem.split_prob (ast_classical_problem.degoal_prob detype_prob)"
+text \<open>\<open>P\<^sub>X\<close>: the explicated-and-degoaled-and-detyped problem, fed to the split step.\<close>
+definition "P\<^sub>X \<equiv> ast_classical_problem.explicate_def_prob
+  (ast_classical_problem.degoal_prob detype_prob)"
+
+definition "P\<^sub>N \<equiv> ast_classical_problem.split_prob P\<^sub>X"
 
 definition "reconstruct_plan_norm \<pi>s \<equiv>
   ast_domain.restore_plan_degoal detype_dom
-    (ast_domain.restore_plan_split (ast_classical_problem.degoal_dom detype_prob) \<pi>s)"
+    (restore_plan_explicate
+      (ast_domain.restore_plan_split
+        (ast_classical_problem.explicate_def_dom
+          (ast_classical_problem.degoal_prob detype_prob))
+        \<pi>s))"
 
 text \<open> goal and precondition normalization preserve type normalization \<close>
 lemma goal_norm_preserves_typeless:
@@ -160,26 +200,42 @@ theorem normalization_normalizes:
 
 theorem normalization_wf:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow> ast_classical_problem.wf_classical_problem P\<^sub>N"
-  unfolding P\<^sub>N_def
-  using detype_prob_wf_compact ast_classical_problem.degoal_prob_wf_compact ast_classical_problem.split_prob_wf_compact
+  unfolding P\<^sub>N_def P\<^sub>X_def
+  using detype_prob_wf_compact
+        ast_classical_problem.degoal_prob_wf_compact
+        ast_classical_problem.explicate_def_prob_wf_compact
+        ast_classical_problem.explicate_def_def_explicated_conj_compact
+        ast_classical_problem.split_prob_wf_compact
   by simp
 
 theorem normalization_valid_iff:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow>
     (\<exists>\<pi>s. valid_classical_plan \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan P\<^sub>N \<pi>s')"
-  unfolding P\<^sub>N_def
-  using detype_prob_wf_compact ast_classical_problem.degoal_prob_wf_compact
-  using detyped_valid_iff_compact ast_classical_problem.degoaled_valid_iff_compact
-    ast_classical_problem.split_valid_iff_compact by simp
+  unfolding P\<^sub>N_def P\<^sub>X_def
+  using detype_prob_wf_compact
+        ast_classical_problem.degoal_prob_wf_compact
+        ast_classical_problem.explicate_def_prob_wf_compact
+        ast_classical_problem.explicate_def_def_explicated_conj_compact
+        detyped_valid_iff_compact
+        ast_classical_problem.degoaled_valid_iff_compact
+        ast_classical_problem.explicate_def_valid_iff_compact
+        ast_classical_problem.split_valid_iff_compact
+  by simp
 
 theorem normalization_reconstruct:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow>
     ast_classical_problem.valid_classical_plan P\<^sub>N \<pi>s \<Longrightarrow> valid_classical_plan (reconstruct_plan_norm \<pi>s)"
-  unfolding P\<^sub>N_def reconstruct_plan_norm_def
-  using detype_prob_wf_compact ast_classical_problem.degoal_prob_wf_compact
-  using ast_classical_problem.restore_plan_split_valid_compact ast_classical_problem.degoal_plan_restore_compact
-    detyped_valid_iff_compact
-  by (metis ast_classical_problem.degoal_prob_sel(1) detype_prob_sel(1))
+  unfolding P\<^sub>N_def P\<^sub>X_def reconstruct_plan_norm_def
+  using detype_prob_wf_compact
+        ast_classical_problem.degoal_prob_wf_compact
+        ast_classical_problem.explicate_def_prob_wf_compact
+        ast_classical_problem.explicate_def_def_explicated_conj_compact
+        ast_classical_problem.restore_plan_split_valid_compact
+        ast_classical_problem.restore_plan_explicate_valid_compact
+        ast_classical_problem.degoal_plan_restore_compact
+        detyped_valid_iff_compact
+  by (metis ast_classical_problem.degoal_prob_sel(1) detype_prob_sel(1)
+            ast_classical_problem.explicate_def_prob_sel(1))
 
 end
 

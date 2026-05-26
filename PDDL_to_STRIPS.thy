@@ -1,7 +1,9 @@
 theory PDDL_to_STRIPS
   imports "Classical_Planning.Classical_Abstract_Syntax"
     "Classical_Planning.Classical_Happening_Semantics"
-    PDDL_Sema_Supplement STRIPS_Sema_Supplement Normalization_Definitions
+    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Base.STRIPS_Sema_Supplement
+    Tree_Decomp_Grounding_Base.Normalization_Definitions
     (* list linorder: *) "HOL-Library.List_Lexorder" "HOL-Library.Char_ord" (* only used to minimize negative literals *)
 begin
 

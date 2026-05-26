@@ -1,7 +1,9 @@
 theory Grounded_PDDL
 imports "Classical_Planning.Classical_Abstract_Syntax"
-    PDDL_Sema_Supplement Normalization_Definitions
-    Grounding_Utils String_Utils
+    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Base.Normalization_Definitions
+    Tree_Decomp_Grounding_Base.Grounding_Utils
+    Tree_Decomp_Grounding_Base.String_Utils
 begin
 
 type_synonym facty = "object atom formula" (* maybe fact_atom? *)
