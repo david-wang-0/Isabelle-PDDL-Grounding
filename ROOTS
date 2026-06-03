@@ -3,4 +3,5 @@ Type_Normalization
 Definedness_Normalization
 Goal_Normalization
 Precondition_Normalization
+Definedness_Translation
 PDDL_Relaxation

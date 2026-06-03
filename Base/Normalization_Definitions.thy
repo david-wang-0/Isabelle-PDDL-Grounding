@@ -296,9 +296,9 @@ fun bsplit_ready_fmla :: "'ent atom formula \<Rightarrow> bool" where
 | "bsplit_ready_fmla (f \<^bold>\<rightarrow> g) = (bsplit_ready_fmla f \<and> bsplit_ready_fmla g)"
 
 fun bsplit_ready_neff :: "'ent numeric_effect \<Rightarrow> bool" where
-  "bsplit_ready_neff (NumericEffect Assign _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
-| "bsplit_ready_neff (NumericEffect Increase _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
-| "bsplit_ready_neff (NumericEffect Decrease _ rhs) = (\<exists>c. rhs = ConstantExpr c)"
+  "bsplit_ready_neff (NumericEffect numeric_effect_op.Assign _ r) = (\<exists>c. r = ConstantExpr c)"
+| "bsplit_ready_neff (NumericEffect Increase _ r) = (\<exists>c. r = ConstantExpr c)"
+| "bsplit_ready_neff (NumericEffect Decrease _ r) = (\<exists>c. r = ConstantExpr c)"
 | "bsplit_ready_neff (NumericEffect ScaleUp _ _) = False"
 | "bsplit_ready_neff (NumericEffect ScaleDown _ _) = False"
 

@@ -10,6 +10,7 @@ session Tree_Decomp_Grounding_Base = HOL +
 	"HOL-Library"
 	"Show"
 	"Propositional_Proof_Systems"
+	"iq"
   theories [document = false]
 	"HOL-Library.Sublist"
 	"HOL-Library.List_Lexorder"

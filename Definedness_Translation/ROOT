@@ -1,0 +1,9 @@
+chapter AFP
+
+session Definedness_Translation = Tree_Decomp_Grounding_Base +
+  description \<open>Translate numeric definedness into propositional predicates.\<close>
+  options [timeout = 900]
+  theories
+    Definedness_Translation_Locales
+    Definedness_Translation
+    Definedness_Translation_Semantics

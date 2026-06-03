@@ -1,5 +1,5 @@
 theory PDDL_Checker_Utils
-  imports "Classical_Planning.Classical_PDDL_Checker"
+  imports "Classical_Planning.Classical_PDDL_Checker_Numeric"
     PDDL_Sema_Supplement
 begin
 

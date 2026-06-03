@@ -112,20 +112,23 @@ lemma map_of_pair_map:
 
 context ast_classical_problem_de begin
 
-lemma ast_classical_action_schema_name_explicate [simp]:
-  "ast_classical_action_schema_name (explicate_def_ac a) = ast_classical_action_schema_name a"
-  by (cases a rule: ast_classical_action_schema_cases_unfold) simp
-
 lemma ast_classical_action_schema_head_explicate [simp]:
-  "ast_classical_action_schema_head (explicate_def_ac a) = ast_classical_action_schema_head a"
+  "ast_classical_action_schema.head (explicate_def_ac a) = ast_classical_action_schema.head a"
   by (cases a rule: ast_classical_action_schema_cases_unfold) simp
 
 lemma d_de_resolve_classical_action_schema:
   "d_de.resolve_classical_action_schema n
    = map_option explicate_def_ac (resolve_classical_action_schema n)"
-  unfolding d_de.resolve_classical_action_schema_def resolve_classical_action_schema_def
-            explicate_def_dom_sel index_by_def
-  by (simp add: map_of_pair_map comp_def)
+proof -
+  have "d_de.resolve_classical_action_schema n
+      = map_of (map (λx. (ac_name x, explicate_def_ac x)) (actions D)) n"
+    unfolding d_de.resolve_classical_action_schema_def explicate_def_dom_sel index_by_def
+    by (simp add: comp_def)
+  also have "... = map_option explicate_def_ac (resolve_classical_action_schema n)"
+    unfolding resolve_classical_action_schema_def index_by_def by (rule map_of_pair_map)
+  finally show ?thesis .
+qed
+
 
 lemma p_de_resolve_classical_action_schema:
   "p_de.resolve_classical_action_schema n
@@ -145,15 +148,16 @@ proof (cases π)
 qed
 
 lemma p_de_res_inst_precondition:
-  assumes "res_inst π = Some g"
+  assumes "wf_classical_plan_action π" "res_inst π = Some g"
   shows "∃g'. p_de.res_inst π = Some g'
     ∧ precondition g' = explicate_def_fmla (precondition g)
     ∧ effect g' = effect g"
 proof (cases π)
   case (SimplePlanAction n args)
-  obtain a where res: "resolve_classical_action_schema n = Some a"
-    using assms unfolding SimplePlanAction by (cases "resolve_classical_action_schema n") auto
-  with assms have g_def: "g = instantiate_classical_action_schema a args"
+  from assms(1) obtain a where res: "resolve_classical_action_schema n = Some a"
+    unfolding SimplePlanAction wf_classical_plan_action_simple
+    by (cases "resolve_classical_action_schema n") auto
+  with assms(2) have g_def: "g = instantiate_classical_action_schema a args"
     unfolding SimplePlanAction by simp
   have p_de_res: "p_de.res_inst (SimplePlanAction n args)
     = Some (instantiate_classical_action_schema (explicate_def_ac a) args)"
@@ -178,10 +182,10 @@ proof (cases π)
 qed
 
 lemma numeric_effects_non_intrf_explicate:
-  assumes "res_inst π = Some g" "p_de.res_inst π = Some g'"
-  shows "p_de.numeric_effects_non_intrf g' = numeric_effects_non_intrf g"
+  assumes "wf_classical_plan_action π" "res_inst π = Some g" "p_de.res_inst π = Some g'"
+  shows "numeric_effects_non_intrf g' = numeric_effects_non_intrf g"
 proof -
-  from p_de_res_inst_precondition[OF assms(1)] assms(2)
+  from p_de_res_inst_precondition[OF assms(1,2)] assms(3)
   have "effect g' = effect g" by auto
   thus ?thesis
     unfolding numeric_effects_non_intrf_def by simp
@@ -189,53 +193,50 @@ qed
 
 lemma p_de_plan_action_enabled_iff:
   "p_de.plan_action_enabled π M ⟷ plan_action_enabled π M"
-proof (cases "res_inst π")
-  case None
-  hence "p_de.res_inst π = None" by simp
-  with None show ?thesis
-    unfolding plan_action_enabled_def p_de.plan_action_enabled_def
-    by simp
+proof (cases "wf_classical_plan_action π")
+  case False
+  thus ?thesis
+    unfolding plan_action_enabled_def p_de.plan_action_enabled_def by simp
 next
-  case (Some g)
-  then obtain g' where g':
-      "p_de.res_inst π = Some g'"
-      "precondition g' = explicate_def_fmla (precondition g)"
-      "effect g' = effect g"
-    using p_de_res_inst_precondition by blast
-  have ne: "p_de.numeric_effects_non_intrf g' = numeric_effects_non_intrf g"
-    using numeric_effects_non_intrf_explicate[OF Some g'(1)] .
+  case True
+  obtain g where g: "res_inst π = Some g" using res_inst_alt by blast
+  obtain g' where g': "p_de.res_inst π = Some g'" using p_de.res_inst_alt by blast
+  from p_de_res_inst_precondition[OF True g] g'
+  have pre: "precondition g' = explicate_def_fmla (precondition g)"
+   and eff: "effect g' = effect g" by auto
+  have ne: "numeric_effects_non_intrf g' = numeric_effects_non_intrf g"
+    using numeric_effects_non_intrf_explicate[OF True g g'] .
   have rhs: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect g'))
            = set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect g))"
-    using g'(3) by simp
-  have wfp: "p_de.wf_classical_plan_action π ⟷ wf_classical_plan_action π" by simp
+    using eff by simp
   have pre_sem: "valuation M ⊨⇩m precondition g' ⟷ valuation M ⊨⇩m precondition g"
-    unfolding g'(2) by (rule explicate_def_fmla_semantics)
+    unfolding pre by (rule explicate_def_fmla_semantics)
   show ?thesis
     unfolding plan_action_enabled_def p_de.plan_action_enabled_def
-    unfolding Some g'(1) Let_def option.sel
-    using ne rhs wfp pre_sem by argo
+    unfolding g g' comp_apply option.sel Let_def
+    by (simp add: ne rhs pre_sem)
+qed
+
+lemma p_de_res_inst_effect:
+  "effect (the (p_de.res_inst π)) = effect (the (res_inst π))"
+proof -
+  have l: "p_de.res_inst π = Some (instantiate_classical_action_schema
+      (the (p_de.resolve_classical_action_schema (name π))) (arguments π))"
+    by (rule p_de.res_inst_alt)
+  have r: "res_inst π = Some (instantiate_classical_action_schema
+      (the (resolve_classical_action_schema (name π))) (arguments π))"
+    by (rule res_inst_alt)
+  show ?thesis
+    unfolding l r option.sel p_de_resolve_classical_action_schema
+    by (cases "resolve_classical_action_schema (name π)")
+       (simp_all add: instantiate_classical_action_schema_alt)
 qed
 
 lemma p_de_execute_plan_action:
   "p_de.execute_plan_action π M = execute_plan_action π M"
-proof (cases "res_inst π")
-  case None
-  hence "p_de.res_inst π = None" by simp
-  with None show ?thesis
-    unfolding execute_plan_action_def p_de.execute_plan_action_def
-    by simp
-next
-  case (Some g)
-  then obtain g' where g':
-      "p_de.res_inst π = Some g'"
-      "effect g' = effect g"
-    using p_de_res_inst_precondition by blast
-  have "apply_ground_actions [g'] M = apply_ground_actions [g] M"
-    using g'(2) by (cases g; cases g'; simp add: apply_ground_actions_def)
-  thus ?thesis
-    unfolding execute_plan_action_def p_de.execute_plan_action_def
-    unfolding Some g'(1) by simp
-qed
+  unfolding execute_plan_action_def p_de.execute_plan_action_def comp_apply
+  by (simp add: p_de_res_inst_effect action_list_numeric_update_function_def
+                action_numeric_update_function_def)
 
 lemma p_de_valid_classical_plan_alt_iff:
   "p_de.valid_classical_plan_alt M πs M' ⟷ valid_classical_plan_alt M πs M'"

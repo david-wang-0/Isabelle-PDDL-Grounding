@@ -3,6 +3,7 @@ theory Grounding_Pipeline
     Goal_Normalization.Goal_Normalization_Semantics
     Definedness_Normalization.Definedness_Normalization_Semantics
     Precondition_Normalization.Precondition_Normalization_Semantics
+    Definedness_Translation.Definedness_Translation_Semantics
     PDDL_Relaxation.PDDL_Relaxation
     Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
@@ -243,7 +244,9 @@ subsection \<open> Relaxation \<close>
 
 context ast_classical_problem begin
 
-definition "P\<^sub>R \<equiv> ast_classical_problem.relax_prob P\<^sub>N"
+definition "P\<^sub>T \<equiv> ast_classical_problem.def_translate_prob P\<^sub>N"
+
+definition "P\<^sub>R \<equiv> ast_classical_problem.relax_prob P\<^sub>T"
 
 lemma relaxation_applicables:
   assumes "restrict_prob" "wf_classical_problem"

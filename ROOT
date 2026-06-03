@@ -8,6 +8,7 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Base +
 	"Definedness_Normalization"
 	"Goal_Normalization"
 	"Precondition_Normalization"
+	"Definedness_Translation"
 	"PDDL_Relaxation"
   theories
 	Reachability_Analysis
