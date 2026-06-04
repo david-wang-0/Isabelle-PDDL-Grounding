@@ -39,10 +39,6 @@ lemma (in ast_classical_domain) relax_ac_head:
   "ac_head (relax_ac a) = ac_head a"
   by (cases a rule: ast_classical_action_schema_cases_unfold) simp
 
-lemma (in ast_classical_problem_rx) rx_action_params_match:
-  "px.action_params_match = action_params_match"
-  unfolding problem_signature.action_params_match_def rx_is_obj_of_type ..
-
 lemma (in normalized_problem_rx) rx_wf_classical_plan_action:
   "px.wf_classical_plan_action = wf_classical_plan_action"
 proof (rule ext)
@@ -56,7 +52,7 @@ proof (rule ext)
       by (cases "resolve_classical_action_schema n";
           simp add: px.wf_classical_plan_action_simple
                     ast_classical_problem.wf_classical_plan_action_simple
-                    rx_action_params_match relax_ac_head)
+                    relax_ac_head)
   qed
 qed
 
@@ -180,77 +176,142 @@ lemma (in -) map_effect_alt:
 lemma (in normalized_problem_rx) rx_exec:
   assumes "fst M \<subseteq> fst M'" "plan_action_enabled \<pi> M"
   shows "fst (execute_plan_action \<pi> M) \<subseteq> fst (px.execute_plan_action \<pi> M')"
-  using assms
 proof (cases \<pi>)
   case (SimplePlanAction n args)
-  then obtain a where a: "resolve_classical_action_schema n = Some a"
-    using assms plan_action_enabled_def by fastforce
+  from assms(2) obtain a where a: "resolve_classical_action_schema n = Some a"
+    unfolding SimplePlanAction plan_action_enabled_def
+    using ast_classical_problem.wf_classical_plan_action_simple
+    by (cases "resolve_classical_action_schema n") auto
   hence a': "px.resolve_classical_action_schema n = Some (relax_ac a)"
     using rx_resolve by simp
+  have inst:
+    "(the o res_inst) \<pi> = GroundAction
+        (map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a))
+        (map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a))"
+    unfolding SimplePlanAction using a
+    by (simp add: domain_signature.instantiate_classical_action_schema_alt
+                  simple_action_instantiations.res_inst.simps)
+  have rx_inst:
+    "(the o px.res_inst) \<pi> = GroundAction
+        (map_atom_fmla (ac_tsubst (ac_params a) args) (relax_conj (ac_pre a)))
+        (map_ast_effect (ac_tsubst (ac_params a) args) (relax_eff (ac_eff a)))"
+    unfolding SimplePlanAction using a' relax_ac_sel
+    by (simp add: domain_signature.instantiate_classical_action_schema_alt
+                  simple_action_instantiations.res_inst.simps)
+  have dels_rx: "set (dels (ground_action.effect ((the o px.res_inst) \<pi>))) = {}"
+    unfolding rx_inst ground_action.sel map_effect_alt by (simp add: relax_eff_sel(2))
+  have adds_rx: "adds (ground_action.effect ((the o px.res_inst) \<pi>))
+        = adds (ground_action.effect ((the o res_inst) \<pi>))"
+    unfolding inst rx_inst ground_action.sel map_effect_alt by (simp add: relax_eff_sel(1))
+  have L: "fst (execute_plan_action \<pi> M)
+    = (fst M - set (dels (ground_action.effect ((the o res_inst) \<pi>))))
+        \<union> set (adds (ground_action.effect ((the o res_inst) \<pi>)))"
+    unfolding execute_plan_action_def
+    by (metis apply_ground_action_alt fst_conv prod.collapse)
+  have R: "fst (px.execute_plan_action \<pi> M')
+    = (fst M' - set (dels (ground_action.effect ((the o px.res_inst) \<pi>))))
+        \<union> set (adds (ground_action.effect ((the o px.res_inst) \<pi>)))"
+    unfolding px.execute_plan_action_def
+    by (metis apply_ground_action_alt fst_conv prod.collapse)
   show ?thesis
-    unfolding SimplePlanAction
-    unfolding ast_classical_problem.execute_plan_action_def
-    unfolding simple_action_instantiations.res_inst.simps a a' apply simp
-    unfolding instantiate_action_schema_alt apply simp
-    unfolding apply_effect_alt map_effect_alt
-    unfolding ast_effect.sel relax_eff_sel
-    using assms by auto
+    unfolding L R dels_rx adds_rx using assms(1) by auto
+qed
+
+lemma (in normalized_problem_rx) rx_exec_snd:
+  assumes "snd M = snd M'" "plan_action_enabled \<pi> M"
+  shows "snd (execute_plan_action \<pi> M) = snd (px.execute_plan_action \<pi> M')"
+proof (cases \<pi>)
+  case (SimplePlanAction n args)
+  from assms(2) obtain a where a: "resolve_classical_action_schema n = Some a"
+    unfolding SimplePlanAction plan_action_enabled_def
+    using ast_classical_problem.wf_classical_plan_action_simple
+    by (cases "resolve_classical_action_schema n") auto
+  hence a': "px.resolve_classical_action_schema n = Some (relax_ac a)"
+    using rx_resolve by simp
+  have inst:
+    "(the o res_inst) \<pi> = GroundAction
+        (map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a))
+        (map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a))"
+    unfolding SimplePlanAction using a
+    by (simp add: domain_signature.instantiate_classical_action_schema_alt
+                  simple_action_instantiations.res_inst.simps)
+  have rx_inst:
+    "(the o px.res_inst) \<pi> = GroundAction
+        (map_atom_fmla (ac_tsubst (ac_params a) args) (relax_conj (ac_pre a)))
+        (map_ast_effect (ac_tsubst (ac_params a) args) (relax_eff (ac_eff a)))"
+    unfolding SimplePlanAction using a' relax_ac_sel
+    by (simp add: domain_signature.instantiate_classical_action_schema_alt
+                  simple_action_instantiations.res_inst.simps)
+  have ne_eq: "numeric_effects (ground_action.effect ((the o px.res_inst) \<pi>))
+        = numeric_effects (ground_action.effect ((the o res_inst) \<pi>))"
+    unfolding inst rx_inst ground_action.sel map_effect_alt by (cases "ac_eff a") simp
+  have L: "snd (execute_plan_action \<pi> M) = action_numeric_update_function ((the o res_inst) \<pi>) (snd M)"
+    unfolding execute_plan_action_def
+    by (metis apply_ground_action_alt snd_conv prod.collapse)
+  have R: "snd (px.execute_plan_action \<pi> M') = action_numeric_update_function ((the o px.res_inst) \<pi>) (snd M')"
+    unfolding px.execute_plan_action_def
+    by (metis apply_ground_action_alt snd_conv prod.collapse)
+  show ?thesis
+    unfolding L R assms(1) action_numeric_update_function_def ne_eq ..
 qed
 
 lemma (in normalized_problem_rx) rx_path_right:
-  assumes "fst M1 \<subseteq> fst M1'" "valid_classical_plan_alt M1 \<pi>s M2"
+  assumes "fst M1 \<subseteq> fst M1'" "snd M1 = snd M1'" "valid_classical_plan_alt M1 \<pi>s M2"
     "wf_world_model M1" "px.wf_world_model M1'"
   shows "\<exists>M2'. px.valid_classical_plan_alt M1' \<pi>s M2' \<and> fst M2 \<subseteq> fst M2'"
-  using assms proof (induction \<pi>s arbitrary: M1 M1')
-  case (Cons \<pi> \<pi>s)
-  hence 1: "plan_action_enabled \<pi> M1" "valid_classical_plan_alt (execute_plan_action \<pi> M1) \<pi>s M2"
-    by simp_all
-
-  from Cons.prems have C1: "execute_plan_action \<pi> M1 \<subseteq> px.execute_plan_action \<pi> M1'"
-    using rx_exec by simp
-  from Cons.prems have C2: "px.plan_action_enabled \<pi> M1'"
-    using rx_enabled ast_classical_problem.wf_lwm_basic by fastforce
-
-  have "wf_world_model (execute_plan_action \<pi> M1)"
-    "px.wf_world_model (px.execute_plan_action \<pi> M1')"
-    using Cons.prems wf_execute 1 apply simp
-    using Cons.prems px.wf_execute C2 by simp
-
-  with C1 obtain M2' where "px.valid_classical_plan_alt (px.execute_plan_action \<pi> M1') \<pi>s M2'" "M2 \<subseteq> M2'"
-    using 1 Cons by blast
-  with C2 show ?case by auto
-qed simp
-
-(* TODO: re-enable when achievable/applicable are reintroduced in
-   Normalization_Definitions. The proofs below are kept as outlines.
+  using assms
+proof (induction \<pi>s arbitrary: M1 M1')
+  case (Nil M1 M1')
+  then have "M1 = M2" by simp
+  then show ?case using Nil.prems(1) by (intro exI[of _ M1']) auto
+next
+  case (Cons \<pi> \<pi>s M1 M1')
+  from Cons.prems(3) have 1: "plan_action_enabled \<pi> M1"
+    and 2: "valid_classical_plan_alt (execute_plan_action \<pi> M1) \<pi>s M2" by simp_all
+  have lb1: "lwm_basic (fst M1)" using Cons.prems(4) wf_lwm_basic by blast
+  have lb1': "lwm_basic (fst M1')" using Cons.prems(5) px.wf_lwm_basic by blast
+  have C1: "fst (execute_plan_action \<pi> M1) \<subseteq> fst (px.execute_plan_action \<pi> M1')"
+    using rx_exec[OF Cons.prems(1) 1] .
+  have Cs: "snd (execute_plan_action \<pi> M1) = snd (px.execute_plan_action \<pi> M1')"
+    using rx_exec_snd[OF Cons.prems(2) 1] .
+  have C2: "px.plan_action_enabled \<pi> M1'"
+    using rx_enabled[OF lb1 lb1' Cons.prems(1) Cons.prems(2) 1] .
+  have wfe: "wf_world_model (execute_plan_action \<pi> M1)"
+    using wf_execute_stronger plan_action_enabled_props(1)[OF 1] Cons.prems(4) by blast
+  have wfe': "px.wf_world_model (px.execute_plan_action \<pi> M1')"
+    using px.wf_execute_stronger px.plan_action_enabled_props(1)[OF C2] Cons.prems(5) by auto
+  from Cons.IH[OF C1 Cs 2 wfe wfe'] obtain M2' where
+    M2': "px.valid_classical_plan_alt (px.execute_plan_action \<pi> M1') \<pi>s M2'"
+         "fst M2 \<subseteq> fst M2'" by blast
+  show ?case using C2 M2' by fastforce
+qed
 
 theorem (in normalized_problem_rx) relax_achievables:
   "{a. achievable a} \<subseteq> {a. px.achievable a}"
 proof
-  fix a assume "a \<in> {a. achievable a}"
-  then obtain \<pi>s M where o: "valid_classical_plan_alt I \<pi>s M" "a \<in> M"
+  fix f assume "f \<in> {a. achievable a}"
+  then obtain \<pi>s M where o: "valid_classical_plan_alt I \<pi>s M"
+    "Atom (uncurry predAtm f) \<in> fst M"
     using achievable_def by blast
-  have "I \<subseteq> px.I" using rx_I by simp
-  with o(1) obtain M' where "px.valid_classical_plan_alt px.I \<pi>s M'" "M \<subseteq> M'"
-    using wf_I px.wf_I rx_path_right by blast
-  thus "a \<in> {a. px.achievable a}"
-    using px.achievable_def o(2) by blast
+  have i1: "fst I \<subseteq> fst px.I" and i2: "snd I = snd px.I" using rx_I by simp_all
+  from rx_path_right[OF i1 i2 o(1) wf_I] px.wf_I obtain M' where
+    M': "px.valid_classical_plan_alt px.I \<pi>s M'" "fst M \<subseteq> fst M'" by auto 
+  thus "f \<in> {a. px.achievable a}"
+    using px.achievable_def o(2) M'(2) by blast
 qed
 
 theorem (in normalized_problem_rx) relax_applicables:
   "{\<pi>. applicable \<pi>} \<subseteq> {\<pi>. px.applicable \<pi>}"
 proof
-  fix x
-  assume "x \<in> {\<pi>. applicable \<pi>}"
+  fix x assume "x \<in> {\<pi>. applicable \<pi>}"
   then obtain \<pi>s M where o: "valid_classical_plan_alt I \<pi>s M" "x \<in> set \<pi>s"
     using applicable_def by blast
-  have "I \<subseteq> px.I" using rx_I by simp
-  with o(1) obtain M' where "px.valid_classical_plan_alt px.I \<pi>s M'"
-    using wf_I px.wf_I rx_path_right by blast
+  have i1: "fst I \<subseteq> fst px.I" and i2: "snd I = snd px.I" using rx_I by simp_all
+  from rx_path_right[OF i1 i2 o(1) wf_I] px.wf_I obtain M' where
+    "px.valid_classical_plan_alt px.I \<pi>s M'" by auto
   thus "x \<in> {\<pi>. px.applicable \<pi>}"
     using px.applicable_def o(2) by blast
 qed
-*)
 
 
 subsection \<open> Code Setup \<close>

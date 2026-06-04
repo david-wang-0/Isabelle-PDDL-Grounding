@@ -1,10 +1,12 @@
-# CLAUDE.md
+# GEMINI.md
 
-This file provides guidance to Claude Code (claude.ai/code) and Gemini when working with code in this repository.
+This file provides guidance to Gemini when working with code in this repository.
 
 ## Critical Rules
 
 - **Do NOT build the project automatically**: Never run build or compile commands (such as `make build`, `make compile-sml-mlton`, `make compile-sml-poly`, or `isabelle build`) when performing operations, editing files, or answering questions, unless the user has explicitly requested a build or compilation.
+
+- **ALWAYS check theory status via the `jedit-status` skill**: To verify a theory file builds / is error-free / is fully processed, you MUST invoke the `jedit-status` skill rather than calling `mcp__isabelle__get_diagnostics` / `get_processing_status` / `get_command_info` ad hoc. The skill enforces forcing tail-processing (jEdit only checks the *visible* viewport, so a buffer can sit "unprocessed" — and report a false `0 errors` — until its tail is forced). Do not declare a file clean until `fully_processed: true` **and** `consolidated: true`.
 
 
 ## Project Overview
@@ -92,7 +94,7 @@ Each major feature (PDDL grounding, datalog models, graph algorithms) is isolate
 
 ## Proof Development
 
-Always use Isabelle/jEdit (`make jedit`) to create/edit theory files. The Isabelle/Q MCP server must be configured as an MCP server for Claude.
+Always use Isabelle/jEdit (`make jedit`) to create/edit theory files. The Isabelle/Q MCP server must be configured as an MCP server for Gemini.
 
 ### For GitHub Copilot Agents
 

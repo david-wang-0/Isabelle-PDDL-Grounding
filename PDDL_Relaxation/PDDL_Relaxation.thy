@@ -50,33 +50,6 @@ theorem (in normalized_problem_rx) relax_relaxes:
 
 subsection \<open> Preserving Well-Formedness \<close>
 
-lemma (in ast_classical_domain_rx) rx_constT: "dx.constT = constT"
-  unfolding domain_signature.constT_def by simp
-
-lemma (in ast_classical_domain_rx) rx_wf_atom: "dx.wf_atom = wf_atom"
-  apply (rule ext; rule ext)
-  subgoal for tyt x
-    apply (cases x; simp)
-    done
-  done
-
-lemma (in ast_classical_domain_rx) rx_wf_fmla: "dx.wf_fmla = wf_fmla"
-  apply (rule ext; rule ext)
-  subgoal for tyt x
-    apply (induction x; simp add: rx_wf_atom)
-    done
-  done
-
-lemma (in ast_classical_domain_rx) rx_wf_fmla_atom: "dx.wf_fmla_atom = wf_fmla_atom"
-  unfolding dx.wf_fmla_atom_alt wf_fmla_atom_alt rx_wf_fmla ..
-
-lemma (in ast_classical_domain_rx) rx_wf_eff: "dx.wf_effect = wf_effect"
-  apply (rule ext; rule ext)
-  subgoal for tyt eff
-    apply (cases eff; simp add: rx_wf_fmla_atom)
-    done
-  done
-
 lemma (in ast_classical_domain) relax_fmla_wf:
   "wf_fmla tyt F \<Longrightarrow> wf_fmla tyt (relax_conj F)"
   apply (induction F)
@@ -93,20 +66,6 @@ lemma (in ast_classical_domain) relax_eff_wf:
 lemma (in ast_classical_problem_rx) rx_I: "px.I = I"
   unfolding ast_classical_problem.I_def relax_prob_sel ..
 
-lemma (in ast_classical_problem_rx) rx_objT: "px.objT = objT"
-  unfolding problem_signature.objT_def rx_constT relax_prob_sel ..
-
-lemma (in ast_classical_problem_rx) rx_is_obj_of_type: "px.is_obj_of_type = is_obj_of_type"
-  unfolding problem_signature.is_obj_of_type_def rx_objT domain_signature.of_type_def
-    domain_signature.subtype_rel_def relax_prob_sel relax_dom_sel ..
-
-lemma (in ast_classical_problem_rx) rx_wf_wm: "px.wf_world_model = wf_world_model"
-  apply (rule ext)
-  subgoal for x
-    apply (cases x; simp add: rx_wf_fmla_atom rx_objT)
-    done
-  done
-
 lemma (in ast_classical_domain) relax_ac_names:
   "map ac_name (actions D) = map ac_name (map relax_ac (actions D))"
   using relax_ac_sel(1) by simp
@@ -118,8 +77,8 @@ lemma (in ast_classical_domain_rx) relax_ac_wf:
   apply (cases a rule: ast_classical_action_schema_cases_unfold; simp)
   unfolding Let_def
   apply (intro conjI)
-  using rx_wf_fmla rx_constT relax_fmla_wf apply metis
-  using rx_wf_eff rx_constT relax_eff_wf by metis
+  using relax_fmla_wf apply metis
+  using relax_eff_wf by metis
 
 theorem (in normalized_domain_rx) relax_dom_wf:
   "dx.wf_classical_domain"
@@ -133,9 +92,7 @@ theorem (in normalized_domain_rx) relax_dom_wf:
 
 lemma (in normalized_problem_rx) rx_goal_wf:
   "dx.wf_fmla px.objT (relax_conj (goal P))"
-  using wf_P(5) rx_objT rx_wf_fmla
-    normalized_prob[unfolded norm_prob_defs] ast_classical_domain.relax_fmla_wf
-  by metis
+  using wf_P(5) relax_fmla_wf by metis
 
 theorem (in normalized_problem_rx) relax_wf:
   "px.wf_classical_problem"

@@ -43,7 +43,7 @@ fun rhs_pnes_eff :: "'ent ast_effect \<Rightarrow> 'ent primitive_numeric_expres
 
 definition lhs_pnes_num_eff :: "'ent numeric_effect \<Rightarrow> 'ent primitive_numeric_expression list" where
   "lhs_pnes_num_eff eff = (case eff of
-    NumericEffect _ p _ \<Rightarrow> [p])"
+    NumericEffect numeric_effect_op.Assign p _ \<Rightarrow> [p] | _ \<Rightarrow> [])"
 
 fun lhs_pnes_eff :: "'ent ast_effect \<Rightarrow> 'ent primitive_numeric_expression list" where
   "lhs_pnes_eff (Effect _ _ ne) = concat (map lhs_pnes_num_eff ne)"
@@ -75,7 +75,7 @@ subsection \<open>Domain-fresh prefix\<close>
 
 context domain_signature begin
 
-text \<open>A prefix fresh w.r.t.\ the declared predicate names, extended with the
+text \<open>A prefix fresh w.r.t. the declared predicate names, extended with the
   \<open>Defined_\<close> token. Freshness follows from \<open>safe_prefix_correct\<close>.\<close>
 
 definition "def_prefix \<equiv> safe_prefix pred_names + STR ''Defined_''"
@@ -151,5 +151,18 @@ sublocale ast_classical_problem_dt \<subseteq> pt: ast_classical_problem PT .
 locale wf_ast_classical_problem_dt = wf_ast_classical_problem
 sublocale wf_ast_classical_problem_dt \<subseteq> ast_classical_problem_dt .
 sublocale wf_ast_classical_problem_dt \<subseteq> wf_ast_classical_domain_dt D by (unfold_locales)
+
+text \<open>The locale in which the semantic equivalence of the translation is proved:
+  a well-formed \<open>*_dt\<close> problem whose action preconditions and goal carry the
+  definedness-explicated conjunctive prefix (\<open>is_def_explicated_conj\<close>). This is
+  the structural invariant established by \<open>Definedness_Normalization\<close> and
+  preserved by \<open>Precondition_Normalization\<close>; it confines every reflexive
+  definedness atom \<open>numericEqAtm (FunctionExpr p) (FunctionExpr p)\<close> to a positive
+  top-level conjunct, which is exactly what makes the numeric-to-propositional
+  \<open>def_translate\<close> rewrite truth-preserving under \<open>\<Turnstile>\<^sub>m\<close>'s strict
+  (three-valued) definedness semantics.\<close>
+
+locale def_explicated_conj_problem_dt =
+  wf_ast_classical_problem_dt + def_explicated_conj_problem
 
 end

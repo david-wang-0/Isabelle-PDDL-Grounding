@@ -4,7 +4,7 @@ theory Grounding_Pipeline
     Definedness_Normalization.Definedness_Normalization_Semantics
     Precondition_Normalization.Precondition_Normalization_Semantics
     Definedness_Translation.Definedness_Translation_Semantics
-    PDDL_Relaxation.PDDL_Relaxation
+    PDDL_Relaxation.PDDL_Relaxation_Semantics
     Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
 begin
 
@@ -88,6 +88,15 @@ lemma restore_plan_split_valid_compact:
             wf_ast_classical_problem_def
   by simp
 
+text \<open> Definedness translation preserves well-formedness and normalization. \<close>
+lemma def_translate_prob_wf_compact:
+  "wf_classical_problem \<Longrightarrow> ast_classical_problem.wf_classical_problem def_translate_prob"
+  using wf_ast_classical_problem_dt.def_translate_prob_wf
+  using wf_ast_classical_problem_dt_def wf_ast_classical_problem.intro by simp
+lemma def_translate_normed_compact:
+  "normalized_prob \<Longrightarrow> ast_classical_problem.normalized_prob def_translate_prob"
+  by (rule def_translate_normalized)
+
 lemma relax_wf_relaxed_compact:
   "wf_classical_problem \<Longrightarrow> normalized_prob \<Longrightarrow>
     ast_classical_problem.relaxed_prob relax_prob \<and> ast_classical_problem.wf_classical_problem relax_prob"
@@ -141,7 +150,7 @@ context ast_classical_problem begin
 
 text \<open>\<open>P\<^sub>X\<close>: the explicated-and-degoaled-and-detyped problem, fed to the split step.\<close>
 definition "P\<^sub>X \<equiv> ast_classical_problem.explicate_def_prob
-  (ast_classical_problem.degoal_prob detype_prob)"
+  (ast_classical_problem.degoal_prob detype_classical_prob)"
 
 definition "P\<^sub>N \<equiv> ast_classical_problem.split_prob P\<^sub>X"
 
@@ -155,21 +164,23 @@ definition "reconstruct_plan_norm \<pi>s \<equiv>
 
 text \<open> goal and precondition normalization preserve type normalization \<close>
 lemma goal_norm_preserves_typeless:
-  "typeless_prob \<Longrightarrow> ast_classical_problem.typeless_prob (degoal_prob)"
-  unfolding ast_classical_problem.typeless_prob_def ast_domain.typeless_dom_def
+  "typeless_classical_problem \<Longrightarrow> ast_classical_problem.typeless_classical_problem (degoal_prob)"
+  unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
+    domain_signature.typeless_domain_signature_def
     degoal_prob_sel degoal_dom_sel
   unfolding goal_pred_decl_def goal_ac_def by auto
 
 lemma prec_norm_preserves_typeless:
-  "typeless_prob \<Longrightarrow> ast_classical_problem.typeless_prob (split_prob)"
-  unfolding ast_classical_problem.typeless_prob_def ast_domain.typeless_dom_def
+  "typeless_classical_problem \<Longrightarrow> ast_classical_problem.typeless_classical_problem (split_prob)"
+  unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
+    domain_signature.typeless_domain_signature_def
     split_prob_sel split_dom_sel
   unfolding split_acs_def using split_ac_sel(2) by auto
 
 text \<open> type and precondition normalization preserve goal normalization \<close>
 lemma type_norm_preserves_goal_conj:
-  "is_conj (goal P) \<Longrightarrow> is_conj (goal detype_prob)"
-  unfolding detype_prob_sel .
+  "is_conj (goal P) \<Longrightarrow> is_conj (goal detype_classical_prob)"
+  unfolding detype_classical_prob_sel .
 
 lemma prec_norm_preserves_goal_conj:
   "is_conj (goal P) \<Longrightarrow> is_conj (goal split_prob)"
@@ -184,8 +195,8 @@ text \<open> Goal normalization only preserves precondition normalization if the
 lemma goal_norm_preserves_prec_norm:
   assumes "prec_normed_dom"
     "is_conj (goal P)"
-  shows "ast_domain.prec_normed_dom (domain degoal_prob)"
-  using assms(1) unfolding ast_domain.prec_normed_dom_def
+  shows "ast_classical_domain.prec_normed_dom (domain degoal_prob)"
+  using assms(1) unfolding ast_classical_domain.prec_normed_dom_def
   unfolding degoal_prob_sel degoal_dom_sel
   unfolding goal_ac_def term_goal_def
   using map_preserves_isconj assms(2) by auto
