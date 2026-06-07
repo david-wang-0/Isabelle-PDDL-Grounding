@@ -3,6 +3,15 @@
 Status snapshot for resuming in a fresh session. Covers the certificate→grounder bridge,
 numeric-freeness, the PDDL→STRIPS port (now COMPLETE), and the pipeline wiring.
 
+> **Newer work (2026-06-07, separate track): executable running example.**
+> `Running_Example.thy` is ported to the current API and GREEN through `P\<^sub>T`/`P\<^sub>R`
+> (`value` runs). This required real code-generation setup (dropping FPS cont/temporal
+> per-interpretation code equations that poison shared `domain_signature`/`problem_signature`
+> constants, a missing `def_translate` code bundle, and lifted-string code eqs). `semi_naive_eval`
+> is *not* code-runnable (numeric `valuation` → `Inf [filter]` wellsortedness); the certificate
+> checker bypasses it. Full state + next steps: **`WIP_running_example_certification.md`**
+> (§ SESSION PROGRESS 2026-06-07) and `TODO.md`.
+
 ## ✅ DONE (verified green via jEdit/MCP)
 
 ### 1. Certificate→grounder bridge — COMPLETE, 0 sorries

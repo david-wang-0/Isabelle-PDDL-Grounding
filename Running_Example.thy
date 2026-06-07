@@ -185,163 +185,61 @@ lemma "ast_problem.valid_plan my_problem my_plan"
   by (intro valid_plan_intro[OF wf_p1]) eval *)
 
 
-subsection \<open> Type normalization \<close>
+subsection \<open>Pipeline normalization to \<open>P\<^sub>T\<close>\<close>
 
-(* 
-lemma "ast_domain.restrict_dom my_domain" by eval *)
+text \<open>The verified grounding pipeline normalizes via
+  detype \<rightarrow> degoal \<rightarrow> explicate-definedness \<rightarrow> split \<rightarrow> def-translate.
+  Since this problem has no numeric functions, the definedness steps are essentially identity.\<close>
 
-(* Type system shenanigans *)
-value "of_type_x my_domain (Either []) (Either [])"
-value "of_type_x my_domain (Either []) (Either [STR ''FOO''])" (* even though FOO doesn't exist *)
-value "of_type_x my_domain (Either [STR ''FOO'', STR ''BAR'']) (Either [STR ''BAR'', STR ''FOO''])" (* even though both don't exist *)
-value "of_type_x my_domain (Either [STR ''R'']) (Either [STR ''object''])"
-(* 
-declare ast_domain.constT_def [code]
-declare ast_problem.objT_def [code] *)
+declare ast_classical_problem.P\<^sub>X_def [code]
+declare ast_classical_problem.P\<^sub>N_def [code]
+declare ast_classical_problem.P\<^sub>T_def [code]
 
-(* value "ast_domain.is_of_type' (ast_problem.objT my_problem)
-  (ast_domain.STG my_domain) (Obj STR ''c1'') (Either [STR ''Car'', STR ''FOO''])" *) (* even though FOO doesn't exist *)
+text \<open>--- Code setup (to move to Base/Code_Setup.thy) ---
+  The pipeline's normalization functions live in the shared \<open>domain_signature\<close>/
+  \<open>problem_signature\<close> locales, which FPS also instantiates at its record-based
+  continuous/temporal problem types. Those per-interpretation code equations pattern-match
+  on field selectors (e.g. \<open>predicates ?d\<close>) and are not valid code equations, poisoning the
+  shared constant. Drop all code equations for each affected constant and re-add only the
+  clean foundational (field-variable) equation.\<close>
+declare [[code drop:
+  domain_signature.detyped_predicates domain_signature.detyped_consts
+  domain_signature.detyped_functions problem_signature.detyped_objs
+  domain_signature.param_precond
+  domain_signature.def_prefix domain_signature.detype_simple_action_body]]
+declare domain_signature.detyped_predicates_def[code]
+declare domain_signature.detyped_consts_def[code]
+declare domain_signature.detyped_functions_def[code]
+declare problem_signature.detyped_objs_def[code]
+declare domain_signature.param_precond_def[code]
+declare domain_signature.def_prefix_def[code]
+declare domain_signature.detype_simple_action_body.simps[code]
 
-(* type normalization testing *)
-definition "my_type_names \<equiv> ast_domain.type_names my_domain"
-value "showvals (reachable_nodes my_types) my_type_names"
-value "ast_domain.type_preds my_domain"
-value "ast_domain.supertype_facts_for my_domain (my_objs ! 1)"
-value "ast_domain.type_precond my_domain (Var STR ''into'', Either [STR ''Car'', STR ''Train''])"
-value "ast_domain.detype_ac my_domain op_load"
-value "detype_preds my_preds"
+text \<open>Missing executable equations: def_translate code bundle + lifted string ops.\<close>
+declare ast_classical_domain.def_translate_dom_def[code]
+declare ast_classical_problem.def_translate_prob_def[code]
+lemma padl_lit_code[code]: "padl_lit n s = String.implode (padl n (String.explode s))"
+  by (metis padl_lit.rep_eq String.implode_explode_eq)
+declare distinct_strings_lit_eq[code]
 
-definition "my_dom_detyped \<equiv> ast_domain.detype_dom my_domain"
-value "my_dom_detyped"
-definition "my_prob_detyped \<equiv> ast_problem.detype_prob my_problem"
-value "my_prob_detyped" (* Important *)
+definition "my_P\<^sub>T \<equiv> ast_classical_problem.P\<^sub>T my_problem"
+value "my_P\<^sub>T"
 
-(* also follows from restr_problem2.detype_prob_wf *)
-lemma wf_p2: "ast_problem.wf_problem my_prob_detyped"
-  by (intro wf_problem_intro) eval
+definition "my_P\<^sub>R \<equiv> ast_classical_problem.relax_prob my_P\<^sub>T"
+value "my_P\<^sub>R"
 
-value "enab_exec_x my_prob_detyped
-  (my_plan ! 0) (ast_problem.I my_prob_detyped)"
+subsection \<open>Reachability / grounding by certification (next step)\<close>
 
-lemma "ast_problem.valid_plan my_prob_detyped my_plan"
-  by (intro valid_plan_intro[OF wf_p2]) eval
-
-subsection \<open> Goal normalization \<close>
-
-definition "my_dom_degoaled \<equiv> ast_problem.degoal_dom my_prob_detyped"
-definition "my_prob_degoaled \<equiv> ast_problem.degoal_prob my_prob_detyped"
-value "my_prob_degoaled" (* Important *)
-lemma wf_p3: "ast_problem.wf_problem my_prob_degoaled"
-  by (intro wf_problem_intro) eval
-
-definition "my_plan_2 \<equiv> my_plan @ [ast_domain.\<pi>\<^sub>g my_dom_detyped]"
-value my_plan_2
-value "valid_plan_x my_prob_degoaled my_plan" (* missing goal planaction *)
-lemma "ast_problem.valid_plan my_prob_degoaled my_plan_2"
-  by (intro valid_plan_intro[OF wf_p3]) eval
-
-subsection \<open> Precondition normalization \<close>
-
-value "ast_domain.split_pre_pad my_dom_degoaled"
-value "ast_domain.split_ac_names my_dom_degoaled op_drive"
-value "ast_domain.split_ac my_dom_degoaled op_drive"
-value "ast_domain.split_acs my_dom_degoaled"
-definition "my_dom_split \<equiv> ast_domain.split_dom my_dom_degoaled"
-definition "my_prob_split \<equiv> ast_problem.split_prob my_prob_degoaled"
-value "my_dom_split"
-value "my_prob_split" (* Important *)
-lemma wf_p4: "ast_problem.wf_problem my_prob_split"
-  by (intro wf_problem_intro) eval
-
-(* A little manual labor to decide which one of the split actions
-  corresponds to which step in the original plan. *)
-definition "my_plan_3 \<equiv> [
-  SimplePlanAction STR ''0drive'' [Obj STR ''c1'', Obj STR ''A'', Obj STR ''D''],
-  SimplePlanAction STR ''1drive'' [Obj STR ''c1'', Obj STR ''D'', Obj STR ''C''],
-  SimplePlanAction STR ''0load'' [Obj STR ''p1'', Obj STR ''C'', Obj STR ''c1''],
-  SimplePlanAction STR ''0drive'' [Obj STR ''c1'', Obj STR ''C'', Obj STR ''D''],
-  SimplePlanAction STR ''0unload'' [Obj STR ''p1'', Obj STR ''c1'', Obj STR ''D''],  
-  SimplePlanAction STR ''1choochoo'' [Obj STR ''t'', Obj STR ''E'', Obj STR ''D''],
-  SimplePlanAction STR ''1load'' [Obj STR ''p1'', Obj STR ''D'', Obj STR ''t''],  
-  SimplePlanAction STR ''0choochoo'' [Obj STR ''t'', Obj STR ''D'', Obj STR ''E''],
-  SimplePlanAction STR ''1unload'' [Obj STR ''p1'', Obj STR ''t'', Obj STR ''E''],
-
-  SimplePlanAction STR ''1drive'' [Obj STR ''c3'', Obj STR ''G'', Obj STR ''F''],
-  SimplePlanAction STR ''0load'' [Obj STR ''p2'', Obj STR ''F'', Obj STR ''c3''],
-  SimplePlanAction STR ''1drive'' [Obj STR ''c3'', Obj STR ''F'', Obj STR ''E''],
-  SimplePlanAction STR ''0unload'' [Obj STR ''p2'', Obj STR ''c3'', Obj STR ''E''],
-
-  SimplePlanAction STR ''0load'' [Obj STR ''p1'', Obj STR ''E'', Obj STR ''c3''],
-  SimplePlanAction STR ''1drive'' [Obj STR ''c3'', Obj STR ''E'', Obj STR ''G''],
-  SimplePlanAction STR ''0unload'' [Obj STR ''p1'', Obj STR ''c3'', Obj STR ''G''],
-
-  SimplePlanAction STR ''0Goal_____'' []
-]"
-
-(* SimplePlanAction STR ''choochoo'' [Obj STR ''batmobile'', Obj STR ''D'', Obj STR ''E''],
-  SimplePlanAction STR ''drive'' [Obj STR ''batmobile'', Obj STR ''E'', Obj STR ''G''] *)
-
-(* if you choose the wrong plan action at one point, this tells you where *)
-value "valid_plan_x my_prob_split my_plan_3"
-
-value "enab_exec_x my_prob_split
-  (my_plan_3 ! 0) (ast_problem.I my_prob_split)"
-lemma "ast_problem.valid_plan my_prob_split my_plan_3"
-  by (intro valid_plan_intro[OF wf_p4]) eval
-
-(* And this is how you would reconstruct the original plan from a plan obtained for the normalized
-instance: *)
-
-definition "restored_plan \<equiv>
-  let p2 = ast_domain.restore_plan_split my_dom_degoaled my_plan_3 in
-  ast_domain.restore_plan_degoal my_dom_detyped p2"
-value "restored_plan" (* important *)
-lemma "ast_problem.valid_plan my_problem restored_plan"
-  by (intro valid_plan_intro[OF wf_p1]) eval
-
-subsection \<open> PDDL Relaxation \<close>
-(* The only action with impacted preconditions is op_build_tracks,
-  which I removed because that one blows up grounding. *)
-value "actions (my_dom_split) ! 8"
-value "relax_ac (actions (my_dom_split) ! 8)"
-
-definition "my_dom_relaxed \<equiv> ast_domain.relax_dom my_dom_split"
-definition "my_prob_relaxed \<equiv> ast_problem.relax_prob my_prob_split"
-value my_prob_relaxed (* Important *)
-lemma wf_p5: "ast_problem.wf_problem my_prob_relaxed"
-  by (intro wf_problem_intro) eval
-
-(* note that a plan is still valid after relaxation *)
-lemma "ast_problem.valid_plan my_prob_relaxed my_plan_3"
-  by (intro valid_plan_intro[OF wf_p5]) eval
-
-subsection \<open>Reachability Analysis\<close>
-
-definition "my_prob_reachables \<equiv> ast_problem.semi_naive_eval my_prob_relaxed"
-value "my_prob_reachables" (* takes a minute *)
-
-value "ast_problem.all_derivs_of my_prob_relaxed
-  (as_atom STR ''at'' [Obj STR ''c1'', Obj STR ''A''])
-  (organize_facts (ast_problem.init' my_prob_relaxed))
-  (as_action_clause (actions my_dom_relaxed ! 1))"
-
-subsection \<open>Grounding\<close>
-
-(* "P\<^sub>G \<equiv> grounder.ground_prob my_prob_split g_facts g_ops" *)
-
-definition PG ("\<Pi>\<^sub>G") where "PG \<equiv> let reach = my_prob_reachables in
-  grounder.ground_prob my_prob_split
-  (snd reach) (fst reach)"
-
-value "length (fst my_prob_reachables)"
-
-value "\<Pi>\<^sub>G" (* takes a minute *)
-
-(* TO STRIPS *)
-
-definition P\<^sub>S ("\<Pi>\<^sub>S") where "P\<^sub>S \<equiv> ast_problem.as_strips \<Pi>\<^sub>G"
-value "\<Pi>\<^sub>S" (* takes a minute *)
-value "map (\<lambda>x. (x, initial_of \<Pi>\<^sub>S x)) (variables_of \<Pi>\<^sub>S)"
-value "map (\<lambda>x. (x, goal_of \<Pi>\<^sub>S x)) (variables_of \<Pi>\<^sub>S)"
+text \<open>\<open>my_P\<^sub>R\<close> (above) is the normalized, delete-relaxed problem fed to the certification step.
+  The executable oracle \<open>ast_classical_problem.semi_naive_eval my_P\<^sub>R\<close> is \<^emph>\<open>not\<close> code-runnable:
+  its \<open>valuation\<close> drags in \<open>numeric_expression_valuation \<rightarrow> sin \<rightarrow> suminf \<rightarrow> Inf [filter]\<close>
+  (a wellsortedness error \<open>filter :: enum\<close>), even though this numeric-free problem never takes
+  those paths. The certificate route side-steps this: \<open>pddl_datalog.closure_check\<close> /
+  \<open>admissible\<close> validate a (Nemo \<open>ograph\<close>) certificate against the action clauses and facts of
+  \<open>my_P\<^sub>R\<close> directly, without the numeric \<open>valuation\<close>. Next: emit the datalog program for
+  \<open>my_P\<^sub>R\<close>, run Nemo, parse the certificate, and \<open>by eval\<close> the checks, then
+  \<open>grounder.ground_prob my_P\<^sub>T (cert_facts_of \<dots>) (cert_ops_of \<dots>)\<close>. See
+  \<open>WIP_running_example_certification.md\<close>.\<close>
 
 end
+
