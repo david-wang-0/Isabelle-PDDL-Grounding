@@ -2,7 +2,6 @@ theory Formula_Utils
   imports "Propositional_Proof_Systems.Sema"
     "Propositional_Proof_Systems.CNF_Formulas"
     "Continuous_Planning.Abstract_Syntax" (* just for the datatype atom *)
-    iq.iq
 begin
 
 subsection \<open> pure conjunctions \<close>

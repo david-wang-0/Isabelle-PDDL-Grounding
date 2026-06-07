@@ -2,7 +2,7 @@ theory Type_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
     Tree_Decomp_Grounding_Base.Normalization_Definitions
     Tree_Decomp_Grounding_Base.Graph_Funs
-    Tree_Decomp_Grounding_Base.String_Utils iq.iq
+    Tree_Decomp_Grounding_Base.String_Utils
 begin
 
 section \<open>Type Normalization Definitions and Locales\<close>

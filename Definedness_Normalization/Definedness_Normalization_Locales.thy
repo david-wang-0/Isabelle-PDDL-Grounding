@@ -2,7 +2,6 @@ theory Definedness_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
     Tree_Decomp_Grounding_Base.Normalization_Definitions
     Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
-    iq.iq
 begin
 
 section ‹Definedness Explication Definitions and Locales›

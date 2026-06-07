@@ -4,7 +4,6 @@ theory Precondition_Normalization_Locales
     Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
     Tree_Decomp_Grounding_Base.String_Utils
     Tree_Decomp_Grounding_Base.DNF
-    iq.iq
 begin
 
 section \<open> Precondition Normalization Definitions and Locales \<close>
