@@ -205,7 +205,7 @@ grounder pipeline is sorry-free on the reachability side even before the
 
 ## Key finding: AFP datalog has NO fixpoint semantics
 
-`~/bin/afp-2025-2/thys/Stratified_Datalog/Datalog.thy` is purely
+AFP's `Stratified_Datalog/Datalog.thy` is purely
 model/order-theoretic:
 
 - `solves_program \<rho> dl` (`:69`) — \<rho> satisfies every clause (a *model*).

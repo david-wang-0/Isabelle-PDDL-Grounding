@@ -21,7 +21,7 @@ A **verified PDDL planner** built in Isabelle/HOL with SML code export. The proj
 
 ### Local Development (Interactive)
 
-Requires **Isabelle 2025-2** (`~/bin/Isabelle2025-2`), **AFP 2025-2** (`~/bin/afp-2025-2`), **MLton** or **Poly/ML**.
+Requires **Isabelle 2025-2**, **AFP 2025-2**, **MLton** or **Poly/ML**.
 
 ```bash
 make init              # One-time: fetch submodules + register components
@@ -181,14 +181,14 @@ isabelle build -c -d . Verified_SAT_Planner  # Clear Isabelle heaps
 
 | Component | Source | Purpose |
 |---|---|---|
-| Isabelle 2025-2 | `~/bin/Isabelle2025-2` | ITP framework |
-| AFP 2025-2 | `~/bin/afp-2025-2` | SAT-based planning semantics |
+| Isabelle 2025-2 | External install | ITP framework |
+| AFP 2025-2 | External install | SAT-based planning semantics |
 | Isabelle-Graph-Library | Git submodule | Verified graph algorithms |
 | Isabelle-PDDL-Grounding | Git submodule | PDDL semantics and grounding |
 | Formal-PDDL-Semantics | Git submodule | Formal PDDL semantics |
 | parcom | Git submodule (parcom branch) | SML parsing and utilities |
 | MLton / Poly/ML | System package | SML compilation |
-| AutoCorrode2025-2 (`iq`) | `~/bin/AutoCorrode2025-2/iq` | Proof exploration (I/Q MCP server) |
+| AutoCorrode2025-2 (`iq`) | External install | Proof exploration (I/Q MCP server) |
 
 ## Debugging
 
@@ -207,30 +207,3 @@ isabelle build -c -d . Verified_SAT_Planner  # Clear Isabelle heaps
 isabelle build -c -d . Verified_SAT_Planner
 make build
 ```
-
-## Project Memory (Synchronized from Claude)
-
-The following project decisions, feedback, and notes are imported from Claude's project memory:
-
-- [Reachability via datalog certificate plan](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_reachability_datalog_plan.md) — self-contained T_P/lfp; DFS_Cycles is undirected-only so use a rank certificate; full plan in WIP_reachability_datalog.md.
-- [Certificate grounds P_N, not P_R](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_certificate_grounds_pn_not_pr.md) — cert certifies the relaxed reachable SET (oracle); grounder must target P_N (real deletes); the `certified_reachability ⊆ wf_grounder P` sublocale grounds the over-approximation = unsound; fix via relax_achievables bridge or fold relaxation into closure_check.
-- [Nemo certificate format + CertifyingDatalog reference](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/reference_nemo_certificate_format.md) — cert is Nemo ograph (ordered DAG, predecessor indices, j<i = rank); ~/work/CertifyingDatalog (Lean) is the reference checker; closure check = ⊇ (essential), ordered locallyValid = ⊆ (exactness).
-- [Reachability_Analysis is its own session/folder](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_reachability_analysis_session.md) — engine+grounder+certificate moved into Reachability_Analysis/; stale jEdit can't verify new session; relaxed_problem sees engine consts unqualified; all_derivs yields ast_classical_plan_action (no plan_action/pa_of_classical bridge — that was dropped).
-- [Always invoke isabelle-search first](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_isabelle_search.md) — for any Isabelle name lookup, use the isabelle-search skill on the FIRST attempt; never start with grep/find.
-- [Use Isabelle MCP for file edits](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_file_edits.md) — default to mcp__isabelle__write_file/save_file over Edit/Write to keep jEdit's buffer in sync.
-- [Edit the .thy file often while proving](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_edit_file_while_proving.md) — land each proof into the file via write_file as you go; don't develop wholesale in a scratch REPL and assemble at the end.
-- [Direct edits for bulk renames](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_syntactic_edits.md) — for bulk syntactic edits, use Edit/Write and reload via open_file; reserve mcp__isabelle__write_file for interactive proof work.
-- [Formal-PDDL-Semantics: strip iq.iq before push](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_formal_pddl_semantics_push.md) — submodule has local pre-commit hook removing `iq.iq` imports; push via SSH to mabdula/Formal-PDDL-Semantics.
-- [Submodule pushes go over SSH, never rewrite origin](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_submodule_ssh_push.md) — in any submodule, use the push-ssh skill (explicit SSH URL override); do not `git remote set-url`.
-- [Never call get_command_info](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_avoid_get_command_info.md) — it hangs jEdit and forces the user to scroll manually; use get_context_info / jedit-status instead.
-- [Verify Isabelle edits via jedit-status, not make build](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_verify_via_jedit.md) — query the running jEdit through `mcp__isabelle__*` (jedit-status skill); only fall back to `make build` if MCP unavailable.
-- [Old→new API mapping for the downstream tail](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_unrefactored_files.md) — ast_problem→ast_classical_problem, SimpleActionSchema/SimpleActionBody, pair world model + valuation, achievable=fact; Reachability_Analysis ported (green); Grounded_PDDL FULLY proven; don't touch Grounding_Pipeline yet.
-- [Grounded_PDDL fully proven — design decisions](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_grounded_pddl_done.md) — 0 sorry on pair API; covered forbids numerics, wf_grounder gained init_props/ops_no_num, no [simp] on D⇩G selectors, pair-model proof patterns (I_simp, pg.res_inst unfolding, image distribution).
-- [Prefer ∀x∈set xs over list_all](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_forall_over_list_all.md) — in specs/assumptions use bounded ∀; keep list_all only on executable/code paths.
-- [No list_all1; use intro/dest rules](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_intro_dest_rules.md) — never state list_all1 (use ∀x∈set); replace `unfolding x_def proof (intro conjI strip)` with declared [intro] rules + [dest] rules for the converse.
-- [`(in -)` only inside a context/locale block](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_in_dash_locale.md) — using the dash target qualifier at the top level breaks something; drop it unless nested in an open `context`/`locale` block.
-- [Definedness_Translation status](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_definedness_translation_status.md) — wf file fully proved (0 sorry); Semantics plan-equivalence now scaffolded in `wf_ast_classical_problem_dt` (`def_state_rel` invariant + 8-lemma chain, all sorried). Notes the `fst M :: atom formula set` type gotcha, the `[simp]`-selector workaround, and (2026-06-04) the located semantics defs + engine lemmas (`entail_adds_irrelevant`, `valuation_def`, `valid_classical_plan_from2_Nil/Cons`) + the global-conjunction/wf hypotheses the scaffold still lacks.
-- [Isabelle MCP bridge stale → no tools](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/env_isabelle_mcp_bridge_stale.md) — if `mcp__isabelle__*` never surfaces despite jEdit running, the iq_bridge predates the jEdit launch; ask user to reconnect, don't retry, and don't edit open `.thy` files on disk.
-- [Use try0 skill in proofs](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/feedback_use_try0_in_proofs.md) — when a proof method fails or you're unsure, run try0-minimize rather than hand-guessing blast/metis/auto.
-- [Relaxation refactor + pipeline WIP](file:///home/david/ai-config/memory/Isabelle-PDDL-Grounding/project_relaxation_refactor_pipeline_wip.md) — PDDL_Relaxation locales fold dx/px sig constants via sublocale rewrites; relax semantics fixed for pair world model; def_translate_normalized proved; Grounding_Pipeline wiring through relaxation still WIP (normalization_normalizes + relaxation rethread onto P_T remain).
-
