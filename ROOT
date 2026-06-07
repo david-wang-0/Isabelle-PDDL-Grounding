@@ -10,9 +10,9 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Base +
 	"Precondition_Normalization"
 	"Definedness_Translation"
 	"PDDL_Relaxation"
+	"Grounded_PDDL"
+	"Reachability_Analysis"
   theories
-	Reachability_Analysis
-	Grounded_PDDL
 	PDDL_to_STRIPS
 	Grounding_Pipeline
 	Running_Example

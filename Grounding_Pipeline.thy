@@ -5,8 +5,109 @@ theory Grounding_Pipeline
     Precondition_Normalization.Precondition_Normalization_Semantics
     Definedness_Translation.Definedness_Translation_Semantics
     PDDL_Relaxation.PDDL_Relaxation_Semantics
-    Reachability_Analysis Grounded_PDDL PDDL_to_STRIPS
+    Reachability_Analysis.Certified_Grounding_Semantics
+    Grounded_PDDL.Grounded_PDDL PDDL_to_STRIPS
 begin
+
+subsection \<open> Grounding preserves numeric-freeness and normalization \<close>
+
+text \<open>The grounder emits purely propositional output: \<^const>\<open>grounder.ground_fmla\<close> maps every
+  atom to either \<open>\<bottom>\<close>/\<open>\<^bold>\<not>\<bottom>\<close> (equalities) or a nullary \<^const>\<open>predAtm\<close> (predicate and numeric
+  atoms alike), so it never produces a numeric atom and preserves the conjunctive literal
+  structure. Hence the grounded problem is unconditionally numeric-free, and \<^emph>\<open>normalized\<close>
+  whenever its input is.\<close>
+
+lemma (in grounder) num_free_ground_fmla: "num_free_fmla (ground_fmla \<phi>)"
+  by (induction \<phi> rule: ground_fmla.induct) auto
+
+lemma (in grounder) is_lit_plus_ground_fmla: "is_lit_plus L \<Longrightarrow> is_lit_plus (ground_fmla L)"
+  apply (cases L rule: is_lit_plus.cases; simp)
+  subgoal for a by (cases a) auto
+  subgoal for a by (cases a) auto
+  done
+
+lemma is_lit_plus_imp_is_conj: "is_lit_plus X \<Longrightarrow> is_conj X"
+  by (cases X rule: is_lit_plus.cases) auto
+
+lemma (in grounder) is_conj_ground_fmla: "is_conj F \<Longrightarrow> is_conj (ground_fmla F)"
+  by (induction F rule: is_conj.induct)
+     (auto simp: is_lit_plus_ground_fmla is_lit_plus_imp_is_conj)
+
+lemma (in grounder) num_free_ac_ground_ac: "num_free_ac (ground_ac \<pi> n)"
+proof -
+  obtain pre a d ne where ga: "the (res_inst \<pi>) = GroundAction pre (Effect a d ne)"
+    by (cases "the (res_inst \<pi>)"; cases "ground_action.effect (the (res_inst \<pi>))") auto
+  show ?thesis
+    unfolding num_free_ac_def ground_ac_def Let_def ga
+    by (auto simp: num_free_ground_fmla)
+qed
+
+lemma (in grounder) ac_pre_ground_ac:
+  "ac_pre (ground_ac \<pi> n) = ground_fmla (ground_action.precondition (the (res_inst \<pi>)))"
+  unfolding ground_ac_def Let_def by (cases "the (res_inst \<pi>)") simp
+
+lemma (in grounder) ac_params_ground_ac: "ac_params (ground_ac \<pi> n) = []"
+  unfolding ground_ac_def Let_def by (cases "the (res_inst \<pi>)") simp
+
+lemma (in grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob ground_prob"
+proof -
+  have dom: "ast_classical_domain.num_free_dom (domain ground_prob)"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a assume "a \<in> set (actions (domain ground_prob))"
+    then obtain \<pi> n where "a = ground_ac \<pi> n"
+      unfolding ground_prob_def ground_dom_def by (auto simp: map2_map_map set_zip)
+    thus "num_free_ac a" by (simp add: num_free_ac_ground_ac)
+  qed
+  have goal: "num_free_fmla (goal ground_prob)"
+    unfolding ground_prob_def ground_dom_def by (simp add: num_free_ground_fmla)
+  have init: "\<forall>f \<in> set (init ground_prob). num_free_fmla f"
+    unfolding ground_prob_def ground_dom_def by (auto simp: num_free_ground_fmla)
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def using dom goal init by blast
+qed
+
+lemma (in grounder) ground_prob_typeless: "ast_classical_problem.typeless_classical_problem ground_prob"
+  unfolding ast_classical_problem.typeless_classical_problem_def
+            ast_classical_domain.typeless_classical_domain_def
+            domain_signature.typeless_domain_signature_def
+  by (auto simp: ground_prob_def ground_dom_def map2_map_map ac_params_ground_ac)
+
+lemma (in wf_grounder) resolve_mem:
+  "resolve_classical_action_schema n = Some a \<Longrightarrow> a \<in> set (actions D)"
+  unfolding resolve_classical_action_schema_def by (meson index_by_eq_SomeD)
+
+lemma (in wf_grounder) op_pre_is_conj:
+  assumes "normalized_prob" "\<pi> \<in> set ops"
+  shows "is_conj (ground_fmla (ground_action.precondition (the (res_inst \<pi>))))"
+proof -
+  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>)
+  have "wf_classical_plan_action \<pi>" using assms(2) ops_wf by blast
+  then obtain a where a: "resolve_classical_action_schema n = Some a"
+    using pi wf_classical_plan_action_simple by (auto split: option.splits)
+  hence amem: "a \<in> set (actions D)" by (rule resolve_mem)
+  have conj: "is_conj (ac_pre a)"
+    using amem assms(1)[unfolded normalized_prob_def] prec_normed_dom_def by blast
+  have inst: "ground_action.precondition (the (res_inst \<pi>))
+      = map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a)"
+    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
+  have "is_conj (map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a))"
+    using conj map_preserves_isconj by (simp add: comp_def)
+  thus ?thesis unfolding inst by (rule is_conj_ground_fmla)
+qed
+
+lemma (in wf_grounder) ground_prob_prec_normed:
+  assumes "normalized_prob"
+  shows "ast_classical_domain.prec_normed_dom (domain ground_prob)"
+  unfolding ast_classical_domain.prec_normed_dom_def
+proof
+  fix ac assume "ac \<in> set (actions (domain ground_prob))"
+  then obtain \<pi> n where ac: "ac = ground_ac \<pi> n" and pin: "(\<pi>,n) \<in> set (zip ops op_names)"
+    unfolding ground_prob_def ground_dom_def by (auto simp: map2_map_map)
+  from pin have "\<pi> \<in> set ops" using set_zip_leftD by fastforce
+  from op_pre_is_conj[OF assms this] show "is_conj (ac_pre ac)"
+    unfolding ac ac_pre_ground_ac .
+qed
 
 subsection \<open> Important theorems from individual grounding pipeline steps.
   Setting up compact notations for some of them to remove contexts. \<close>
@@ -96,6 +197,37 @@ lemma def_translate_prob_wf_compact:
 lemma def_translate_normed_compact:
   "normalized_prob \<Longrightarrow> ast_classical_problem.normalized_prob def_translate_prob"
   by (rule def_translate_normalized)
+lemma def_translate_valid_plan_iff_compact:
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow>
+   ast_classical_problem.valid_classical_plan2 def_translate_prob \<pi>s \<longleftrightarrow> valid_classical_plan2 \<pi>s"
+proof -
+  assume "wf_classical_problem" "def_explicated_conj_prob"
+  hence "def_explicated_conj_problem_dt P"
+    by (simp add: def_explicated_conj_problem_dt_def wf_ast_classical_problem_dt_def
+                  def_explicated_conj_problem_def def_explicated_conj_problem_axioms_def
+                  wf_ast_classical_problem_def)
+  from def_explicated_conj_problem_dt.def_translate_valid_plan_iff[OF this]
+  show ?thesis .
+qed
+lemma def_translate_valid_iff_compact:
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow>
+   (\<exists>\<pi>s. valid_classical_plan2 \<pi>s) = (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 def_translate_prob \<pi>s')"
+proof -
+  assume "wf_classical_problem" "def_explicated_conj_prob"
+  hence "def_explicated_conj_problem_dt P"
+    by (simp add: def_explicated_conj_problem_dt_def wf_ast_classical_problem_dt_def
+                  def_explicated_conj_problem_def def_explicated_conj_problem_axioms_def
+                  wf_ast_classical_problem_def)
+  from def_explicated_conj_problem_dt.def_translate_valid_iff[OF this]
+  show ?thesis .
+qed
+
+lemma restore_plan_def_translate_compact:
+  "wf_classical_problem \<Longrightarrow> def_explicated_conj_prob \<Longrightarrow>
+   ast_classical_problem.valid_classical_plan2 def_translate_prob \<pi>s \<Longrightarrow>
+   valid_classical_plan2 (restore_plan_def_translate \<pi>s)"
+  unfolding restore_plan_def_translate_def
+  using def_translate_valid_plan_iff_compact by blast
 
 lemma relax_wf_relaxed_compact:
   "wf_classical_problem \<Longrightarrow> normalized_prob \<Longrightarrow>
@@ -129,17 +261,26 @@ thm wf_grounder.ground_prob_wf
 lemma (in wf_grounder) ground_prob_normed:
   assumes "normalized_prob"
   shows "ast_classical_problem.normalized_prob ground_prob"
-  sorry
+proof -
+  have g: "is_conj (goal ground_prob)"
+    using assms[unfolded normalized_prob_def]
+    by (simp add: ground_prob_def ground_dom_def is_conj_ground_fmla)
+  show ?thesis
+    unfolding ast_classical_problem.normalized_prob_def
+    using ground_prob_typeless ground_prob_prec_normed[OF assms] g by blast
+qed
 thm wf_grounder.valid_classical_plan_iff
 thm wf_grounder.valid_classical_plan_left
 
 
 lemma wf_as_strips_compact:
-  "wf_classical_problem \<Longrightarrow> grounded_prob \<Longrightarrow> normalized_prob \<Longrightarrow> is_valid_problem_strips as_strips"
-  using grounded_normalized_problem.wf_as_strips
-  unfolding grounded_normalized_problem_def grounded_normalized_problem_axioms_def
-  unfolding grounded_problem_def grounded_problem_axioms_def wf_ast_classical_problem_def
-  unfolding normalized_prob_def by blast
+  "wf_classical_problem \<Longrightarrow> grounded_prob \<Longrightarrow> normalized_prob \<Longrightarrow> num_free_prob \<Longrightarrow> is_valid_problem_strips as_strips"
+  using grounded_normalized_numeric_free_problem.wf_as_strips
+  unfolding grounded_normalized_numeric_free_problem_def
+            grounded_normalized_problem_def grounded_normalized_problem_axioms_def
+            grounded_problem_def grounded_problem_axioms_def wf_ast_classical_problem_def
+            numeric_free_problem_def
+            normalized_prob_def by blast
   
 
 end
@@ -155,11 +296,11 @@ definition "P\<^sub>X \<equiv> ast_classical_problem.explicate_def_prob
 definition "P\<^sub>N \<equiv> ast_classical_problem.split_prob P\<^sub>X"
 
 definition "reconstruct_plan_norm \<pi>s \<equiv>
-  ast_domain.restore_plan_degoal detype_dom
+  ast_classical_domain.restore_plan_degoal detype_classical_dom
     (restore_plan_explicate
-      (ast_domain.restore_plan_split
-        (ast_classical_problem.explicate_def_dom
-          (ast_classical_problem.degoal_prob detype_prob))
+      (ast_classical_domain.restore_plan_split
+        (ast_classical_domain.explicate_def_dom
+          (domain (ast_classical_problem.degoal_prob detype_classical_prob)))
         \<pi>s))"
 
 text \<open> goal and precondition normalization preserve type normalization \<close>
@@ -170,12 +311,36 @@ lemma goal_norm_preserves_typeless:
     degoal_prob_sel degoal_dom_sel
   unfolding goal_pred_decl_def goal_ac_def by auto
 
+lemma goal_norm_preserves_typeless_gen:
+  "ast_classical_problem.typeless_classical_problem P' \<Longrightarrow> ast_classical_problem.typeless_classical_problem (ast_classical_problem.degoal_prob P')"
+  unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
+    domain_signature.typeless_domain_signature_def
+    Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel Goal_Normalization_Locales.ast_classical_problem.degoal_dom_sel
+  unfolding Goal_Normalization_Locales.domain_signature.goal_pred_decl_def
+    Goal_Normalization_Locales.ast_classical_domain.goal_ac_def by auto
+
+lemma explicate_def_preserves_typeless_gen:
+  "ast_classical_problem.typeless_classical_problem P' \<Longrightarrow> ast_classical_problem.typeless_classical_problem (ast_classical_problem.explicate_def_prob P')"
+  unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
+    domain_signature.typeless_domain_signature_def
+    ast_classical_problem.explicate_def_prob_sel ast_classical_domain.explicate_def_dom_sel
+  by (auto simp: explicate_def_ac_unfold)
+
 lemma prec_norm_preserves_typeless:
   "typeless_classical_problem \<Longrightarrow> ast_classical_problem.typeless_classical_problem (split_prob)"
   unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
     domain_signature.typeless_domain_signature_def
     split_prob_sel split_dom_sel
   unfolding split_acs_def using split_ac_sel(2) by auto
+
+lemma prec_norm_preserves_typeless_gen:
+  "ast_classical_problem.typeless_classical_problem P' \<Longrightarrow> ast_classical_problem.typeless_classical_problem (ast_classical_problem.split_prob P')"
+  unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
+    domain_signature.typeless_domain_signature_def
+    ast_classical_problem.split_prob_sel ast_classical_domain.split_dom_sel
+  unfolding ast_classical_domain.split_acs_def
+  using Precondition_Normalization.ast_classical_domain.split_ac_sel(2)
+  by auto
 
 text \<open> type and precondition normalization preserve goal normalization \<close>
 lemma type_norm_preserves_goal_conj:
@@ -202,13 +367,44 @@ lemma goal_norm_preserves_prec_norm:
   using map_preserves_isconj assms(2) by auto
 
 theorem normalization_normalizes:
-  "ast_classical_problem.normalized_prob P\<^sub>N"
-  unfolding ast_classical_problem.normalized_prob_def P\<^sub>N_def
-  using ast_classical_problem2.prob_detyped
-  using ast_classical_problem.degoal_prob_sel(4) ast_classical_problem.goal_norm_preserves_typeless
-  using ast_classical_problem.prec_norm_preserves_typeless ast_classical_problem.prec_norm_preserves_goal_conj
-    ast_classical_problem4.prec_normed_dom
-  by (simp add: ast_classical_problem.split_prob_sel(1))
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.normalized_prob P\<^sub>N"
+  unfolding ast_classical_problem.normalized_prob_def P\<^sub>N_def P\<^sub>X_def
+  apply (intro conjI)
+  using prec_norm_preserves_typeless_gen explicate_def_preserves_typeless_gen goal_norm_preserves_typeless_gen ast_classical_problem2.prob_detyped assms
+  apply simp
+  apply (simp add: ast_classical_problem.split_prob_sel(1) ast_classical_problem4.prec_normed_dom)
+  apply (unfold ast_classical_problem.split_prob_sel(4)
+    Definedness_Normalization_Locales.ast_classical_problem.explicate_def_prob_sel(4)
+    Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel(4))
+  apply (unfold explicate_def_fmla_def)
+  apply (unfold Definedness_Normalization_Locales.definedness_atoms_def)
+  by simp
+  
+
+text \<open>\<open>P\<^sub>N\<close> carries the definedness-explicated conjunctive structure: it is established by
+  \<open>explicate_def\<close> and preserved by precondition splitting. This is exactly the hypothesis that
+  the \<open>def_translate\<close> validity-equivalence (\<^const>\<open>def_explicated_conj_problem_dt\<close>) consumes.\<close>
+theorem P\<^sub>N_def_explicated_conj:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.def_explicated_conj_prob P\<^sub>N"
+proof -
+  have wfX: "ast_classical_problem.wf_classical_problem P\<^sub>X"
+    unfolding P\<^sub>X_def
+    using assms detype_prob_wf_compact
+          ast_classical_problem.degoal_prob_wf_compact
+          ast_classical_problem.explicate_def_prob_wf_compact by simp
+  have deX: "ast_classical_problem.def_explicated_conj_prob P\<^sub>X"
+    unfolding P\<^sub>X_def
+    using assms detype_prob_wf_compact
+          ast_classical_problem.degoal_prob_wf_compact
+          ast_classical_problem.explicate_def_def_explicated_conj_compact by simp
+  from wfX deX have "wf_ast_classical_problem4 P\<^sub>X"
+    unfolding wf_ast_classical_problem4_def def_explicated_conj_problem_def
+              def_explicated_conj_problem_axioms_def wf_ast_classical_problem_def by simp
+  from wf_ast_classical_problem4.def_explicated_conj_split_prob[OF this]
+  show ?thesis unfolding P\<^sub>N_def .
+qed
 
 theorem normalization_wf:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow> ast_classical_problem.wf_classical_problem P\<^sub>N"
@@ -222,7 +418,7 @@ theorem normalization_wf:
 
 theorem normalization_valid_iff:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow>
-    (\<exists>\<pi>s. valid_classical_plan \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan P\<^sub>N \<pi>s')"
+    (\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
   unfolding P\<^sub>N_def P\<^sub>X_def
   using detype_prob_wf_compact
         ast_classical_problem.degoal_prob_wf_compact
@@ -232,11 +428,11 @@ theorem normalization_valid_iff:
         ast_classical_problem.degoaled_valid_iff_compact
         ast_classical_problem.explicate_def_valid_iff_compact
         ast_classical_problem.split_valid_iff_compact
-  by simp
+  by metis
 
 theorem normalization_reconstruct:
   "restrict_prob \<Longrightarrow> wf_classical_problem \<Longrightarrow>
-    ast_classical_problem.valid_classical_plan P\<^sub>N \<pi>s \<Longrightarrow> valid_classical_plan (reconstruct_plan_norm \<pi>s)"
+    ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s \<Longrightarrow> valid_classical_plan2 (reconstruct_plan_norm \<pi>s)"
   unfolding P\<^sub>N_def P\<^sub>X_def reconstruct_plan_norm_def
   using detype_prob_wf_compact
         ast_classical_problem.degoal_prob_wf_compact
@@ -246,7 +442,7 @@ theorem normalization_reconstruct:
         ast_classical_problem.restore_plan_explicate_valid_compact
         ast_classical_problem.degoal_plan_restore_compact
         detyped_valid_iff_compact
-  by (metis ast_classical_problem.degoal_prob_sel(1) detype_prob_sel(1)
+  by (metis ast_classical_problem.degoal_prob_sel(1) detype_classical_prob_sel(1)
             ast_classical_problem.explicate_def_prob_sel(1))
 
 end
@@ -261,105 +457,177 @@ definition "P\<^sub>R \<equiv> ast_classical_problem.relax_prob P\<^sub>T"
 
 lemma relaxation_applicables:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "{\<pi>. ast_classical_problem.applicable P\<^sub>N \<pi>} \<subseteq> {\<pi>. ast_classical_problem.applicable P\<^sub>R \<pi>}"
-  unfolding P\<^sub>R_def
-  using assms normalization_normalizes normalization_wf ast_classical_problem.relax_applicables_compact by simp
+  shows "{\<pi>. ast_classical_problem.applicable P\<^sub>T \<pi>} \<subseteq> {\<pi>. ast_classical_problem.applicable P\<^sub>R \<pi>}"
+proof -
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms normalization_normalizes by simp
+  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
+    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  show ?thesis
+    unfolding P\<^sub>R_def
+    using wf_T norm_T by (rule ast_classical_problem.relax_applicables_compact)
+qed
 
 lemma relaxation_achievables:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "{a. ast_classical_problem.achievable P\<^sub>N a} \<subseteq> {a. ast_classical_problem.achievable P\<^sub>R a}"
-  unfolding P\<^sub>R_def
-  using assms normalization_normalizes normalization_wf ast_classical_problem.relax_achievables_compact by simp
+  shows "{a. ast_classical_problem.achievable P\<^sub>T a} \<subseteq> {a. ast_classical_problem.achievable P\<^sub>R a}"
+proof -
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms normalization_normalizes by simp
+  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
+    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  show ?thesis
+    unfolding P\<^sub>R_def
+    using wf_T norm_T by (rule ast_classical_problem.relax_achievables_compact)
+qed
 
 lemma relaxation_wf_relaxed_normed:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.wf_classical_problem P\<^sub>R" "ast_classical_problem.relaxed_prob P\<^sub>R" "ast_classical_problem.normalized_prob P\<^sub>R"
-  unfolding P\<^sub>R_def
-  using assms normalization_normalizes normalization_wf
-  using ast_classical_problem.relax_wf_relaxed_compact ast_classical_problem.relax_normed_compact
-  by blast+
+proof -
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms normalization_normalizes by simp
+  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
+    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  show "ast_classical_problem.wf_classical_problem P\<^sub>R" "ast_classical_problem.relaxed_prob P\<^sub>R" "ast_classical_problem.normalized_prob P\<^sub>R"
+    unfolding P\<^sub>R_def
+    using wf_T norm_T ast_classical_problem.relax_wf_relaxed_compact ast_classical_problem.relax_normed_compact by blast+
+qed
 
-subsection \<open> Reachability Analysis \<close>
+subsection \<open> Reachability Analysis & Grounding via Certificate Checking \<close>
 
-abbreviation "all_facts \<equiv> remdups (snd (ast_classical_problem.semi_naive_eval P\<^sub>R))"
-abbreviation "all_pactions \<equiv> fst (ast_classical_problem.semi_naive_eval P\<^sub>R)"
+context
+  fixes cert :: certificate
+  assumes admissible_cert: "pddl_datalog.admissible (ast_classical_problem.relax_prob P\<^sub>T) cert"
+      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T cert"
+begin
 
-
-thm relaxed_problem.found_facts_achievable
-
-lemma all_facts_solved:
+lemma P_T_normalized_problem_rx:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "set all_facts = {f. ast_classical_problem.achievable P\<^sub>R f}"
-  using assms relaxed_problem.found_facts_achievable
-  using relaxation_wf_relaxed_normed[OF assms]
-  by (simp add: normalized_problem_def' relaxed_problem.intro relaxed_problem_axioms_def)
+  shows "normalized_problem_rx P\<^sub>T"
+proof -
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms normalization_normalizes by simp
+  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
+    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  show ?thesis
+    unfolding normalized_problem_rx_def normalized_problem_def'
+    using wf_T norm_T by blast
+qed
 
-lemma wf_grounder_args:
+lemma certified_reachability_i:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "wf_grounder P\<^sub>N all_facts all_pactions"
-  unfolding wf_grounder_def apply (intro conjI)
-  using assms normalization_wf apply blast
-          apply simp
-  using relaxation_achievables[OF assms] all_facts_solved[OF assms] apply argo
-  using relaxation_achievables[OF assms] all_facts_solved[OF assms]
-    wf_ast_classical_problem.achievable_wf normalization_wf[OF assms]
-    wf_ast_classical_problem_def
-  apply (metis P\<^sub>R_def assms ast_domain_rx.rx_wf_fmla_atom ast_classical_problem.relax_prob_sel(1) ast_classical_problem_rx.rx_objT mem_Collect_eq relaxation_wf_relaxed_normed(1))
-  sorry
+  shows "certified_reachability P\<^sub>T cert"
+proof -
+  interpret rx: normalized_problem_rx P\<^sub>T using P_T_normalized_problem_rx[OF assms] .
+  show ?thesis
+    apply unfold_locales
+    using admissible_cert grounding_cert by simp_all
+qed
 
-subsection \<open> Grounding \<close>
+definition "P\<^sub>G_cert \<equiv> grounder.ground_prob P\<^sub>T
+  (normalized_problem_rx.cert_facts_of P\<^sub>T cert)
+  (normalized_problem_rx.cert_ops_of P\<^sub>T cert)"
 
-definition "P\<^sub>G \<equiv> grounder.ground_prob P\<^sub>N all_facts all_pactions"
-definition "reconstruct_plan_ground \<pi>s =
-  reconstruct_plan_norm (grounder.restore_ground_plan all_pactions \<pi>s)"
+definition "reconstruct_plan_ground_cert \<pi>s \<equiv>
+  reconstruct_plan_norm (restore_plan_def_translate
+    (grounder.restore_ground_plan (normalized_problem_rx.cert_ops_of P\<^sub>T cert) \<pi>s))"
 
-lemma wf_ground_normed_problem:
+lemma wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "ast_classical_problem.wf_classical_problem P\<^sub>G" "ast_classical_problem.normalized_prob P\<^sub>G"
-    "ast_classical_problem.grounded_prob P\<^sub>G"
-  using assms wf_grounder_args normalization_normalizes
-  using wf_grounder.ground_prob_wf wf_grounder.ground_prob_normed
-    grounder.ground_prob_grounded
-  by (simp_all add: P\<^sub>G_def)
+  shows "ast_classical_problem.wf_classical_problem P\<^sub>G_cert"
+    "ast_classical_problem.normalized_prob P\<^sub>G_cert"
+    "ast_classical_problem.grounded_prob P\<^sub>G_cert"
+proof -
+  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using normalization_normalizes[OF assms] unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  have pg_eq: "P\<^sub>G_cert = cr.wfg.ground_prob"
+    unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
+  show "ast_classical_problem.wf_classical_problem P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ground_prob_wf by simp
+  show "ast_classical_problem.normalized_prob P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ground_prob_normed[OF norm_T] by simp
+  show "ast_classical_problem.grounded_prob P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ground_prob_grounded by simp
+qed
 
-lemma ground_plan_valid_iff:
+lemma ground_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "(\<exists>\<pi>s. valid_classical_plan \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan P\<^sub>G \<pi>s')"
-  using assms normalization_valid_iff wf_grounder_args
-  using wf_grounder.valid_classical_plan_iff
-  unfolding P\<^sub>G_def by blast
+  shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
+proof -
+  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  have "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
+    using assms normalization_valid_iff by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
+    using ast_classical_problem.def_translate_valid_iff_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]]
+    unfolding P\<^sub>T_def by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
+    unfolding P\<^sub>G_cert_def
+    using cr.wfg.valid_classical_plan_iff[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
+  finally show ?thesis .
+qed
 
-lemma ground_plan_reconstruct:
+lemma ground_cert_plan_reconstruct:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "ast_classical_problem.valid_classical_plan P\<^sub>G \<pi>s \<Longrightarrow>
-    valid_classical_plan (reconstruct_plan_ground \<pi>s)"
-  using assms normalization_reconstruct wf_grounder_args
-  using wf_grounder.valid_classical_plan_left normalization_reconstruct
-  unfolding P\<^sub>G_def reconstruct_plan_ground_def by simp
+  shows "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s \<Longrightarrow>
+    valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
+proof -
+  assume p: "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s"
+  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  let ?q = "grounder.restore_ground_plan (normalized_problem_rx.cert_ops_of P\<^sub>T cert) \<pi>s"
+  have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
+    using p[unfolded P\<^sub>G_cert_def] cr.wfg.valid_classical_plan_left[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
+  hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
+    unfolding P\<^sub>T_def .
+  hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"
+    using ast_classical_problem.restore_plan_def_translate_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]] by blast
+  hence "valid_classical_plan2 (reconstruct_plan_norm (restore_plan_def_translate ?q))"
+    using assms normalization_reconstruct by simp
+  thus "valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
+    unfolding reconstruct_plan_ground_cert_def .
+qed
 
-subsection \<open> Conversion to STRIPS \<close>
-definition "P\<^sub>S \<equiv> ast_classical_problem.as_strips P\<^sub>G"
-definition "reconstruct_pipeline_plan ops \<equiv>
-  reconstruct_plan_ground (ast_classical_problem.restore_pddl_plan P\<^sub>G ops)"
+subsection \<open> Conversion to STRIPS (Certificate-based) \<close>
 
-lemma wf_as_strips:
+definition "P\<^sub>S_cert \<equiv> ast_classical_problem.as_strips P\<^sub>G_cert"
+definition "reconstruct_pipeline_plan_cert ops \<equiv>
+  reconstruct_plan_ground_cert (ast_classical_problem.restore_pddl_plan P\<^sub>G_cert ops)"
+
+lemma wf_as_strips_cert:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "is_valid_problem_strips P\<^sub>S"
-  using assms ast_classical_problem.wf_as_strips_compact
-  using wf_ground_normed_problem
-  unfolding P\<^sub>S_def by blast
+  shows "is_valid_problem_strips P\<^sub>S_cert"
+proof -
+  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  have nf: "ast_classical_problem.num_free_prob P\<^sub>G_cert"
+    unfolding P\<^sub>G_cert_def
+    using cr.wfg.ground_prob_num_free[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
+  show ?thesis
+    unfolding P\<^sub>S_cert_def
+    using assms ast_classical_problem.wf_as_strips_compact wf_ground_cert_problem nf by blast
+qed
 
-lemma strips_plan_reconstruct:
+lemma strips_plan_reconstruct_cert:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "is_serial_solution_for_problem P\<^sub>S ops \<Longrightarrow>
-    valid_classical_plan (reconstruct_pipeline_plan ops)"
+  shows "is_serial_solution_for_problem P\<^sub>S_cert ops \<Longrightarrow>
+    valid_classical_plan2 (reconstruct_pipeline_plan_cert ops)"
   oops
 
-lemma strips_plan_iff:
+lemma strips_plan_iff_cert:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "(\<exists>ops. is_serial_solution_for_problem P\<^sub>S ops) \<longleftrightarrow>
-    (\<exists>\<pi>s. valid_classical_plan \<pi>s)"
+  shows "(\<exists>ops. is_serial_solution_for_problem P\<^sub>S_cert ops) \<longleftrightarrow>
+    (\<exists>\<pi>s. valid_classical_plan2 \<pi>s)"
   oops
+
+end
 
 end
 end

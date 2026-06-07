@@ -1,6 +1,6 @@
 theory PDDL_Sema_Supplement                
   imports Classical_Planning.Classical_Happening_Semantics
-  Grounding_Utils Formula_Utils iq.iq
+  Grounding_Utils Formula_Utils
 begin
 
 subsection \<open>Formulas\<close>
@@ -295,10 +295,10 @@ lemma wf_type_alt: "wf_type T \<longleftrightarrow> set (primitives T) \<subsete
   by (cases T; simp)
 
 (* unnecessary? *)
-lemma wf_predicate_decl_alt: "wf_predicate_decl pd \<longleftrightarrow> list_all1 wf_type (predicate_decl.argTs pd)"
+lemma wf_predicate_decl_alt: "wf_predicate_decl pd \<longleftrightarrow> (\<forall>T \<in> set (predicate_decl.argTs pd). wf_type T)"
   by (cases pd; simp)
 
-lemma wf_function_decl_alt: "wf_function_decl fd \<longleftrightarrow> list_all1 wf_type (function_decl.argTs fd)"
+lemma wf_function_decl_alt: "wf_function_decl fd \<longleftrightarrow> (\<forall>T \<in> set (function_decl.argTs fd). wf_type T)"
   by (cases fd; simp)
 
 end

@@ -37,8 +37,8 @@ definition cond_lits_of :: "'a atom formula \<Rightarrow> 'a atom formula list" 
 
 
 (* TODO: add action predicate to a? *)
-fun as_action_clause :: "ast_action_schema \<Rightarrow> action_clause" where
-  "as_action_clause (Action_Schema n params pre (Effect a d)) =
+fun as_action_clause :: "ast_classical_action_schema \<Rightarrow> action_clause" where
+  "as_action_clause (SimpleActionSchema (ActionHead n params) (SimpleActionBody pre (Effect a d ne))) =
     AClause n params (pos_lits_of pre) (cond_lits_of pre) a"
 
 (* fact_orga functionality *)
@@ -53,7 +53,7 @@ abbreviation organize_facts :: "object atom formula list \<Rightarrow> fact_orga
 fun in_orga :: "object atom formula \<Rightarrow> fact_orga \<Rightarrow> bool" where
   "in_orga (Atom (predAtm p args)) orga \<longleftrightarrow> args \<in> set (orga p)" |
   "in_orga _ orga \<longleftrightarrow> undefined" (* not pred atom *)
-definition (in ast_problem) enumerate_orga :: "fact_orga \<Rightarrow> object atom formula list" where
+definition (in ast_classical_problem) enumerate_orga :: "fact_orga \<Rightarrow> object atom formula list" where
   "enumerate_orga facts = [Atom (predAtm (pred p) args). p \<leftarrow> predicates D, args \<leftarrow> facts (pred p)]"
 
 (* partial_args functionality *)
@@ -72,7 +72,7 @@ abbreviation as_arg_list :: "(variable \<times> type) list \<Rightarrow> partial
 
 (* instantiating action clauses *)
 abbreviation "satisfies_cond params args c \<equiv>
-  valuation {} \<Turnstile> map_atom_fmla (ac_tsubst params args) c"
+  valuation ({}, Map.empty) \<Turnstile>\<^sub>m map_atom_fmla (ac_tsubst params args) c"
 abbreviation satisfies_conds where
   "satisfies_conds params conds args \<equiv>
     list_all (satisfies_cond params args) conds"
@@ -85,7 +85,7 @@ fun finish_args :: "'a option list \<Rightarrow> 'a list \<Rightarrow> 'a list" 
 fun consequence_of where "consequence_of (AClause n params preds cond add) args =
   map (map_atom_fmla (ac_tsubst params args)) add"
 
-context ast_problem begin
+context ast_classical_problem begin
 
 definition "a_clauses \<equiv> map as_action_clause (actions D)"
 definition "pred_clauses \<equiv> filter (\<lambda>c. cl_pred_pre c \<noteq> []) a_clauses"
@@ -153,9 +153,9 @@ fun all_insts_of_with :: "object atom formula \<Rightarrow> fact_orga \<Rightarr
 
 (* Level 3: fix w r, given args, apply heads *)
 fun all_derivs_of :: "object atom formula \<Rightarrow> fact_orga \<Rightarrow> action_clause \<Rightarrow>
-  (plan_action list \<times> object atom formula list)" where
+  (ast_classical_plan_action list \<times> object atom formula list)" where
   "all_derivs_of f facts c = (let all_args = all_insts_of_with f facts c in
-    (map (PAction (cl_name c)) all_args,
+    (map (SimplePlanAction (cl_name c)) all_args,
     [a. args \<leftarrow> all_args, a \<leftarrow> consequence_of c args]))"
 
 (* Level 2: fix w, for r in pred_clauses... *)
@@ -205,31 +205,32 @@ definition "semi_naive_limm n \<equiv> case semi_naive_lim n init' (organize_fac
 end
 
 lemmas pseudo_datalog_code =
-  ast_domain.subst_term.simps (* TODO move*)
-  ast_problem.enumerate_orga_def
-  ast_problem.a_clauses_def
-  ast_problem.pred_clauses_def
-  ast_problem.fact_clauses_def
-  ast_problem.all_fact_paramz.simps
-  ast_problem.pseudo_init_def
-  ast_problem.init'_def
-  ast_problem.all_finished_paramz.simps
-  ast_problem.all_insts_owa_aux.simps
-  ast_problem.all_insts_of_with_at''.simps
-  ast_problem.all_insts_of_with_at'.simps
-  ast_problem.all_insts_of_with_at.simps
-  ast_problem.all_insts_of_with.simps
-  ast_problem.all_derivs_of.simps
-  ast_problem.all_derivs.simps
-  ast_problem.semi_naive_aux.simps
-  ast_problem.semi_naive_eval_def
+  subst_term.simps (* TODO move*)
+  ast_classical_problem.enumerate_orga_def
+  ast_classical_problem.a_clauses_def
+  ast_classical_problem.pred_clauses_def
+  ast_classical_problem.fact_clauses_def
+  ast_classical_problem.all_fact_paramz.simps
+  ast_classical_problem.pseudo_init_def
+  ast_classical_problem.init'_def
+  ast_classical_problem.all_finished_paramz.simps
+  ast_classical_problem.all_insts_owa_aux.simps
+  ast_classical_problem.all_insts_of_with_at''.simps
+  ast_classical_problem.all_insts_of_with_at'.simps
+  ast_classical_problem.all_insts_of_with_at.simps
+  ast_classical_problem.all_insts_of_with.simps
+  ast_classical_problem.all_derivs_of.simps
+  ast_classical_problem.all_derivs.simps
+  ast_classical_problem.semi_naive_aux.simps
+  ast_classical_problem.semi_naive_eval_def
 
-  ast_problem.letsss_def
-  ast_problem.semi_naive_lim.simps
-  ast_problem.semi_naive_limm_def
+  ast_classical_problem.letsss_def
+  ast_classical_problem.semi_naive_lim.simps
+  ast_classical_problem.semi_naive_limm_def
 
 declare pseudo_datalog_code[code]
 
+(* Example/test problem and \<open>value\<close> sanity checks (old-API constructors); kept for reference.
 abbreviation "as_atom n args \<equiv> Atom (predAtm (Pred n) args)"
 abbreviation "var n \<equiv> term.VAR (Var n)"
 abbreviation "cst n \<equiv> term.CONST (Obj n)"
@@ -286,6 +287,7 @@ value "ast_problem.semi_naive_limm \<Pi> 1"
 value "ast_problem.semi_naive_limm \<Pi> 2"
 value "ast_problem.semi_naive_limm \<Pi> 3"
 value "ast_problem.semi_naive_limm \<Pi> 40"
+*)
 
 (*
 interpretation Pi: ast_problem \<Pi> done
@@ -339,7 +341,7 @@ lemma "set (un_and xs) = set (pos_lits_of xs) \<union> set (cond_lits_of xs)"
 context relaxed_problem begin
 
 theorem found_facts_achievable:
-  "set (snd semi_naive_eval) = {f. achievable f}"
+  "set (snd semi_naive_eval) = (\<lambda>f. Atom (uncurry predAtm f)) ` {f. achievable f}"
   sorry
 
 theorem found_pactions_applicable:

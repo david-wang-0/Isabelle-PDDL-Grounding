@@ -333,9 +333,9 @@ fun grounded_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
 
 definition (in ast_classical_domain) "grounded_dom \<equiv>
   types D = [] \<and>
-  list_all1 grounded_pred (predicates D) \<and>
+  (\<forall>p \<in> set (predicates D). grounded_pred p) \<and>
   consts D = [] \<and>
-  list_all1 grounded_ac (actions D)"
+  (\<forall>a \<in> set (actions D). grounded_ac a)"
 
 locale grounded_domain = wf_ast_classical_domain +
   assumes grounded_dom: grounded_dom

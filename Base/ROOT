@@ -7,6 +7,7 @@ session Tree_Decomp_Grounding_Base = HOL +
   options [timeout = 900]
   sessions
 	"Classical_Planning"
+	"Verified_SAT_Based_AI_Planning"
 	"HOL-Library"
 	"Show"
 	"Propositional_Proof_Systems"
@@ -34,3 +35,4 @@ session Tree_Decomp_Grounding_Base = HOL +
 	DNF
 	Graph_Funs
 	Normalization_Definitions
+	Numeric_Free

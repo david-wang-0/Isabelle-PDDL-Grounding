@@ -9,12 +9,6 @@ fun showsteps :: "('a \<Rightarrow> 'b \<Rightarrow> 'a) \<Rightarrow> 'a \<Righ
   "showsteps f i [] = [i]" |
   "showsteps f i (x # xs) = i # showsteps f (f i x) xs"
 
-(* syntax sugar *)
-
-text \<open> Not using the default list_all because it makes proofs cumbersome \<close>
-abbreviation (input) list_all1 where
-  "list_all1 P xs \<equiv> \<forall>x \<in> set xs. P x"
-
 (* rule rewriting *)
 lemma conj_split_3:
   assumes "A \<and> B \<and> C"
