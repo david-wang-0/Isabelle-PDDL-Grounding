@@ -84,10 +84,12 @@
 >
 > **PDDL_to_STRIPS / STRIPS target:** the STRIPS type already IS the AFP SAT planner's input
 > (`name strips_problem` / `is_serial_solution_for_problem` from `Verified_SAT_Based_AI_Planning`).
-> But `PDDL_to_STRIPS.thy` is unrefactored: it must drop the old `PDDL_STRIPS_Semantics` dependency
-> (new numeric atom type), `wf_empty_lit` is FALSE under numeric atoms (now a documented `sorry`),
-> and ~20 errors remain (API drift: `wf_D` arity, pair `world_model`, `resolve_action_schema`;
-> string-ineq gaps; `oops` semantics-preservation stubs). See `[[project_pddl_to_strips_new_semantics]]`.
+> ✅ DONE (2026-06-08): `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` is fully refactored — old
+> `PDDL_STRIPS_Semantics` dependency dropped, WF proven, and full semantics preservation
+> (`valid_plan_iff`) proven; **0 sorry / 0 errors**. Note `restore_pddl_plan_valid` is the
+> _existence_ form (the literal restore-the-exact-plan statement is false under the halting
+> `execute_serial_plan`). See `[[project_pddl_to_strips_new_semantics]]`,
+> `[[project_restore_pddl_plan_existence]]`, and `WIP_session_handoff.md` §A.
 
 Status: **⊇ soundness FULLY PROVED & green** (2026-06-06).
 `Reachability_Analysis/Reachability_Certificate.thy` compiles clean (0 errors, fully

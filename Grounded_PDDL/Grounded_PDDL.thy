@@ -1,9 +1,9 @@
 theory Grounded_PDDL
 imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding_Base.Normalization_Definitions
-    Tree_Decomp_Grounding_Base.Grounding_Utils
-    Tree_Decomp_Grounding_Base.String_Utils
+    Tree_Decomp_Grounding_Common.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Common.Normalization_Definitions
+    Tree_Decomp_Grounding_Common.Grounding_Utils
+    Tree_Decomp_Grounding_Common.String_Utils
 begin
 
 type_synonym facty = "object atom formula"
@@ -83,7 +83,7 @@ begin
 
 text \<open>Fresh, distinct nullary predicate names for the achievable facts, and fresh,
   distinct action names for the applicable ops, via the \<^const>\<open>distinct_strings_lit\<close>
-  machinery of \<^theory>\<open>Tree_Decomp_Grounding_Base.String_Utils\<close> (\<^const>\<open>name\<close> is now
+  machinery of \<^theory>\<open>Tree_Decomp_Grounding_Common.String_Utils\<close> (\<^const>\<open>name\<close> is now
   \<^typ>\<open>String.literal\<close>, so the old \<open>char list\<close> padding/\<open>show\<close> mangling is replaced by
   the \<open>String.literal\<close>-native unique-name helpers).\<close>
 definition "fact_names \<equiv> map Pred (distinct_strings_lit (length facts))"

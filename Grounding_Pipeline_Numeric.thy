@@ -1,4 +1,4 @@
-theory Grounding_Pipeline
+theory Grounding_Pipeline_Numeric
   imports Type_Normalization.Type_Normalization_Semantics
     Goal_Normalization.Goal_Normalization_Semantics
     Definedness_Normalization.Definedness_Normalization_Semantics
@@ -6,8 +6,15 @@ theory Grounding_Pipeline
     Definedness_Translation.Definedness_Translation_Semantics
     PDDL_Relaxation.PDDL_Relaxation_Semantics
     Reachability_Analysis.Certified_Grounding_Semantics
-    Grounded_PDDL.Grounded_PDDL PDDL_to_STRIPS
+    Grounded_PDDL.Grounded_PDDL
+    Tree_Decomp_Grounding_Common.Numeric_Free
 begin
+
+text \<open>This theory assembles the verified grounding pipeline that applies to PDDL problems
+  \<^emph>\<open>with\<close> numerics: type/goal/definedness/precondition normalization, definedness translation,
+  delete-relaxation, and certificate-based reachability grounding, ending at the grounded PDDL
+  problem \<^term>\<open>P\<^sub>G_cert\<close>. The numeric-free specialization that converts the grounded problem
+  to STRIPS lives downstream in \<^verbatim>\<open>Grounding_Pipeline_STRIPS\<close>.\<close>
 
 subsection \<open> Grounding preserves numeric-freeness and normalization \<close>
 
@@ -271,17 +278,6 @@ proof -
 qed
 thm wf_grounder.valid_classical_plan_iff
 thm wf_grounder.valid_classical_plan_left
-
-
-lemma wf_as_strips_compact:
-  "wf_classical_problem \<Longrightarrow> grounded_prob \<Longrightarrow> normalized_prob \<Longrightarrow> num_free_prob \<Longrightarrow> is_valid_problem_strips as_strips"
-  using grounded_normalized_numeric_free_problem.wf_as_strips
-  unfolding grounded_normalized_numeric_free_problem_def
-            grounded_normalized_problem_def grounded_normalized_problem_axioms_def
-            grounded_problem_def grounded_problem_axioms_def wf_ast_classical_problem_def
-            numeric_free_problem_def
-            normalized_prob_def by blast
-  
 
 end
 
@@ -560,6 +556,16 @@ proof -
     unfolding pg_eq using cr.wfg.ground_prob_grounded by simp
 qed
 
+lemma ground_cert_num_free:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.num_free_prob P\<^sub>G_cert"
+proof -
+  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  have pg_eq: "P\<^sub>G_cert = cr.wfg.ground_prob"
+    unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
+  show ?thesis unfolding pg_eq using cr.wfg.ground_prob_num_free by simp
+qed
+
 lemma ground_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
   shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
@@ -595,37 +601,6 @@ proof -
   thus "valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
     unfolding reconstruct_plan_ground_cert_def .
 qed
-
-subsection \<open> Conversion to STRIPS (Certificate-based) \<close>
-
-definition "P\<^sub>S_cert \<equiv> ast_classical_problem.as_strips P\<^sub>G_cert"
-definition "reconstruct_pipeline_plan_cert ops \<equiv>
-  reconstruct_plan_ground_cert (ast_classical_problem.restore_pddl_plan P\<^sub>G_cert ops)"
-
-lemma wf_as_strips_cert:
-  assumes "restrict_prob" "wf_classical_problem"
-  shows "is_valid_problem_strips P\<^sub>S_cert"
-proof -
-  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
-  have nf: "ast_classical_problem.num_free_prob P\<^sub>G_cert"
-    unfolding P\<^sub>G_cert_def
-    using cr.wfg.ground_prob_num_free[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
-  show ?thesis
-    unfolding P\<^sub>S_cert_def
-    using assms ast_classical_problem.wf_as_strips_compact wf_ground_cert_problem nf by blast
-qed
-
-lemma strips_plan_reconstruct_cert:
-  assumes "restrict_prob" "wf_classical_problem"
-  shows "is_serial_solution_for_problem P\<^sub>S_cert ops \<Longrightarrow>
-    valid_classical_plan2 (reconstruct_pipeline_plan_cert ops)"
-  oops
-
-lemma strips_plan_iff_cert:
-  assumes "restrict_prob" "wf_classical_problem"
-  shows "(\<exists>ops. is_serial_solution_for_problem P\<^sub>S_cert ops) \<longleftrightarrow>
-    (\<exists>\<pi>s. valid_classical_plan2 \<pi>s)"
-  oops
 
 end
 

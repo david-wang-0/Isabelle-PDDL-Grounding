@@ -1,6 +1,6 @@
 chapter AFP
 
-session Definedness_Normalization = Tree_Decomp_Grounding_Base +
+session Definedness_Normalization = Tree_Decomp_Grounding_Common +
   description \<open>Definedness explication normalization: for every PNE appearing
     in a formula, conjoin the reflexive numeric equality that holds iff the
     PNE is defined. Makes every DNF disjunct carry the full atom set of the

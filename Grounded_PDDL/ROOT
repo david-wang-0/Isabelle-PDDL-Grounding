@@ -1,6 +1,6 @@
 chapter AFP
 
-session Grounded_PDDL = Tree_Decomp_Grounding_Base +
+session Grounded_PDDL = Tree_Decomp_Grounding_Common +
   description \<open>The verified grounder: maps a normalized, relaxed classical PDDL
     problem (plus achievable-facts / applicable-ops supersets) to a grounded
     problem, preserving well-formedness and plan validity.\<close>

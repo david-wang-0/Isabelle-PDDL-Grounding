@@ -1,6 +1,6 @@
 chapter AFP
 
-session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Base +
+session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Common +
   description \<open>An executable grounder for PDDL tasks based on FastDownward system.\<close>
   options [timeout = 900]
   sessions
@@ -12,7 +12,10 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Base +
 	"PDDL_Relaxation"
 	"Grounded_PDDL"
 	"Reachability_Analysis"
+  directories
+	"PDDL_to_STRIPS"
   theories
-	PDDL_to_STRIPS
-	Grounding_Pipeline
+	"PDDL_to_STRIPS/Classical_PDDL_to_STRIPS"
+	Grounding_Pipeline_Numeric
+	Grounding_Pipeline_STRIPS
 	Running_Example

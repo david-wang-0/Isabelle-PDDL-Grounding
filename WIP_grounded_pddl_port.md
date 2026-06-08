@@ -32,7 +32,7 @@ reachability-certificate locales (and eventually the grounding pipeline) compile
 - `resolve_instantiate π` → `the (res_inst π)`; `wf_plan_action` → `wf_classical_plan_action`;
   `valid_plan` → `valid_classical_plan2`
 - old PDDL `plan_action_path`/`execute_plan_action`/`plan_action_enabled` → classical
-  versions in `Base/PDDL_Sema_Supplement.thy` (`execute_plan_action`/`plan_action_enabled`/
+  versions in `Common/PDDL_Sema_Supplement.thy` (`execute_plan_action`/`plan_action_enabled`/
   `valid_classical_plan_alt` over the pair model; note `plan_action_enabled` now ALSO requires
   `numeric_effects_non_intrf` and `set (ast_effect_enumerate_rhs_primitive_numeric_expressions
   (effect a')) ⊆ dom (snd M)` — trivially true for our purely-propositional grounded effects).
@@ -108,7 +108,7 @@ jEdit to know the `Grounded_PDDL` session before it resolves `Grounded_PDDL.Grou
    (likely abbreviations over `head`/`body` in Classical_Abstract_Syntax / PDDL_Sema_Supplement).
 2. **Grounded output**: `acs_grounded`, `ground_dom_grounded`, `ground_prob_grounded`
    (target preds `grounded_pred`/`grounded_ac`/`grounded_dom`/`grounded_prob` from
-   `Base/Normalization_Definitions.thy:328-347`).
+   `Common/Normalization_Definitions.thy:328-347`).
 3. **Well-formedness**: `gr_preds_dis/_wf`, `ground_ac_names`, `gr_acs_dis`, `wf_ops_resinst`,
    `gr_atom_wf`, `gr_fmla_atom_wf`, `ground_fmla_wf`, `ground_ac_wf`, `gr_acs_wf`,
    `ground_dom_wf`, `gr_init_dis/_wf`, `gr_goal_wf`, `ground_prob_wf`. (Uses classical
@@ -124,7 +124,7 @@ jEdit to know the `Grounded_PDDL` session before it resolves `Grounded_PDDL.Grou
    `ground_enabled_left`, `ground_exec_left`, `ground_plan_path_left`,
    **`valid_classical_plan_left`**.
    Old proofs used PDDL `valid_plan`/`plan_action_path`/`execute_plan_action`/`M ⊨⇩c⁼ φ`/
-   set-`valuation ⊨`; classical replacements live in `Base/PDDL_Sema_Supplement.thy`
+   set-`valuation ⊨`; classical replacements live in `Common/PDDL_Sema_Supplement.thy`
    (`valid_classical_plan_alt`/`execute_plan_action`/`plan_action_enabled` over the pair model,
    `valuation ⊨⇩m`, `valid_classical_plan_from2_*`, `wf_valid_classical_plan_alt`). Watch the new
    `plan_action_enabled` numeric side-conditions (discharge via empty numeric effects).
@@ -136,8 +136,10 @@ jEdit to know the `Grounded_PDDL` session before it resolves `Grounded_PDDL.Grou
   `pa_of_classical` bridge can be DROPPED (engine and `applicable` now share
   `ast_classical_plan_action`). Then re-check the two locales compile (needs jEdit to know the
   `Grounded_PDDL` session).
-- **Do NOT touch `Grounding_Pipeline.thy`** (user instruction) — and `PDDL_to_STRIPS.thy` is also
-  still old-API (separate later job).
+- **Do NOT touch `Grounding_Pipeline.thy`** (user instruction). NOTE (2026-06-08):
+  `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` is now fully refactored to the current API and
+  **0 sorry / 0 errors** — WF + full semantics preservation (`valid_plan_iff`) proven. No longer a
+  later job. See `WIP_session_handoff.md` §A and memory `project_restore_pddl_plan_existence`.
 
 ## Tooling notes (important)
 

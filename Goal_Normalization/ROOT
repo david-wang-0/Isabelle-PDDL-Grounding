@@ -1,6 +1,6 @@
 chapter AFP
 
-session Goal_Normalization = Tree_Decomp_Grounding_Base +
+session Goal_Normalization = Tree_Decomp_Grounding_Common +
   description \<open>Goal normalization: rewrite the goal formula into a shape the
     downstream grounder expects. Runs before \<open>Definedness_Normalization\<close> in
     the pipeline, so it carries no definedness invariant on its input.\<close>

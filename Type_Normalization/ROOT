@@ -1,6 +1,6 @@
 chapter AFP
 
-session Type_Normalization = Tree_Decomp_Grounding_Base +
+session Type_Normalization = Tree_Decomp_Grounding_Common +
   description \<open>Type normalization: eliminate user-declared types by encoding
     type membership as unary predicates, so downstream steps can assume a
     typeless signature.\<close>

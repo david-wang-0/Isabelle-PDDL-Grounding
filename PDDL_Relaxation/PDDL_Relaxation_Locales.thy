@@ -1,9 +1,9 @@
 theory PDDL_Relaxation_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding_Base.Grounding_Utils
-    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding_Base.Formula_Utils
-    Tree_Decomp_Grounding_Base.Normalization_Definitions
+    Tree_Decomp_Grounding_Common.Grounding_Utils
+    Tree_Decomp_Grounding_Common.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Common.Formula_Utils
+    Tree_Decomp_Grounding_Common.Normalization_Definitions
 begin
 
 section \<open> Relaxation Definitions and Locales \<close>

@@ -1,9 +1,9 @@
 theory Precondition_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding_Base.Normalization_Definitions
-    Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding_Base.String_Utils
-    Tree_Decomp_Grounding_Base.DNF
+    Tree_Decomp_Grounding_Common.Normalization_Definitions
+    Tree_Decomp_Grounding_Common.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Common.String_Utils
+    Tree_Decomp_Grounding_Common.DNF
 begin
 
 section \<open> Precondition Normalization Definitions and Locales \<close>

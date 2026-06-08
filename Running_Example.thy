@@ -1,6 +1,6 @@
 theory Running_Example
   imports Main
-    Grounding_Pipeline
+    Grounding_Pipeline_Numeric
 begin
 
 subsection \<open> Problem Description \<close>

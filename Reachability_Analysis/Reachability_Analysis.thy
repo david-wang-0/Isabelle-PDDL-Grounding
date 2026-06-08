@@ -1,9 +1,9 @@
 theory Reachability_Analysis
-  imports Tree_Decomp_Grounding_Base.PDDL_Sema_Supplement
-    Tree_Decomp_Grounding_Base.Normalization_Definitions
-    Tree_Decomp_Grounding_Base.Formula_Utils
-    Tree_Decomp_Grounding_Base.Graph_Funs
-    Tree_Decomp_Grounding_Base.String_Utils
+  imports Tree_Decomp_Grounding_Common.PDDL_Sema_Supplement
+    Tree_Decomp_Grounding_Common.Normalization_Definitions
+    Tree_Decomp_Grounding_Common.Formula_Utils
+    Tree_Decomp_Grounding_Common.Graph_Funs
+    Tree_Decomp_Grounding_Common.String_Utils
     (*"AI_Planning_Languages_Semantics.PDDL_STRIPS_Checker"*)
 begin
 

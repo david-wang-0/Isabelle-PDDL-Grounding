@@ -1,8 +1,8 @@
 theory Type_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
-    Tree_Decomp_Grounding_Base.Normalization_Definitions
-    Tree_Decomp_Grounding_Base.Graph_Funs
-    Tree_Decomp_Grounding_Base.String_Utils
+    Tree_Decomp_Grounding_Common.Normalization_Definitions
+    Tree_Decomp_Grounding_Common.Graph_Funs
+    Tree_Decomp_Grounding_Common.String_Utils
 begin
 
 section \<open>Type Normalization Definitions and Locales\<close>

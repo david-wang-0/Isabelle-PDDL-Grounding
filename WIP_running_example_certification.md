@@ -199,7 +199,7 @@ replaced.
 ## The big blocker we found and fixed: code-generation setup
 
 `value`-ing any pipeline constant fails out of the box. Two distinct causes, both now handled
-inline in `Running_Example.thy` (the block headed *"Code setup (to move to Base/Code_Setup.thy)"*):
+inline in `Running_Example.thy` (the block headed *"Code setup (to move to Common/Code_Setup.thy)"*):
 
 **(1) Shared-locale code-equation poisoning.** Grounding's normalization functions are defined
 `(in domain_signature)`/`(in problem_signature)` — base locales FPS *also* instantiates at its
@@ -229,7 +229,7 @@ equations for a constant (reachable or not), so it hard-errors. **Fix:** per sha
   `declare ast_classical_domain.def_translate_dom_def[code]` +
   `ast_classical_problem.def_translate_prob_def[code]`. → **upstream TODO: add a
   `def_translate_code` bundle in `Definedness_Translation/…Semantics.thy`.**
-- **Lifted string ops** (`Base/String_Utils.thy`) have no code equations. Added:
+- **Lifted string ops** (`Common/String_Utils.thy`) have no code equations. Added:
   `lemma padl_lit_code[code]: "padl_lit n s = String.implode (padl n (String.explode s))"`
   `by (metis padl_lit.rep_eq String.implode_explode_eq)` and `declare distinct_strings_lit_eq[code]`
   (the latter already proven, just not `[code]`). → **upstream TODO: land these in
@@ -247,7 +247,7 @@ try to make `semi_naive_eval` executable; route through the cert checker instead
 
 ## Next steps (in order)
 
-1. **Migrate the inline code-setup block into `Base/Code_Setup.thy`** (the agreed home). Import
+1. **Migrate the inline code-setup block into `Common/Code_Setup.thy`** (the agreed home). Import
    it from `Running_Example` (and later from the Part 3 export theory — it hits the identical
    wall). Add to the session `ROOT`. *Driving method stays:* iterate via `value`/`code_thms`
    errors (each names the next bad fact). More `code drop`s will surface as the cert checker’s

@@ -1,0 +1,31 @@
+chapter AFP
+
+session Tree_Decomp_Grounding_Base = HOL +
+  description \<open>External/library dependencies shared by the whole development: the AFP PDDL
+    semantics (Classical/Continuous Planning), the verified SAT planner STRIPS theories, the
+    propositional-logic library, and assorted HOL-Library theories. Contains no project-local
+    theories, so it can be built once and loaded in jEdit as a stable heap while the editable
+    Tree_Decomp_Grounding_Common theories are developed on top.\<close>
+  sessions
+    "Classical_Planning"
+    "Continuous_Planning"
+    "Verified_SAT_Based_AI_Planning"
+    "HOL-Library"
+    "Show"
+    "Propositional_Proof_Systems"
+  theories [document = false]
+    "HOL-Library.Sublist"
+    "HOL-Library.List_Lexorder"
+    "HOL-Library.Char_ord"
+    "HOL-Library.Monad_Syntax"
+    "Show.Show_Instances"
+    "Propositional_Proof_Systems.Sema"
+    "Propositional_Proof_Systems.CNF"
+    "Propositional_Proof_Systems.CNF_Formulas"
+    "Propositional_Proof_Systems.CNF_Sema"
+    "Propositional_Proof_Systems.CNF_Formulas_Sema"
+    "Continuous_Planning.Abstract_Syntax"
+    "Classical_Planning.Classical_Happening_Semantics"
+    "Classical_Planning.Classical_PDDL_Checker_Numeric"
+    "Verified_SAT_Based_AI_Planning.STRIPS_Representation"
+    "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"

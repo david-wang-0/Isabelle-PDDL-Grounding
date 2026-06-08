@@ -1,6 +1,6 @@
 chapter AFP
 
-session Reachability_Analysis = Tree_Decomp_Grounding_Base +
+session Reachability_Analysis = Tree_Decomp_Grounding_Common +
   description \<open>Reachability analysis for a normalized, relaxed PDDL problem: the
     (untrusted) reachability engine and the datalog-certificate checker that feeds
     the grounder.\<close>
