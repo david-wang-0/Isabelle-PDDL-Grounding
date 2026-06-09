@@ -1,4 +1,4 @@
-# Session handoff (2026-06-08, updated)
+# Session handoff (2026-06-09, updated)
 
 Status snapshot for resuming in a fresh session. Covers the certificate→grounder bridge,
 numeric-freeness, the PDDL→STRIPS port (WF complete; **semantics preservation now FULLY proven —
@@ -12,8 +12,17 @@ numeric-freeness, the PDDL→STRIPS port (WF complete; **semantics preservation 
 > halts at the first non-applicable operator, so a "solution" may carry trailing non-enabled ops,
 > whereas `valid_classical_plan2` requires every action enabled. The existence form is exactly what
 > `valid_plan_iff` (and the pipeline) needs. See memory `project_restore_pddl_plan_existence`.
-> Remaining: pipeline wiring §7 (instantiate `strips_encodable_problem` for `P\<^sub>G_cert cert`)
-> to close the two `strips_plan_*_cert` `oops` in `Grounding_Pipeline_STRIPS.thy`.
+> **DONE (2026-06-09): pipeline wiring closed.** `Grounding_Pipeline_STRIPS.thy` is now **fully
+> green, 0 sorry/oops**. The `strips_encodable_problem` interpretation for `P\<^sub>G_cert cert`
+> (`strips_encodable_P\<^sub>G_cert`) is built and both former `oops` are proven: `strips_plan_iff_cert`
+> (solvability equivalence — the end-to-end theorem) and `strips_plan_sound_cert` (existence of a
+> valid plan). Gotcha that blocked it: `P\<^sub>G_cert_def` is a CONDITIONAL equation (guarded by the
+> cert-context's two `assumes`), so unfold it as `P\<^sub>G_cert_def[OF admissible_cert grounding_cert]`.
+> **NEXT (planned, not yet done): a *concrete* runnable restoration + SAT-planner STRIPS output —
+> see `WIP_plan_restoration_and_sat_output.md`.** Today we only have *existence* of a valid plan;
+> turning it into an actual returned plan needs the applicable-prefix restoration (Parts 1–2 there),
+> and feeding the STRIPS output to the AFP SAT planner needs the serial bridge + STRIPS code-export
+> (Part 3 there).
 
 > **Session split (2026-06-08).** The base session was split (mirrors `Continuous_Planning_Base`)
 > so jEdit can load a stable external heap while the shared theories stay editable:
@@ -43,8 +52,9 @@ numeric-freeness, the PDDL→STRIPS port (WF complete; **semantics preservation 
 >   (`P\<^sub>G_cert` is numeric-free — this is the old §B, now DISCHARGED).
 > - **`Grounding_Pipeline_STRIPS.thy`** — the numeric-free specialization: `imports
 >   Grounding_Pipeline_Numeric PDDL_to_STRIPS`, re-opens the `ast_classical_problem` + `cert`
->   context, hosts `wf_as_strips_compact`, `P\<^sub>S_cert`, `wf_as_strips_cert` (proven), and the
->   two `strips_plan_*_cert` `oops` (the §A blockers). 0 errors.
+>   context, hosts `wf_as_strips_compact`, `P\<^sub>S_cert`, `wf_as_strips_cert`,
+>   `strips_encodable_P\<^sub>G_cert`, and `strips_plan_iff_cert` + `strips_plan_sound_cert`
+>   — **all proven (2026-06-09), 0 sorry/oops, 0 errors** (the two former `oops` are closed).
 >
 > `ROOT` lists both; `Running_Example` now imports `Grounding_Pipeline_Numeric`.
 > Cross-context note: `P\<^sub>G_cert`/`reconstruct_plan_ground_cert` are defined in the base

@@ -1,6 +1,14 @@
 # WIP: run the certificate-grounding pipeline on the running example
 
-Status: **plan** (2026-06-07). Goal: drive `Running_Example.thy` through the **verified
+Status: **plan** (2026-06-07); **partly executed (2026-06-09)** — the executable-pipeline work has
+moved to `WIP_executable_pipeline.md`. Key unblock landed: the `numeric_expression_valuation → sin →
+suminf → Inf [filter]` codegen poison (which blocked `init'`/`closure_check`/`admissible`/`ground_prob`
+just as it blocked `semi_naive_eval`) is fixed by a sound `Code.abort` override in `Code_Setup.thy`;
+`init'`/`a_clauses`/`dl_program_of` now `value`-evaluate. Still TODO here: unconditional executable
+mirrors for the 9 assumption-guarded cert/grounding checks (see `WIP_executable_pipeline.md`), then
+the live `ML ‹…›` Nemo round-trip below.
+
+Goal: drive `Running_Example.thy` through the **verified
 certificate** grounding path (not the unverified `semi_naive_eval`), and stand up an
 **executable** SML pipeline that parses real PDDL, calls Nemo, reads the certificate back,
 and grounds.

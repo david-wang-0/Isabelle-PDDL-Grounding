@@ -1,6 +1,6 @@
 theory Running_Example
   imports Main
-    Grounding_Pipeline_Numeric
+    Grounding_Pipeline_Executable
 begin
 
 subsection \<open> Problem Description \<close>
@@ -189,44 +189,30 @@ subsection \<open>Pipeline normalization to \<open>P\<^sub>T\<close>\<close>
 
 text \<open>The verified grounding pipeline normalizes via
   detype \<rightarrow> degoal \<rightarrow> explicate-definedness \<rightarrow> split \<rightarrow> def-translate.
-  Since this problem has no numeric functions, the definedness steps are essentially identity.\<close>
-
-declare ast_classical_problem.P\<^sub>X_def [code]
-declare ast_classical_problem.P\<^sub>N_def [code]
-declare ast_classical_problem.P\<^sub>T_def [code]
-
-text \<open>--- Code setup (to move to Base/Code_Setup.thy) ---
-  The pipeline's normalization functions live in the shared \<open>domain_signature\<close>/
-  \<open>problem_signature\<close> locales, which FPS also instantiates at its record-based
-  continuous/temporal problem types. Those per-interpretation code equations pattern-match
-  on field selectors (e.g. \<open>predicates ?d\<close>) and are not valid code equations, poisoning the
-  shared constant. Drop all code equations for each affected constant and re-add only the
-  clean foundational (field-variable) equation.\<close>
-declare [[code drop:
-  domain_signature.detyped_predicates domain_signature.detyped_consts
-  domain_signature.detyped_functions problem_signature.detyped_objs
-  domain_signature.param_precond
-  domain_signature.def_prefix domain_signature.detype_simple_action_body]]
-declare domain_signature.detyped_predicates_def[code]
-declare domain_signature.detyped_consts_def[code]
-declare domain_signature.detyped_functions_def[code]
-declare problem_signature.detyped_objs_def[code]
-declare domain_signature.param_precond_def[code]
-declare domain_signature.def_prefix_def[code]
-declare domain_signature.detype_simple_action_body.simps[code]
-
-text \<open>Missing executable equations: def_translate code bundle + lifted string ops.\<close>
-declare ast_classical_domain.def_translate_dom_def[code]
-declare ast_classical_problem.def_translate_prob_def[code]
-lemma padl_lit_code[code]: "padl_lit n s = String.implode (padl n (String.explode s))"
-  by (metis padl_lit.rep_eq String.implode_explode_eq)
-declare distinct_strings_lit_eq[code]
+  Since this problem has no numeric functions, the definedness steps are essentially identity.
+  The code-generation setup needed to evaluate \<open>P\<^sub>T\<close>/\<open>P\<^sub>R\<close> now lives in
+  \<^theory>\<open>Tree_Decomp_Grounding.Code_Setup\<close> (imported above).\<close>
 
 definition "my_P\<^sub>T \<equiv> ast_classical_problem.P\<^sub>T my_problem"
 value "my_P\<^sub>T"
 
 definition "my_P\<^sub>R \<equiv> ast_classical_problem.relax_prob my_P\<^sub>T"
 value "my_P\<^sub>R"
+
+subsection \<open>Executability probes (datalog program extraction)\<close>
+
+value "ast_classical_problem.a_clauses my_P\<^sub>R"
+value "ast_classical_problem.init' my_P\<^sub>R"
+value "dl_program_of my_problem"
+
+text \<open>Codegen probes for the grounding half (dummy empty certificate): \<open>ground_via_cert\<close> with a
+  trivial oracle must reduce to \<^term>\<open>None\<close> (the empty certificate fails \<open>admissible\<close>), and the
+  grounder/STRIPS conversion must itself be code-generable.\<close>
+value "ground_via_cert (\<lambda>_. Cert []) my_problem"
+\<comment> \<open>The next probe bypasses the \<open>admissible\<close> guard and grounds a garbage empty certificate
+  directly, so it raises a runtime \<open>Match\<close> on the degenerate (no-facts/no-ops) input --- not a real
+  code path (\<open>ground_via_cert\<close> returns \<^const>\<open>None\<close>). Kept commented as a codegen reminder.\<close>
+(* value "ast_classical_problem.as_strips (ground_by_cert my_problem (Cert []))" *)
 
 subsection \<open>Reachability / grounding by certification (next step)\<close>
 

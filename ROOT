@@ -18,4 +18,6 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Common +
 	"PDDL_to_STRIPS/Classical_PDDL_to_STRIPS"
 	Grounding_Pipeline_Numeric
 	Grounding_Pipeline_STRIPS
+	Code_Setup
+	Grounding_Pipeline_Executable
 	Running_Example

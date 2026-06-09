@@ -47,6 +47,25 @@ fun find_index :: "'a \<Rightarrow> 'a list \<rightharpoonup> nat" where
   "find_index a (x # xs) = (if a = x then Some 0
       else map_option Suc (find_index a xs))"
 
+lemma find_index_Some_mem:
+  assumes "x \<in> set xs"
+  shows "\<exists>j. find_index x xs = Some j \<and> j < length xs \<and> xs ! j = x"
+  using assms
+proof (induction xs)
+  case Nil thus ?case by simp
+next
+  case (Cons a xs)
+  show ?case
+  proof (cases "x = a")
+    case True thus ?thesis by auto
+  next
+    case False
+    with Cons.prems have "x \<in> set xs" by simp
+    with Cons.IH obtain j where "find_index x xs = Some j" "j < length xs" "xs ! j = x" by blast
+    with False show ?thesis by auto
+  qed
+qed
+
 (* Saves a a line or two sometimes *)
 lemma list_induct_n [consumes 1, case_names Nil Suc]:
   assumes "length xs = n" "P [] 0"

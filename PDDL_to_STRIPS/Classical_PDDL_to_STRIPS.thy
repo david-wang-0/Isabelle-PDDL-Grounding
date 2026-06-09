@@ -634,6 +634,22 @@ lemma fold_upd_init_untouched:
   shows "fold upd_init xs s v = s v"
   using assms by (induction xs arbitrary: s) (auto simp: upd_init_def)
 
+text \<open>Concrete (executable) restoration of a STRIPS serial solution into a PDDL plan: restore the
+  \<^emph>\<open>applicable prefix\<close> only. Mirrors the case split of \<^const>\<open>execute_serial_plan\<close> — restore the
+  decoded plan action while the operator is applicable in the induced STRIPS state, and stop at the
+  first non-applicable operator (the suffix is irrelevant: the goal is already reached). This is the
+  function whose existence \<open>sim_serial_rev\<close> asserts; \<^const>\<open>restore_pddl_pa\<close> is the canonical
+  decoder of a single operator.\<close>
+fun restore_prefix
+  :: "world_model \<Rightarrow> name strips_operator list \<Rightarrow> ast_classical_plan_action list"
+  where
+    "restore_prefix M [] = []"
+  | "restore_prefix M (opr # ops) =
+       (if is_operator_applicable_in (strips_model M) opr
+        then restore_pddl_pa opr
+               # restore_prefix (execute_plan_action (restore_pddl_pa opr) M) ops
+        else [])"
+
 end text \<open>context ast_classical_problem\<close>
 
 text \<open>Two generic bridges used by the semantics-preservation proof: \<^const>\<open>un_and\<close> commutes with
@@ -1687,10 +1703,177 @@ proof -
   thus ?thesis ..
 qed
 
+text \<open>\<^const>\<open>restore_pddl_pa\<close> decodes any task operator to a well-formed plan action that re-encodes
+  to it. (\<^const>\<open>restore_pddl_pa\<close> uses \<^const>\<open>find_index\<close>, which returns the \<^emph>\<open>first\<close> matching index;
+  if \<^const>\<open>as_strips_op\<close> is non-injective this is still a valid task action with the same encoding,
+  which is all we need.)\<close>
+lemma restore_pddl_pa_witness:
+  assumes "opr \<in> set strips_ops"
+  shows "wf_classical_plan_action (restore_pddl_pa opr) \<and> strips_pa (restore_pddl_pa opr) = opr"
+proof -
+  from find_index_Some_mem[OF assms] obtain j where
+    fi: "find_index opr strips_ops = Some j" and jlen: "j < length strips_ops"
+    and jnth: "strips_ops ! j = opr" by blast
+  define ac where "ac = actions D ! j"
+  have aclen: "j < length (actions D)" using jlen by simp
+  hence acmem: "ac \<in> set (actions D)" unfolding ac_def by simp
+  have opeq: "opr = as_strips_op ac" using jnth aclen unfolding ac_def by simp
+  have rp: "restore_pddl_pa opr = SimplePlanAction (ac_name ac) []"
+    unfolding restore_pddl_pa_def ac_def using fi by simp
+  have "wf_classical_plan_action (SimplePlanAction (ac_name ac) [])"
+    unfolding grounded_pa_nullary using acmem by auto
+  moreover have "strips_pa (SimplePlanAction (ac_name ac) []) = opr"
+    using acmem opeq by (simp add: resolve_classical_action_schema_name)
+  ultimately show ?thesis unfolding rp by simp
+qed
+
+text \<open>Reverse simulation with the \<^emph>\<open>concrete\<close> restored plan: executing \<^const>\<open>restore_prefix\<close> in
+  PDDL reaches a world model whose induced STRIPS state matches \<^const>\<open>execute_serial_plan\<close>. This is
+  \<open>sim_serial_rev\<close> with the existential plan witness replaced by the literal
+  \<^term>\<open>restore_prefix M ops\<close>.\<close>
+lemma restore_prefix_sim:
+  assumes "\<forall>opr \<in> set ops. opr \<in> set strips_ops"
+  shows "\<exists>M'. valid_classical_plan_alt M (restore_prefix M ops) M'
+            \<and> strips_model M' = execute_serial_plan (strips_model M) ops"
+  using assms
+proof (induction ops arbitrary: M)
+  case Nil
+  have "valid_classical_plan_alt M (restore_prefix M []) M
+        \<and> strips_model M = execute_serial_plan (strips_model M) []" by simp
+  thus ?case by blast
+next
+  case (Cons opr ops)
+  from Cons.prems have hd: "opr \<in> set strips_ops" and tl: "\<forall>x\<in>set ops. x \<in> set strips_ops"
+    by simp_all
+  define a where "a = restore_pddl_pa opr"
+  from restore_pddl_pa_witness[OF hd] have wfa: "wf_classical_plan_action a"
+    and pa: "strips_pa a = opr" unfolding a_def by simp_all
+  show ?case
+  proof (cases "is_operator_applicable_in (strips_model M) opr")
+    case True
+    have step: "execute_operator (strips_model M) opr = strips_model (execute_plan_action a M)"
+      using execute_commute[OF wfa] pa by simp
+    from Cons.IH[OF tl, of "execute_plan_action a M"] obtain M' where
+      ih1: "valid_classical_plan_alt (execute_plan_action a M)
+              (restore_prefix (execute_plan_action a M) ops) M'"
+      and ih2: "strips_model M' = execute_serial_plan (strips_model (execute_plan_action a M)) ops"
+      by blast
+    have en: "plan_action_enabled a M"
+      using applicable_enabled[OF wfa] True pa by simp
+    have rp: "restore_prefix M (opr # ops) = a # restore_prefix (execute_plan_action a M) ops"
+      using True unfolding a_def by simp
+    have "valid_classical_plan_alt M (restore_prefix M (opr # ops)) M'"
+      unfolding rp using en ih1 by simp
+    moreover have "strips_model M' = execute_serial_plan (strips_model M) (opr # ops)"
+      using True step ih2 by simp
+    ultimately show ?thesis by blast
+  next
+    case False
+    have "valid_classical_plan_alt M (restore_prefix M (opr # ops)) M
+        \<and> strips_model M = execute_serial_plan (strips_model M) (opr # ops)"
+      using False by simp
+    thus ?thesis by blast
+  qed
+qed
+
+text \<open>Concrete soundness of the encoding: a STRIPS serial solution restores (via its applicable
+  prefix) to a literal valid classical plan. Strengthens \<open>restore_pddl_plan_valid\<close> from an
+  existence statement to an executable witness \<^term>\<open>restore_prefix I ops\<close>.\<close>
+theorem restore_prefix_valid:
+  assumes "is_serial_solution_for_problem as_strips ops"
+  shows "valid_classical_plan2 (restore_prefix I ops)"
+proof -
+  from assms have ops_mem: "\<forall>opr \<in> set ops. opr \<in> set strips_ops"
+    unfolding is_serial_solution_for_problem_def
+    by (simp add: as_strips_sel list_all_iff ListMem_iff)
+  from assms have goaldom: "strips_goal \<subseteq>\<^sub>m execute_serial_plan strips_init ops"
+    unfolding is_serial_solution_for_problem_def by (simp add: as_strips_sel)
+  from restore_prefix_sim[OF ops_mem, of I] obtain M' where
+    vp: "valid_classical_plan_alt I (restore_prefix I ops) M'"
+    and ex: "strips_model M' = execute_serial_plan (strips_model I) ops" by blast
+  have "strips_goal \<subseteq>\<^sub>m strips_model M'" using goaldom ex strips_init_eq_model by simp
+  hence "valuation M' \<Turnstile>\<^sub>m goal P" using goal_bridge by blast
+  thus "valid_classical_plan2 (restore_prefix I ops)" using vp valid_classical_plan2_alt by blast
+qed
+
 corollary valid_plan_iff:
   "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>ops. is_serial_solution_for_problem as_strips ops)"
   using valid_plan_right restore_pddl_plan_valid by blast
 
 end text \<open>context strips_encodable_problem\<close>
+
+subsection \<open> Parallel-to-serial bridge \<close>
+
+text \<open>The verified SAT planner (AFP \<open>SAT_Plan_Base\<close>) decodes \<^emph>\<open>parallel\<close> STRIPS plans
+  (\<^const>\<open>is_parallel_solution_for_problem\<close>), but our restoration consumes \<^emph>\<open>serial\<close> ones
+  (\<^const>\<open>is_serial_solution_for_problem\<close>). This bridge flattens a parallel plan to a serial one via
+  \<^const>\<open>concat\<close>. The AFP only provides the singleton-step case (\<open>flattening_lemma\<close>); here we cover the
+  general (multi-operator-per-step) case using the AFP's per-step equality
+  \<open>execute_parallel_operator_equals_execute_sequential_strips_if\<close> (valid under applicability,
+  effect-consistency and non-interference).\<close>
+
+text \<open>A parallel plan \<^emph>\<open>fires to completion\<close> from \<open>s\<close> when every step is applicable and
+  effect-consistent in the state reached so far — i.e. \<^const>\<open>execute_parallel_plan\<close> never
+  short-circuits. (A decoded SAT plan always satisfies this; the operator/frame encoding forces each
+  active operator to be applicable at its time step.)\<close>
+fun parallel_plan_fires
+  :: "'a strips_state \<Rightarrow> 'a strips_operator list list \<Rightarrow> bool"
+  where
+    "parallel_plan_fires s [] = True"
+  | "parallel_plan_fires s (ops # opss) =
+       (are_all_operators_applicable s ops \<and> are_all_operator_effects_consistent ops
+        \<and> parallel_plan_fires (execute_parallel_operator s ops) opss)"
+
+text \<open>State-level bridge: under per-step non-interference, a fully-firing parallel execution reaches
+  the same state as the serial execution of the flattened plan.\<close>
+lemma execute_parallel_plan_eq_serial_concat:
+  assumes "parallel_plan_fires s \<pi>"
+    and "\<forall>ops \<in> set \<pi>. are_all_operators_non_interfering ops"
+  shows "execute_parallel_plan s \<pi> = execute_serial_plan s (concat \<pi>)"
+  using assms
+proof (induction \<pi> arbitrary: s)
+  case Nil
+  show ?case by simp
+next
+  case (Cons ops opss)
+  from Cons.prems(1) have app: "are_all_operators_applicable s ops"
+    and cons: "are_all_operator_effects_consistent ops"
+    and fires': "parallel_plan_fires (execute_parallel_operator s ops) opss"
+    by auto
+  from Cons.prems(2) have ni: "are_all_operators_non_interfering ops"
+    and ni': "\<forall>os \<in> set opss. are_all_operators_non_interfering os"
+    by auto
+  have pe: "execute_parallel_operator s ops = execute_serial_plan s ops"
+    using execute_parallel_operator_equals_execute_sequential_strips_if[OF app cons ni] .
+  have "execute_parallel_plan s (ops # opss)
+      = execute_parallel_plan (execute_parallel_operator s ops) opss"
+    using app cons by simp
+  also have "\<dots> = execute_serial_plan (execute_parallel_operator s ops) (concat opss)"
+    using Cons.IH[OF fires' ni'] by simp
+  also have "\<dots> = execute_serial_plan (execute_serial_plan s ops) (concat opss)"
+    using pe by simp
+  also have "\<dots> = execute_serial_plan s (ops @ concat opss)"
+    using execute_serial_plan_split[OF app ni] by simp
+  also have "\<dots> = execute_serial_plan s (concat (ops # opss))" by simp
+  finally show ?case .
+qed
+
+text \<open>Solution-level bridge: a fully-firing, per-step non-interfering parallel solution flattens to a
+  serial solution of the same problem.\<close>
+theorem parallel_solution_imp_serial_solution:
+  assumes "parallel_plan_fires (initial_of \<Pi>\<^sub>P) \<pi>"
+    and "\<forall>ops \<in> set \<pi>. are_all_operators_non_interfering ops"
+    and "is_parallel_solution_for_problem \<Pi>\<^sub>P \<pi>"
+  shows "is_serial_solution_for_problem \<Pi>\<^sub>P (concat \<pi>)"
+proof -
+  from assms(3) have goal_par: "(\<Pi>\<^sub>P)\<^sub>G \<subseteq>\<^sub>m execute_parallel_plan ((\<Pi>\<^sub>P)\<^sub>I) \<pi>"
+    and mem: "\<forall>ops \<in> set \<pi>. \<forall>op \<in> set ops. op \<in> set ((\<Pi>\<^sub>P)\<^sub>\<O>)"
+    unfolding is_parallel_solution_for_problem_def list_all_iff ListMem_iff by auto
+  have eq: "execute_parallel_plan ((\<Pi>\<^sub>P)\<^sub>I) \<pi> = execute_serial_plan ((\<Pi>\<^sub>P)\<^sub>I) (concat \<pi>)"
+    using execute_parallel_plan_eq_serial_concat[OF assms(1,2)] .
+  from mem have "\<forall>op \<in> set (concat \<pi>). op \<in> set ((\<Pi>\<^sub>P)\<^sub>\<O>)" by auto
+  thus ?thesis using goal_par eq
+    unfolding is_serial_solution_for_problem_def list_all_iff ListMem_iff by auto
+qed
 
 end
