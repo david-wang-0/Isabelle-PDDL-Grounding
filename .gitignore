@@ -7,3 +7,10 @@
 .claude/
 CLAUDE.md
 gigante_benchmarks_conditions_effects.md
+
+# SMLCodebase/ planner harness: generated code, compiled binary, oracle temp dirs
+SMLCodebase/code/
+SMLCodebase/bin/
+SMLCodebase/nemo_tmp/
+SMLCodebase/sat_tmp/
+SMLCodebase/examples/plan.txt

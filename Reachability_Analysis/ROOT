@@ -6,6 +6,7 @@ session Reachability_Analysis = Tree_Decomp_Grounding_Common +
     the grounder.\<close>
   options [timeout = 900]
   sessions
+    "Datalog_Certification"
     "Grounded_PDDL"
     "PDDL_Relaxation"
   theories

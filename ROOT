@@ -19,5 +19,9 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Common +
 	Grounding_Pipeline_Numeric
 	Grounding_Pipeline_STRIPS
 	Code_Setup
-	Grounding_Pipeline_Executable
+	Grounding_Pipeline_STRIPS_Executable
+	Planner_STRIPS_Executable
+	Planner_STRIPS_Export
 	Running_Example
+  export_files
+	"SMLCodebase/code/PDDL_SAT_Planner_Exported.sml"

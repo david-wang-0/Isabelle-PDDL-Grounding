@@ -1,6 +1,6 @@
 # GEMINI.md
 
-This file provides guidance to Gemini when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Critical Rules
 
@@ -14,7 +14,7 @@ A partially-verified Isabelle/HOL implementation of the PDDL grounder from **Hel
 
 Built on two AFP entries: **AI_Planning_Languages_Semantics** (PDDL input) and **Verified_SAT_Based_AI_Planning** (STRIPS output). The PDDL/Continuous semantics actually used come from the sibling **Formal-PDDL-Semantics** submodule (sessions `Classical_Planning`, `Continuous_Planning`), registered as Isabelle components by the superproject's `make register-components`.
 
-> Note: `README.md` still describes a `Base/` directory and `Grounding_Pipeline.thy` / `PDDL_to_STRIPS.thy` — those have since been renamed (`Base/` → `Common/`, pipeline split into two files, STRIPS conversion moved into `PDDL_to_STRIPS/`). Trust the ROOT files and this document over the README for current layout.
+> `HANDOVER.md` (repo root) is the full repository summary + handover: per-session contents, the exact sorry inventory, gotchas, and the ordered next-steps list. `README.md` was refreshed to the current layout (2026-06-12); the ROOT files remain authoritative.
 
 ## Session Architecture
 
@@ -27,13 +27,14 @@ On top of `Common`, each pipeline stage is its **own session** (`= Tree_Decomp_G
 
 | Session | Role |
 |---|---|
+| `Datalog_Certification` (`Datalog/`) | standalone, PDDL-free certificate checker for positive datalog programs (Nemo ograph format), proven against its least-model semantics `dl_derivable` |
 | `Type_Normalization` | detype — encode type membership as unary predicates |
 | `Goal_Normalization` | rewrite the goal (runs before definedness, no definedness invariant) |
 | `Precondition_Normalization` | DNF-friendly preconditions, one disjunct → one action |
 | `Definedness_Normalization` | conjoin reflexive numeric equalities so every DNF disjunct carries the full atom set |
 | `Definedness_Translation` | translate numeric definedness into propositional predicates |
 | `PDDL_Relaxation` | delete-relaxation (drop negative effects) so reachability is monotone |
-| `Reachability_Analysis` | untrusted reachability **engine** + datalog **certificate** checker that feeds the grounder |
+| `Reachability_Analysis` | untrusted reachability **engine** + PDDL datalog-**certificate** kernel (incl. the PDDL→datalog serialization and the bridge to `Datalog_Certification`) that feeds the grounder |
 | `Grounded_PDDL` | the verified grounder core (fully proven, `0 sorry`) |
 
 The top session **`Tree_Decomp_Grounding`** (`./ROOT`, `= Tree_Decomp_Grounding_Common +`) pulls in all the stage sessions and wires them together via the top-level theories: `Grounding_Pipeline_Numeric` (with-numerics path, green), `Grounding_Pipeline_STRIPS` (numeric-free path to STRIPS), `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, and `Running_Example` (end-to-end demo).
@@ -41,7 +42,7 @@ The top session **`Tree_Decomp_Grounding`** (`./ROOT`, `= Tree_Decomp_Grounding_
 ### Two recurring code patterns
 
 1. **Three-file per stage.** Each normalization stage ships `X_Locales.thy` (the abstract locale + sig constants and assumptions), `X.thy` (the executable implementation), and `X_Semantics.thy` (the plan-equivalence / well-formedness proofs). Stages compose via `sublocale` with rewrites that fold one stage's signature constants onto the next.
-2. **Certified reachability, not trusted reachability.** The `Reachability_Analysis` engine is *untrusted*; correctness flows through a datalog certificate (Nemo-style ordered DAG) that the checker validates. The grounder is targeted at the real-deletes problem `P_N` (via the relaxation bridge), **not** the relaxed over-approximation `P_R` — grounding the over-approximation directly would be unsound. See `WIP_reachability_datalog.md` and `WIP_nemo_certificate_format.md`.
+2. **Certified reachability, not trusted reachability.** The `Reachability_Analysis` engine is *untrusted*; correctness flows through a datalog certificate (Nemo-style ordered DAG) that the checker validates. The grounder is targeted at the real-deletes problem `P_N` (via the relaxation bridge), **not** the relaxed over-approximation `P_R` — grounding the over-approximation directly would be unsound. See `ARCHITECTURE_datalog_certification.md`.
 
 ## Building (when explicitly asked)
 

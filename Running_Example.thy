@@ -1,6 +1,6 @@
 theory Running_Example
   imports Main
-    Grounding_Pipeline_Executable
+    Grounding_Pipeline_STRIPS_Executable
 begin
 
 subsection \<open> Problem Description \<close>
@@ -213,6 +213,54 @@ value "ground_via_cert (\<lambda>_. Cert []) my_problem"
   directly, so it raises a runtime \<open>Match\<close> on the degenerate (no-facts/no-ops) input --- not a real
   code path (\<open>ground_via_cert\<close> returns \<^const>\<open>None\<close>). Kept commented as a codegen reminder.\<close>
 (* value "ast_classical_problem.as_strips (ground_by_cert my_problem (Cert []))" *)
+
+subsection \<open>Grounding via a generated certificate\<close>
+
+text \<open>An executable \<^emph>\<open>untrusted\<close> reference oracle: naive datalog saturation over the action
+  clauses of the relaxed problem, recording for every derived fact the indices of the body facts
+  that justify it (the Nemo ograph format, see \<^typ>\<open>certificate\<close>). Nothing here is trusted ---
+  \<^const>\<open>ground_via_cert\<close> re-checks the result via \<^const>\<open>admissible_exec\<close> +
+  \<^const>\<open>grounding_checks_exec\<close>. The construction makes the checks hold: init facts (including
+  the pseudo-init of bodyless clauses) come first with no predecessors; each round fires every
+  \<^const>\<open>ast_classical_problem.pred_clauses\<close> instantiation whose ground body is already present
+  and appends the new consequences, so predecessor indices always point backwards (ordered
+  check), every node records an actual clause firing (local validity), and saturating to a
+  fixpoint gives closure.\<close>
+
+definition naive_round where
+  "naive_round R ns \<equiv>
+     foldl (\<lambda>ns' cl.
+       foldl (\<lambda>ns'' args.
+          (let fs = map cn_fact ns'';
+               body = map (map_atom_fmla (ac_tsubst (cl_params cl) args)) (cl_pred_pre cl)
+           in if set body \<subseteq> set fs \<and> satisfies_conds (cl_params cl) (cl_cond_pre cl) args
+              then ns'' @ map (\<lambda>f. CNode f (map (\<lambda>b. the (find_index b fs)) body))
+                              (remdups (filter (\<lambda>f. f \<notin> set fs) (consequence_of cl args)))
+              else ns''))
+         ns' (all_combos \<checkmark> (replicate (length (cl_params cl)) (ast_classical_problem.const_names R))))
+       ns (ast_classical_problem.pred_clauses R)"
+
+fun naive_sat where
+  "naive_sat R 0 ns = ns"
+| "naive_sat R (Suc n) ns =
+     (let ns' = naive_round R ns
+      in if length ns' = length ns then ns else naive_sat R n ns')"
+
+definition naive_cert where
+  "naive_cert R \<equiv>
+     Cert (naive_sat R 1000 (map (\<lambda>f. CNode f []) (remdups (ast_classical_problem.init' R))))"
+
+definition "my_cert \<equiv> naive_cert my_P\<^sub>R"
+
+value "my_cert"
+value "admissible_exec my_P\<^sub>R my_cert"
+value "grounding_checks_exec my_P\<^sub>T my_cert"
+
+text \<open>The fully grounded problem: first as nullary propositional PDDL, then as STRIPS via the
+  guarded end-to-end entry point (\<^const>\<open>None\<close> would mean the certificate failed the kernel
+  re-checks).\<close>
+value "ground_by_cert my_problem my_cert"
+value "ground_via_cert (\<lambda>_. my_cert) my_problem"
 
 subsection \<open>Reachability / grounding by certification (next step)\<close>
 

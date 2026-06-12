@@ -1,0 +1,60 @@
+(* The PDDL parser and its libraries (cmlib, SMLParsecomb/parcom) are NOT
+   vendored: they are referenced from the sibling Formal-PDDL-Semantics
+   submodule via the FPS_PLANNING MLB path variable (set by the Makefile with
+   -mlb-path-var; default ../../Formal-PDDL-Semantics/codeBase/planning).
+   Both submodules are pinned together by the superproject, so the parser
+   version is fixed by the superproject commit. *)
+
+$(SML_LIB)/basis/basis.mlb
+
+$(FPS_PLANNING)/cmlib-2.0.0/cmlib.mlb
+
+(* Isabelle's Pure/General/basics.ML combinators (|>, #>, fold, ...),
+   via AFP Munta_Certificate_Checker/mlunta/src/isalib/basics.sml *)
+basics.sml
+
+(* sat_solver must precede pddl_refactor.sml: its top-level `open PDDL`
+   re-exports `open Continuous_PDDL_Checker_Exported` (shadows the SML type
+   `int`) and `open ParserCombinators` (shadows `not`). *)
+sat_solver.sml
+external_sat.sml
+
+(* Parcom proper *)
+local
+  $(FPS_PLANNING)/SMLParsecomb/src/parse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/parse.sml
+
+  $(FPS_PLANNING)/SMLParsecomb/src/charparse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/charparse.sml
+
+  $(FPS_PLANNING)/SMLParsecomb/src/tokparse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/tokparse.sml
+  $(FPS_PLANNING)/SMLParsecomb/src/langparse.sml
+
+in
+
+  signature PARSER_COMBINATORS
+  signature CHAR_PARSER
+  signature MINI_LANGUAGE_DEF
+  signature LANGUAGE_DEF
+  signature TOKEN_PARSER
+
+  structure ParserCombinators
+  structure CharParser
+  structure BasicParser
+
+  functor   TokenParser
+  functor   SimpleStyle
+  functor   JavaStyle
+  functor   MLStyle
+
+end
+
+json_parse.sml  (* uses parcom, must follow the block above *)
+$(FPS_PLANNING)/pddlParser/util.sml
+code/PDDL_SAT_Planner_Exported.sml
+planner_alias.sml
+nemo_driver.sml
+$(FPS_PLANNING)/pddlParser/pddl_refactor.sml
+pddl_to_isabelle.sml
+pddl_sat_planner.sml

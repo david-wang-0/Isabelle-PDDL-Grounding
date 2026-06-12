@@ -29,3 +29,5 @@ session Tree_Decomp_Grounding_Base = HOL +
     "Classical_Planning.Classical_PDDL_Checker_Numeric"
     "Verified_SAT_Based_AI_Planning.STRIPS_Representation"
     "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
+    "Verified_SAT_Based_AI_Planning.SAT_Plan_Extensions"
+    "Verified_SAT_Based_AI_Planning.Solve_SASP"

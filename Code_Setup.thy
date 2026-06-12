@@ -6,7 +6,7 @@ begin
 
 text \<open>Shared code-generation setup for running the verified pipeline. Factored out of
   \<^verbatim>\<open>Running_Example\<close> so that both the running example and the
-  executable pipeline (\<^verbatim>\<open>Grounding_Pipeline_Executable\<close>) share one copy.
+  executable pipeline (\<^verbatim>\<open>Grounding_Pipeline_STRIPS_Executable\<close>) share one copy.
 
   The pipeline's normalization functions live in the shared \<open>domain_signature\<close> /
   \<open>problem_signature\<close> locales, which the Formal-PDDL-Semantics development also instantiates at
@@ -143,7 +143,7 @@ text \<open>NOTE: the certificate/grounding checks (\<^verbatim>\<open>pddl_data
   \<open>extra_eff_atoms_of\<close>) live in locales \<^emph>\<open>with\<close> assumptions, so their \<open>_def\<close> equations are
   guarded by the locale predicate (\<open>pddl_datalog ?P \<Longrightarrow> \<dots>\<close>) --- "not an equation", hence not
   directly code-registrable, exactly like \<^verbatim>\<open>P\<^sub>G_cert\<close>. They need \<^emph>\<open>unconditional executable
-  mirrors\<close> (the \<^verbatim>\<open>ground_by_cert\<close> pattern), to be added in \<^verbatim>\<open>Grounding_Pipeline_Executable\<close>,
+  mirrors\<close> (the \<^verbatim>\<open>ground_by_cert\<close> pattern), to be added in \<^verbatim>\<open>Grounding_Pipeline_STRIPS_Executable\<close>,
   with the equality-to-locale-version lemmas proved for the soundness link.\<close>
 
 end
