@@ -31,14 +31,14 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 | --- | --- | --- |
 | `Tree_Decomp_Grounding_Base` | external deps only (FPS Classical/Continuous, STRIPS+SAT incl. `Solve_SASP`, `Propositional_Proof_Systems`, `Show`); build once, load as frozen jEdit heap | stable |
 | `Tree_Decomp_Grounding_Common` (`Common/`) | editable shared layer: `Formula_Utils` (is_conj/un_and/pos-conj/relax_lit), `DNF` (`dnf_list` + semantics), `Graph_Funs` (`reachable_nodes`, `all_combos`/`chosen_from`), `String_Utils` (fresh-name machinery: `safe_prefix`, `distinct_strings_lit`), `Nat_Show_Utils` (`show_nat_inj`), `Grounding_Utils`, `PDDL_Sema_Supplement` (alt defs, `valid_classical_plan_alt`, `plan_action_enabled`, `ac_tsubst`, wf lemmas), `STRIPS_Sema_Supplement`, `PDDL_Checker_Utils` (reduced to `reveal_error`), `Normalization_Definitions` (restriction/typeless/normalized/relaxed/grounded locale ladder, `achievable`/`applicable`), `Numeric_Free` | 0 sorry |
-| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker `Datalog_Certificate.thy`: `dl_certificate` (Nemo ograph), `dl_ordered_check`/`dl_local_valid`/`dl_closure_check`/`dl_admissible`, inductive least-model `dl_derivable`, `dl_certified_model_correct` (certified facts = minimal model) | 0 sorry |
+| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker. `Datalog_Sema_Supplement.thy` (locale hierarchy `datalog_prog` ⊂ `datalog_universe` ⊂ `positive_datalog_universe`; inductive least-model `datalog_prog.derivable`; AFP `⊨⇩l⇩s⇩t` bridge `derivable_iff_least_solution`) + `Datalog_Certificate.thy` (**index-free** `dl_certificate` = list of `DLRule` ground rules; **set-based** `dl_rule_valid`/`dl_closure_check`/`dl_founded`/`dl_admissible`; `dl_certified_model_correct` = certified facts = `datalog_prog.derivable`; `certified_model_is_least_solution` = AFP least solution). **2026-06-14 rework**: was Nemo ograph + indices + list program; cycle-detecting DFS for `dl_founded` + executable refinement + downstream `dl_derivable` re-point are TODO (see `Datalog/HANDOVER.md`) | 0 sorry |
 | `Type_Normalization` | detype: types → unary predicates (`detype_classical_prob`); `*2` locale hierarchy with `rewrites`-collapsed sublocales; `detyped_valid_iff` | 0 sorry |
 | `Goal_Normalization` | degoal: fresh goal predicate + goal action (`degoal_prob`); `*3` hierarchy; `degoaled_valid_iff` + plan restore | 0 sorry |
 | `Definedness_Normalization` | explicate PNE definedness as reflexive `numericEqAtm` conj-prefix (`explicate_def_prob`); `explicate_valid_iff` | 0 sorry |
 | `Precondition_Normalization` | DNF split, one action per disjunct (`split_prob`, `*4` hierarchy); needs the definedness conj-prefix invariant; `split_valid_iff` + `restore_plan_split_valid` | 0 sorry |
 | `Definedness_Translation` | numeric definedness → fresh `Defined_*` propositional predicates (`def_translate_prob`, `*_dt`); `def_translate_valid_iff` | 0 sorry |
 | `PDDL_Relaxation` | delete relaxation (`relax_prob`, `*_rx` hierarchy with `px` sublocale): `relax_wf/normed/relaxes`, **`relax_achievables` / `relax_applicables`** (the P vs P_R bridge that makes certificate-grounding sound) | 0 sorry |
-| `Reachability_Analysis` | see below | 8 sorries, all accounted for |
+| `Reachability_Analysis` | see below | 7 sorries (4 retired-engine + 3 minimal-model cores) |
 | `Grounded_PDDL` | the verified grounder core: `grounder`/`wf_grounder` locales (input: problem + achievable-facts/applicable-ops supersets), fresh nullary fact/op names, `ground_dom/prob_grounded`, `ground_dom/prob_wf`, `ground_enabled_iff`, `valid_classical_plan_iff` / `valid_classical_plan_left` + `restore_ground_pa` plan restoration | 0 sorry |
 | `Tree_Decomp_Grounding` (top, `./ROOT`) | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS`, `Code_Setup`, `Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Planner_STRIPS_Export` (`export_files` → `SMLCodebase/code/`), `Running_Example` | 0 sorry |
 
@@ -51,23 +51,77 @@ Two-layer frozen/editable split, then one session per pipeline stage:
   `found_pactions_applicable`) are **deliberately left**: the engine is retired in favor of
   certificate checking and is not on any trusted path. `semi_naive_eval` is also not
   code-generable (numeric `valuation` poison) — do not try; route through certificates.
-- `Reachability_Certificate.thy` — the heart of the trust story; after the 2026-06-12
-  restructure it contains, in order:
-  1. PDDL certificate kernel (locale `pddl_datalog = relaxed_problem`): `certificate`/`CNode`,
-     `closure_check` (⊇, all soundness needs), `ordered_check` + `local_valid` (⊆, exactness),
-     `admissible`, `cert_ops`; theorems `closure_sound`, `cert_ops_sound`.
-  2. The PDDL→datalog serialization (`dl_id_of_term` … `dl_fact_clause`, `dl_rules`) — the
-     same clause list `dl_program_of` hands to Nemo.
-  3. Executable mirrors `closure_check_exec`/`ordered_check_exec`/`local_valid_exec`/
-     `admissible_exec`/`cert_ops_exec` + `_eq`/`_sound` bridges to the locale originals.
-  4. The generic-checker bridge: fail-closed `cert_to_dl`, structural correspondence,
-     positivity, substitution/guard transfer, `dl_bridge_wf`, **proven**
-     `dl_closure_imp_closure_exec`, **sorried** `dl_local_valid_imp_local_valid_exec`, main
-     theorem `dl_admissible_imp_admissible_exec`.
-  5. NEW: minimal-model relation (`achievable_eq_minimal_model`:
-     `{f. achievable f} = {f. dl_derivable (dl_rules P) const_names f}` under `dl_bridge_wf`;
-     both inclusions + `minimal_model_ops_requirement` sorried,
-     `minimal_model_facts_requirement` assembled).
+- `Reachability_Certificate.thy` — the heart of the trust story. **2026-06-14 rewrite** (relate
+  admissible datalog certificates to PDDL reachability; de-Nemo; drop the PDDL-direct executable
+  checker; remove the PDDL certificate data structure). Reachability is now related to the
+  *generic* `dl_certificate` of `Datalog_Certification` **purely semantically**. In order it
+  now contains:
+  1. Locale `pddl_datalog = relaxed_problem` — reusable PDDL reachability **helper lemmas only**
+     (`is_obj_of_type_const_name`, `action_params_match_combos`, `res_inst_adds_eq_consequence`,
+     `enabled_clause_body`, the `un_and`/`valuation` helpers). **Removed** (recover from git
+     ≤ `118b66f`): the certificate datatype `certificate`/`CNode`, `cert_facts`/`cn_body`,
+     `closure_check`/`closure_sound`, the Nemo-ograph `ordered_check`/`local_valid`/`admissible`,
+     `cert_ops`/`cert_ops_sound`, and the `*_exec` executable mirrors.
+  2. The PDDL→datalog serialization (`dl_id_of_term` … `dl_fact_clause`, `dl_rules`) + the
+     translation wf bundle `dl_bridge_wf` — **kept** (the datalog translation of the problem,
+     not Nemo-specific; it is the program whose minimal model the bridge relates to reachability).
+  3. Minimal-model relation (section "PDDL reachability is the minimal model …", `context
+     pddl_datalog`), re-pointed onto `datalog_prog.derivable (set const_names) (set (dl_rules P))`
+     (the removed list-based `dl_derivable` is gone). **Proved**: `derivable_invariant`,
+     `achievable_imp_dl_derivable`, `achievable_eq_minimal_model`, `minimal_model_facts_requirement`,
+     and the capstone `certified_facts_eq_achievable`
+     (`dl_certified_model (set (dl_rules P)) (set const_names) M dc ⟹ set M = {f. achievable f}`,
+     via the generic `dl_certified_model_correct`). **2 sorries** (2026-06-14, down from 3) =
+     `derivable_step_adds` and the `step` case of `dl_derivable_imp_achievable`. `derivable_init`
+     is now **proven**; and four reusable helper lemmas were added to the `pddl_datalog` context to
+     scaffold `derivable_step_adds`: `subst_id_dl_id_term` (the `subst_id`/`ac_tsubst` bridge —
+     generic substitution on a translated id = PDDL `ac_tsubst` on the term),
+     `ac_arg_in_const_names` (a matched action arg is an object name), `ac_tsubst_var_in_args`
+     (a param variable substitutes to one of the action's args), and `dl_cond_rh_eval_guard`
+     (a translated equality guard holds under the generic subst iff the PDDL equality condition
+     is satisfied). With these, `derivable_step_adds` remains the assembly step: fire the action,
+     read the clause `Cls p0 (map dl_id_of_term ts0) body` out of `dl_clauses_of_action_clause`
+     (its body atoms come from `enabled_clause_body` + IH, guards from `dl_cond_rh_eval_guard`,
+     var-coverage from `dl_bridge_wf` + `ac_tsubst_var_in_args`), and the clause survives the
+     fail-closed drop because `enabled_clause_body`'s `satisfies_conds` contradicts any
+     statically-unsatisfiable condition.
+  - GREEN in jEdit (0 error / 0 warning; 2 `sorry` warnings; 427 cmds). The old **check-level
+    bridge** (`cert_to_dl`,
+    `dl_closure_imp_closure_exec`, `dl_local_valid_imp_local_valid_exec`,
+    `dl_admissible_imp_admissible_exec`) was **excised** — the generic checker's 2026-06-14
+    index-free/set-based rework made it the obsolete path; the semantic relation supersedes it.
+  - ⚠️ **Downstream deliberately broken** (user: "ignore downstream theories for now"):
+    `Certified_Grounding_Locales/Certified_Grounding{,_Semantics}.thy`,
+    `Grounding_Pipeline_STRIPS_Executable.thy`, `Planner_STRIPS_Executable.thy`,
+    `Planner_STRIPS_Export.thy`, `Running_Example.thy`, `Code_Setup.thy` reference the removed
+    `cert_facts`/`cert_ops`/`closure_sound`/`admissible_exec`/`cert_ops_exec`/`dl_program_of` etc.
+    They must be **rewired onto the generic-checker entry point** (`dl_certified_model` +
+    `certified_facts_eq_achievable`) before the top session builds again.
+  - 📋 **TODO — ops/applicable exactness** (semantic action model, user-chosen 2026-06-14; keep
+    `dl_rules` as-is — heads stay = add-effects, **no** action-applicability predicates, no
+    wire-format change). The exactness story (admissible certificate ⟹ exact w.r.t. relaxed PDDL)
+    is the symmetric pair: *facts* are exact (`certified_facts_eq_achievable`, done); the *actions*
+    side is **not yet stated**. The three supporting invariants are already in place:
+    1. *"achievable fact = head of a fired ground rule"* — built into `datalog_prog.derivable.derive`
+       (a derivable fact is exactly `subst_atom σ (the_lh cl)`); it is the content of
+       `achievable_eq_minimal_model`.
+    2. *"no founded rule refers to an unachievable/unapplicable thing"* — the generic checker's
+       `dl_founded` (each certified fact has a justifying rule with body ⊆ certified facts, strictly
+       lower rank ⇒ acyclic ⇒ genuinely derivable) + `dl_rule_valid` (each rule a real clause
+       instance), both proved in `Datalog_Certificate`.
+    3. *"admissible ⟹ facts exact"* — `dl_certified_model_correct` ∘ `achievable_eq_minimal_model`.
+    The action being added: an action is **applicable iff one of its translated rules fires**
+    (its identity lives in a rule *body*, not a head, since the translation emits one rule per
+    add-effect). Lemmas to add (proofs reuse the kept helpers `enabled_clause_body`,
+    `action_params_match_combos`, `res_inst_adds_eq_consequence`):
+    - `applicable_iff_minimal_model`: `applicable (SimplePlanAction n args) ⟷ (∃cl ∈ a_clauses.
+      cl_name cl = n ∧ args ∈ all_combos … ∧ satisfies_conds (cl_params cl) (cl_cond_pre cl) args
+      ∧ (∀a ∈ cl_pred_pre cl. datalog_prog.derivable (set const_names) (set (dl_rules P))
+      (instance of a)))` — equivalently body instances ⊆ minimal model = `{f. achievable f}`.
+    - combined exactness: `dl_certified_model (set (dl_rules P)) (set const_names) M dc ⟹
+      set M = {f. achievable f} ∧ {π. applicable π} = {π enumerable from a_clauses with body ⊆ set M
+      ∧ guards}` — applicable actions read straight off the certified facts `M`, no `cert_ops`
+      structure needed.
 - `Certified_Grounding_Locales/Certified_Grounding/Certified_Grounding_Semantics.thy` —
   locale `certified_reachability = normalized_problem_rx + admissible_cert + grounding_cert`;
   `grounding_checks` (decidable wf/coverage of cert facts+ops, augmented with the un-relaxed
@@ -122,16 +176,20 @@ toposort → `Cert`), `external_sat.sml` (oracle `g`: DIMACS → `$SAT_SOLVER`, 
 (parser glue), `json_parse.sml`, `basics.sml`. `.mlb` order matters (`pddl_refactor.sml`'s
 `open PDDL` shadows `int`/`not` — keep solvers before it). Examples under `examples/`.
 
-## Proof status: the only 8 sorries
+## Proof status: the only 6 sorries (2026-06-14)
 
 | Where | What | Disposition |
 | --- | --- | --- |
-| `Reachability_Analysis.thy:176,182` | `semi_naive_aux` termination | retired engine, off the trusted path; leave or delete the engine |
-| `Reachability_Analysis.thy:345,349` | `found_facts_achievable` / `found_pactions_applicable` | same |
-| `Reachability_Certificate.thy:1334` | `dl_local_valid_imp_local_valid_exec` | check-level bridge, plan in [WIP_datalog_cert_bridge.md](WIP_datalog_cert_bridge.md) §2 |
-| `Reachability_Certificate.thy:1390` | `achievable_imp_dl_derivable` | minimal-model ⊆; mirror `closure_invariant`/`closure_step_adds` with `dl_derivable` closure |
-| `Reachability_Certificate.thy:1395` | `dl_derivable_imp_achievable` | minimal-model ⊇; rule induction on `dl_derivable` |
-| `Reachability_Certificate.thy:1429` | `minimal_model_ops_requirement` | from ⊆ + `enabled_clause_body` + `action_params_match_combos`, mirroring `cert_ops_sound` |
+| `Reachability_Analysis.thy` (`semi_naive_aux` termination ×2) | retired-engine termination | retired engine, off the trusted path; leave or delete the engine |
+| `Reachability_Analysis.thy` (`found_facts_achievable` / `found_pactions_applicable`) | retired-engine correctness | same |
+| `Reachability_Certificate.thy:484` | `derivable_step_adds` | minimal-model ⊆ step core; **all four helper lemmas now in place** (`subst_id_dl_id_term`, `ac_arg_in_const_names`, `ac_tsubst_var_in_args`, `dl_cond_rh_eval_guard`) — remaining work is the assembly described in the Reachability_Certificate section above |
+| `Reachability_Certificate.thy:559` | `dl_derivable_imp_achievable` (`step` case) | minimal-model ⊇; rule induction on `datalog_prog.derivable` — the fired clause is either a translated action clause (fire that action; positive-precondition body instances achievable by `step.IH`, guards hold) or a bodyless `init'` fact clause (achievable at the initial model) |
+
+`derivable_init` and the helper lemmas around it are **proven** (was a sorry as of 2026-06-12).
+`achievable_imp_dl_derivable`, `derivable_invariant`, `achievable_eq_minimal_model`,
+`certified_facts_eq_achievable`, `minimal_model_facts_requirement` are all proven (they consume
+the two remaining sorries). The old `dl_local_valid_imp_local_valid_exec` /
+`minimal_model_ops_requirement` sorries no longer exist (the check-level bridge was excised).
 
 Everything else — every normalization stage, relaxation, grounder, STRIPS conversion, pipeline
 wiring, executable mirrors, SAT half, `plan_by_cert_sound` — is 0 sorry. (Three `oops` in
@@ -159,6 +217,24 @@ requires a **jEdit restart** to resolve at all. Checklist for the next session:
    local-validity transfer — the first two unlock retiring the per-check transfer), and
    discharge `dl_bridge_wf (relax_prob (P⇩T P))` for restricted well-formed `P`
    (WIP doc §3) to specialize the bridge to `ground_via_cert`'s checking site.
+
+## Planned refactor — split the certificate theory (user request, 2026-06-14)
+
+`Reachability_Analysis/Reachability_Certificate.thy` currently carries **two distinct concerns**:
+(a) relating PDDL reachability to the datalog **minimal model** (the `dl_rules` serialization +
+`pddl_datalog` helper lemmas + `derivable_init`/`derivable_step_adds`/`derivable_invariant` +
+`achievable_eq_minimal_model`), and (b) relating an admissible datalog **certificate** to PDDL
+(`certified_facts_eq_achievable`, `minimal_model_facts_requirement`, which sit on top of (a) plus
+the generic `dl_certified_model_correct`). The user wants these split into two theories:
+
+- **`PDDL_Reachability_Analysis`** — concern (a): PDDL ⟷ datalog (minimal model).
+- **`PDDL_Reachability_Certificate`** — concern (b): datalog certificate ⟷ PDDL.
+
+This is a mechanical `isabelle-refactor`-style move once the two remaining sorries are filled
+(do it after, so the split moves only green blocks). Naming TBD with the user — note the existing
+files are `Reachability_Analysis.thy` (the retired untrusted engine) and
+`Reachability_Certificate.thy`; decide whether `PDDL_Reachability_Analysis` renames/absorbs the
+retired engine file or is a fresh theory carved out of the certificate file.
 
 ## Other open work (beyond the sorries)
 

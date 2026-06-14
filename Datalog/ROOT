@@ -8,4 +8,5 @@ session Datalog_Certification = Tree_Decomp_Grounding_Common +
   sessions
     "Stratified_Datalog"
   theories
+    Datalog_Sema_Supplement
     Datalog_Certificate

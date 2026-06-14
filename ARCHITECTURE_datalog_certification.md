@@ -1,21 +1,34 @@
 # Architecture: certificate-based datalog / reachability checking
 
 How the project certifies the result of an *untrusted* datalog engine (Nemo), and how that
-splits into a **generic datalog layer** and a **PDDL-specific layer**. Last updated 2026-06-12.
+splits into a **generic datalog layer** and a **PDDL-specific layer**. Last updated 2026-06-14.
+
+> **2026-06-14 — Layer 1 reworked.** The generic checker (`Datalog_Certification`) moved from the
+> Nemo *ordered-graph* form (predecessor indices) to an **index-free list of grounded rules** with
+> an abstract well-foundedness obligation, and its checks / program / universe are now **set-based**,
+> proven exact against the locale predicate `datalog_prog.derivable`. The PDDL kernel (Layer 2)
+> still uses the ograph form, so the two certificate shapes currently **diverge** — reconciling
+> them is open work (see the bridge note below and `Datalog/HANDOVER.md`).
 
 ## The certification idea
 
-We never verify the reachability engine. Instead the engine emits a **certificate** in Nemo's
-ordered-graph (`ograph`) format — one node per derived fact, each node carrying the *indices* of
-the predecessor facts that justify it, listed in derivation order — and a small verified kernel
-re-checks the certificate against the program/problem itself. Acceptance gives an *exact*
-characterization of the engine's fact set:
+We never verify the reachability engine. Instead the engine emits a **certificate** — a set of
+derived facts together with the ground rule instances that justify them — and a small verified
+kernel re-checks the certificate against the program/problem itself. Acceptance gives an *exact*
+characterization of the engine's fact set. The **generic Layer 1** kernel (as of 2026-06-14) uses
+these three checks:
 
 | Check | What it enforces | Direction |
 | --- | --- | --- |
-| **ordered check** | every predecessor index `j` of node `i` satisfies `j < i` | acyclicity: the index is a well-founded derivation rank, so no cycle detection / DFS is needed |
-| **local validity** | each node is the head of a ground instance of some program clause whose guards hold and whose body atoms are *exactly* the facts at its predecessor indices | every certified fact is genuinely derivable (`⊆` least model) |
-| **closure check** | for every clause and every grounding substitution over the finite constant universe: body inside the certified facts + guards hold ⟹ head inside | no extra fact is derivable; the certified facts form a model (`⊇` least model) |
+| **rule validity** | each supplied ground rule is a genuine ground instance of some program clause (over the universe set `U`) whose guards hold | ties the rules back to the program |
+| **closure check** | for every clause and every `U`-valued substitution: body inside the certified facts + guards hold ⟹ head inside | no extra fact is derivable; the certified facts form a model (`⊇` least model) |
+| **foundedness** | a rank assigns every fact a strictly larger value than the body facts of one justifying rule | the support graph is acyclic, so every fact is genuinely derivable (`⊆` least model) |
+
+(The **PDDL Layer 2** kernel still uses the older Nemo *ograph* variant: one node per fact carrying
+predecessor *indices*, with an `ordered check` `j < i` standing in for the rank and a `local
+validity` check folding rule-validity and exact-body together. The index order is a ready-made
+derivation rank, so it needs no cycle detection; the index-free Layer 1 instead reconstructs that
+rank with a topological-sort / DFS — see `Datalog/HANDOVER.md`.)
 
 The asymmetry matters downstream: the *grounding pipeline's* soundness theorems only need the
 closure (`⊇`) half — an over-approximation of the reachable facts is safe to ground against.
@@ -31,25 +44,30 @@ context. Self-contained and **PDDL-free**: imports only the AFP `Stratified_Data
 right-hand sides) and the `all_combos` enumeration utility from
 `Tree_Decomp_Grounding_Common.Graph_Funs`.
 
-- **Certificate**: `('p,'c) dl_certificate = DLCert (dl_nodes: ('p,'c) dl_cert_node list)`,
-  nodes `DLNode fact pred-indices` over ground facts `('p,'c) dl_fact = 'p × 'c list`.
-- **Checks** (all executable): `dl_ordered_check`, `dl_local_valid`, `dl_closure_check`,
-  bundled into `dl_admissible`; the model-checking entry point is
-  `dl_certified_model P U M cert` (admissible + `set M = set (dl_cert_facts cert)`).
-- **Reference semantics**: `dl_derivable P U f` — an inductive bottom-up least-model semantics
-  of a positive program, with substitutions ranging over the finite constant universe `U`
-  (Nemo's `dom`). For *safe* programs this coincides with the unrestricted least model.
+- **Certificate**: `('p,'c) dl_certificate = DLCert (dl_rules: ('p,'c) dl_ground_rule list)`,
+  rules `DLRule (gr_head: fact) (gr_body: fact list)` over ground facts
+  `('p,'c) dl_fact = 'p × 'c list`; certified fact set `dl_cert_facts c` = the rule heads, and an
+  empty body marks a base/EDB fact. The certificate is a concrete **list**.
+- **Checks**: `dl_rule_valid`, `dl_closure_check`, `dl_founded` (an abstract `∃rank` well-founded
+  support), bundled with `dl_positive_prog` into `dl_admissible`; entry point
+  `dl_certified_model P U M cert` (admissible + `set M = set (dl_cert_facts cert)`). The program
+  `P :: ('p,'x,'c) dl_program` and universe `U :: 'c set` are now **sets**, matching the reference
+  semantics — so the checks are *not* `eval`-executable (∀σ/∃σ over substitutions); an executable
+  list-based refinement, plus a cycle-detecting DFS discharging `dl_founded`, are deferred (see
+  `Datalog/HANDOVER.md`).
+- **Reference semantics**: `datalog_prog.derivable U P f` — an inductive bottom-up least-model
+  semantics of a positive program, owned by the **assumption-free** locale `datalog_prog`, with
+  substitutions mapping clause variables into the universe set `U`.
 - **Correctness** (0 sorry): `dl_certified_model_correct`:
-  `dl_certified_model P U M c ⟹ set M = {f. dl_derivable P U f}`.
+  `dl_certified_model P U M c ⟹ set M = {f. datalog_prog.derivable U P f}`.
+- **AFP least-solution bridge** (0 sorry): the locale `certified_positive_datalog_model`
+  (extends `positive_datalog_universe`) proves `certified_model_is_least_solution` — under
+  positivity + safety + head-coverage, `set M` equals the AFP `Stratified_Datalog` least solution
+  `ρ ⊨⇩l⇩s⇩t P (λ_. 0)`. (Supersedes the earlier "nothing needs this bridge today" note — it now
+  exists, via the supplement's `derivable_iff_least_solution`.)
 - **Restrictions, fail-closed**: programs containing `NegLit` are rejected
   (`dl_positive_prog`) — with negation the consequence operator is not monotone and the
   certificate argument does not apply. `Eql`/`Neql` are supported as guards.
-
-Note the deliberate distinction from the AFP semantics: AFP's `('p,'x,'c) dl_program` is a
-clause **set** with valuation-based `solves_program` semantics; the checker takes a clause
-**list** (executable, deterministic order) and proves against its own inductive `dl_derivable`.
-A bridge to `solves_program`/least-solution (under a safety assumption) would be a separate,
-purely theoretical lemma — nothing in the pipeline needs it today.
 
 ## Layer 2 — PDDL reachability certification (`Reachability_Analysis/Reachability_Certificate.thy`)
 
