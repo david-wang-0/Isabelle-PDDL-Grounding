@@ -4,8 +4,12 @@ Full-repository summary and handover, written 2026-06-12 after a read-through of
 ROOT, doc, and SML file. Companion one-pagers: [ARCHITECTURE_pipeline.md](ARCHITECTURE_pipeline.md)
 (dataflow + trust story) and
 [ARCHITECTURE_datalog_certification.md](ARCHITECTURE_datalog_certification.md) (certificate
-design). Active WIP: [WIP_datalog_cert_bridge.md](WIP_datalog_cert_bridge.md). Index:
-[WIP.md](WIP.md).
+design). Active WIP: [WIP_cert_cleanup_and_locales.md](WIP_cert_cleanup_and_locales.md) (cleanup of
+`Reachability_Certificate`, relocating proofs into the locales that satisfy their assumptions, a new
+`certified_pddl` locale, and discharging `dl_bridge_wf`). The minimal-model ⊇ direction (the last
+`Reachability_Certificate` sorry, tracked in the now-historical
+[WIP_reverse_direction.md](WIP_reverse_direction.md)) is **proved** — that file is `0 sorry`.
+See also [WIP_datalog_cert_bridge.md](WIP_datalog_cert_bridge.md). Index: [WIP.md](WIP.md).
 
 ## What this repository is
 
@@ -38,7 +42,7 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 | `Precondition_Normalization` | DNF split, one action per disjunct (`split_prob`, `*4` hierarchy); needs the definedness conj-prefix invariant; `split_valid_iff` + `restore_plan_split_valid` | 0 sorry |
 | `Definedness_Translation` | numeric definedness → fresh `Defined_*` propositional predicates (`def_translate_prob`, `*_dt`); `def_translate_valid_iff` | 0 sorry |
 | `PDDL_Relaxation` | delete relaxation (`relax_prob`, `*_rx` hierarchy with `px` sublocale): `relax_wf/normed/relaxes`, **`relax_achievables` / `relax_applicables`** (the P vs P_R bridge that makes certificate-grounding sound) | 0 sorry |
-| `Reachability_Analysis` | see below | 7 sorries (4 retired-engine + 3 minimal-model cores) |
+| `Reachability_Analysis` | see below | 5 sorries (4 retired-engine + 1 minimal-model core: the reverse direction) |
 | `Grounded_PDDL` | the verified grounder core: `grounder`/`wf_grounder` locales (input: problem + achievable-facts/applicable-ops supersets), fresh nullary fact/op names, `ground_dom/prob_grounded`, `ground_dom/prob_wf`, `ground_enabled_iff`, `valid_classical_plan_iff` / `valid_classical_plan_left` + `restore_ground_pa` plan restoration | 0 sorry |
 | `Tree_Decomp_Grounding` (top, `./ROOT`) | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS`, `Code_Setup`, `Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Planner_STRIPS_Export` (`export_files` → `SMLCodebase/code/`), `Running_Example` | 0 sorry |
 
@@ -71,21 +75,39 @@ Two-layer frozen/editable split, then one session per pipeline stage:
      `achievable_imp_dl_derivable`, `achievable_eq_minimal_model`, `minimal_model_facts_requirement`,
      and the capstone `certified_facts_eq_achievable`
      (`dl_certified_model (set (dl_rules P)) (set const_names) M dc ⟹ set M = {f. achievable f}`,
-     via the generic `dl_certified_model_correct`). **2 sorries** (2026-06-14, down from 3) =
-     `derivable_step_adds` and the `step` case of `dl_derivable_imp_achievable`. `derivable_init`
-     is now **proven**; and four reusable helper lemmas were added to the `pddl_datalog` context to
-     scaffold `derivable_step_adds`: `subst_id_dl_id_term` (the `subst_id`/`ac_tsubst` bridge —
-     generic substitution on a translated id = PDDL `ac_tsubst` on the term),
-     `ac_arg_in_const_names` (a matched action arg is an object name), `ac_tsubst_var_in_args`
-     (a param variable substitutes to one of the action's args), and `dl_cond_rh_eval_guard`
-     (a translated equality guard holds under the generic subst iff the PDDL equality condition
-     is satisfied). With these, `derivable_step_adds` remains the assembly step: fire the action,
-     read the clause `Cls p0 (map dl_id_of_term ts0) body` out of `dl_clauses_of_action_clause`
-     (its body atoms come from `enabled_clause_body` + IH, guards from `dl_cond_rh_eval_guard`,
-     var-coverage from `dl_bridge_wf` + `ac_tsubst_var_in_args`), and the clause survives the
-     fail-closed drop because `enabled_clause_body`'s `satisfies_conds` contradicts any
-     statically-unsatisfiable condition.
-  - GREEN in jEdit (0 error / 0 warning; 2 `sorry` warnings; 427 cmds). The old **check-level
+     via the generic `dl_certified_model_correct`). **1 sorry** (2026-06-16, down from 2) =
+     ONLY the `step` case of `dl_derivable_imp_achievable` (the reverse/`⊇`/tightness direction).
+     `derivable_init` AND **`derivable_step_adds` are now both proven** (`derivable_step_adds` done
+     2026-06-16, jEdit-green). The forward/`⊆` (soundness) direction
+     `achievable_imp_dl_derivable` → `derivable_invariant` → and the soundness half of the capstone
+     are therefore **unconditional**; only tightness still rests on the last sorry.
+     Helper lemmas in the `pddl_datalog` context, all proven: `subst_id_dl_id_term`
+     (`subst_id`/`ac_tsubst` bridge), `ac_arg_in_const_names`, `ac_tsubst_var_in_args`,
+     `dl_cond_rh_eval_guard`, plus six added for `derivable_step_adds`: `dl_pos_rh_form` /
+     `dl_pos_rh_Some` / `dl_cond_rh_form` (shapes of the translated literals), `dl_clause_of_pos_mem`
+     (the add-effect's clause is in `dl_clauses_of_action_clause` when no literal fails to translate),
+     `guard_from_cond` / `body_atom_from_pre` (every clause guard / body atom traces back to a
+     condition / positive precondition). `derivable_step_adds` resolves the fired action's schema,
+     derives the no-None facts from `dl_bridge_wf` + `enabled_clause_body`'s `satisfies_conds` (a
+     statically-unsatisfiable condition can't be enabled, so the clause survives the fail-closed drop),
+     decomposes the add-effect via `res_inst_adds_eq_consequence`, and applies
+     `datalog_prog.derivable.derive` with `σ = λv. ac_tsubst ps args (VAR v)`.
+
+     **Remaining sorry = the reverse direction** `dl_derivable_imp_achievable` `step` case (rule
+     induction on `datalog_prog.derivable`). It is NOT another assembly job — it needs new
+     delete-relaxation MONOTONICITY/PERSISTENCE infrastructure that does not exist yet: in the
+     action-clause case each body atom is achievable *individually* (IH), but firing the action needs
+     them all true in ONE state — only sound because the relaxed problem never deletes, so you
+     concatenate the per-fact plans (plan validity is monotone in the start state). The fact-clause
+     case also isn't just `init_achievable`: `init'` = `conc_unique pseudo_init (init P)`, so a fact
+     may sit in `pseudo_init` (from an empty-precondition action) rather than `fst I`. Plan: prove
+     (i) relaxed actions have empty deletes ⟹ `fst M ⊆ fst (execute_plan_action a M)`; (ii) plan
+     validity monotone in start state; (iii) `(∀a∈set as. achievable a) ⟹ ∃πs M. valid… ∧ all in
+     `fst M`` by folding/concatenating plans; then fire the action.
+  - GREEN in jEdit (0 error / 1 `sorry` warning; the 2 remaining diagnostics are pre-existing
+    duplicate-rewrite NOTEs in `derivable_init`, harmless). REPL note: the `iq` session is NOT on this
+    submodule's path (`Bad theory import iq.iq`); to use the I/R REPL, `repl_connect` with explicit
+    `ir_home=~/bin/AutoCorrode2025-2/ir` (works without adding the import). The old **check-level
     bridge** (`cert_to_dl`,
     `dl_closure_imp_closure_exec`, `dl_local_valid_imp_local_valid_exec`,
     `dl_admissible_imp_admissible_exec`) was **excised** — the generic checker's 2026-06-14
@@ -176,19 +198,19 @@ toposort → `Cert`), `external_sat.sml` (oracle `g`: DIMACS → `$SAT_SOLVER`, 
 (parser glue), `json_parse.sml`, `basics.sml`. `.mlb` order matters (`pddl_refactor.sml`'s
 `open PDDL` shadows `int`/`not` — keep solvers before it). Examples under `examples/`.
 
-## Proof status: the only 6 sorries (2026-06-14)
+## Proof status: the only 5 sorries (2026-06-16)
 
 | Where | What | Disposition |
 | --- | --- | --- |
 | `Reachability_Analysis.thy` (`semi_naive_aux` termination ×2) | retired-engine termination | retired engine, off the trusted path; leave or delete the engine |
 | `Reachability_Analysis.thy` (`found_facts_achievable` / `found_pactions_applicable`) | retired-engine correctness | same |
-| `Reachability_Certificate.thy:484` | `derivable_step_adds` | minimal-model ⊆ step core; **all four helper lemmas now in place** (`subst_id_dl_id_term`, `ac_arg_in_const_names`, `ac_tsubst_var_in_args`, `dl_cond_rh_eval_guard`) — remaining work is the assembly described in the Reachability_Certificate section above |
-| `Reachability_Certificate.thy:559` | `dl_derivable_imp_achievable` (`step` case) | minimal-model ⊇; rule induction on `datalog_prog.derivable` — the fired clause is either a translated action clause (fire that action; positive-precondition body instances achievable by `step.IH`, guards hold) or a bodyless `init'` fact clause (achievable at the initial model) |
+| `Reachability_Certificate.thy` | `dl_derivable_imp_achievable` (`step` case) | minimal-model ⊇ (reverse/tightness). Rule induction on `datalog_prog.derivable`. **IN PROGRESS (2026-06-16) — see [WIP_reverse_direction.md](WIP_reverse_direction.md).** The delete-relaxation MONOTONICITY infra is now landed and green (`execute_facts_eq`, `plan_grows_facts`, `un_and_map_semantics_rev`, `valuation_pos_conj_mono`, `enabled_mono`, `plan_replay_mono`, `achievables_reach_common`), carried by two explicit hypotheses `nne` (no numeric effects) + `nd` (empty deletes). Remaining: `clause_body_enabled`, `fire_clause_achievable`, `init'_achievable`, then discharge the `step` case (action-clause → fire; fact-clause → `init'`, incl. `pseudo_init`), and add `nne`/`nd` to the `=` capstone. **One transient error right now**: the `achievables_reach_common` `Nil` case (one-line fix recorded in the WIP doc). |
 
-`derivable_init` and the helper lemmas around it are **proven** (was a sorry as of 2026-06-12).
-`achievable_imp_dl_derivable`, `derivable_invariant`, `achievable_eq_minimal_model`,
-`certified_facts_eq_achievable`, `minimal_model_facts_requirement` are all proven (they consume
-the two remaining sorries). The old `dl_local_valid_imp_local_valid_exec` /
+**`derivable_step_adds` is now proven (2026-06-16)** — the minimal-model ⊆ step core, along with
+`derivable_init`. So `achievable_imp_dl_derivable`, `derivable_invariant`,
+`achievable_eq_minimal_model`, `certified_facts_eq_achievable`, `minimal_model_facts_requirement`
+are all proven; the ⊆ (soundness) half of the capstone is now **unconditional**, and only the single
+⊇ sorry above remains. The old `dl_local_valid_imp_local_valid_exec` /
 `minimal_model_ops_requirement` sorries no longer exist (the check-level bridge was excised).
 
 Everything else — every normalization stage, relaxation, grounder, STRIPS conversion, pipeline
@@ -213,10 +235,12 @@ requires a **jEdit restart** to resolve at all. Checklist for the next session:
    to every theory above `Reachability_Certificate` (previously only to the executable tail);
    `id.Var`/`id.Cst` capture is pre-handled by the moved `hide_const`, other clashes get fixed
    on sight. Antiquotation slips in moved `text` blocks are possible.
-4. Then fill the four live sorries (order: minimal-model ⊆, ops requirement, ⊇,
-   local-validity transfer — the first two unlock retiring the per-check transfer), and
-   discharge `dl_bridge_wf (relax_prob (P⇩T P))` for restricted well-formed `P`
-   (WIP doc §3) to specialize the bridge to `ground_via_cert`'s checking site.
+4. (Largely done since 2026-06-12.) Of the minimal-model cores, `derivable_init` and
+   `derivable_step_adds` (⊆) are now proven; **only the ⊇ direction**
+   `dl_derivable_imp_achievable` remains (see the Reachability_Certificate "Remaining sorry"
+   notes — needs delete-relaxation monotonicity infra). Still also pending: discharge
+   `dl_bridge_wf (relax_prob (P⇩T P))` for restricted well-formed `P` (WIP doc §3) to specialize
+   the bridge to `ground_via_cert`'s checking site.
 
 ## Planned refactor — split the certificate theory (user request, 2026-06-14)
 

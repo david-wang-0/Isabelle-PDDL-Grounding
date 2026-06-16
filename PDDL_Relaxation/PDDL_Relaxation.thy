@@ -43,10 +43,16 @@ theorem (in normalized_problem_rx) relax_normed:
 
 theorem (in normalized_problem_rx) relax_relaxes:
   "px.relaxed_prob"
-  using relax_normed normalized_prob
-  unfolding px.relaxed_prob_def norm_prob_defs
-  unfolding relax_prob_sel
-  using relax_conj_pos rx_acs_pos_conjs by auto
+proof -
+  have "dx.relaxed_dom"
+    unfolding dx.relaxed_dom_def
+    using relax_dom_normed rx_acs_pos_conjs
+    by (auto simp: relaxed_action_def relax_ac_sel relax_dom_sel)
+  thus ?thesis
+    using relax_normed normalized_prob
+    unfolding px.relaxed_prob_def norm_prob_defs relax_prob_sel
+    using relax_conj_pos by auto
+qed
 
 subsection \<open> Preserving Well-Formedness \<close>
 

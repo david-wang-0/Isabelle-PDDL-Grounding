@@ -71,3 +71,8 @@ Always develop in Isabelle/jEdit. The Isabelle/Q MCP server (`mcp__isabelle__*`)
 - `iq.iq` is a **development-only** import (pulls in `Isar_Explore`, needed for `explore` / `get_proof_context` live goal state). It must never land in a commit. Keep it on its own import line; the per-repo strip hook lives in the *Formal-PDDL-Semantics* submodule, **not here**, so in this repo remove it by hand before committing.
 
 In specs and locale assumptions prefer bounded `\<forall>x \<in> set xs. P x` over `list_all` (keep `list_all` only on executable/`[code]` paths). Use `(in -)` only inside an open `context`/`locale` block, never at theory top level. See `GUIDANCE.md` for the underlying philosophy (surgical Isar, `sorry`-then-fill, hoist complex subgoals into named lemmas).
+
+Statement/proof shape:
+
+- **Never mix premises between `assumes` and the conclusion.** Write `assumes P and Q shows R`, never `assumes P shows "Q \<Longrightarrow> R"` — every premise goes in `assumes`, the conclusion stays bare. (Fix dependent `[OF \<dots>]` arity, e.g. `assms` \<rightarrow> `assms(1,2)`, if you flatten one out.)
+- **In `have` steps use `if`/`for`, not a `\<forall>`/`\<longrightarrow>` (or bounded `\<forall>x \<in> S`) you immediately strip.** Write `have "Q x" if "P x" for x` / `have "P x" if "x \<in> S" for x`, not `have "\<forall>x. P x \<longrightarrow> Q x"` peeled with `proof (rule allI, rule impI)` (or `rule ballI`). This is for `have` (intermediate goals); the bounded-`\<forall>` preference above is for `shows`/spec/locale assumptions, where the quantifier genuinely *is* the statement.

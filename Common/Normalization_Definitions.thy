@@ -123,6 +123,12 @@ sublocale typeless_classical_domain \<subseteq> typeless_domain_signature "types
 lemmas typeless_classical_domain_def' =
   typeless_classical_domain_def[unfolded wf_ast_classical_domain_def typeless_classical_domain_axioms_def]
 
+text \<open>In a typeless domain every action parameter has the universal type \<open>\<omega>\<close>.\<close>
+lemma (in typeless_classical_domain) param_types_omega:
+  assumes "ac \<in> set (actions D)" and "(v, T) \<in> set (ac_params ac)"
+  shows "T = \<omega>"
+  using assms typeless_classical_domain unfolding typeless_classical_domain_def by auto
+
 text \<open>
 - domain is detyped
 - objects are detyped \<close>
@@ -209,10 +215,10 @@ locale normalized_domain = wf_ast_classical_domain +
 lemmas normalized_domain_def' =
   normalized_domain_def[unfolded wf_ast_classical_domain_def normalized_domain_axioms_def]
 
-(*sublocale normalized_domain \<subseteq> typeless_classical_domain D
+sublocale normalized_domain \<subseteq> typeless_classical_domain D
   using normalized_dom normalized_dom_def by (unfold_locales) simp
 
-sublocale normalized_domain \<subseteq> precond_normed_domain D
+(*sublocale normalized_domain \<subseteq> precond_normed_domain D
   using normalized_dom normalized_dom_def by (unfold_locales) simp*)
 
 definition (in ast_classical_problem) "normalized_prob \<equiv>
@@ -233,16 +239,68 @@ sublocale normalized_problem \<subseteq> normalized_domain D
 sublocale normalized_problem \<subseteq> precond_normed_problem P
   using normalized_prob normalized_prob_def by (unfold_locales) simp*)
 
-text \<open> Relaxation \<close>
+text \<open> Relaxation combines two restrictions: \<^emph>\<open>precondition relaxation\<close> (preconditions and goal
+  are positive conjunctions) and \<^emph>\<open>delete relaxation\<close> (actions never delete facts, so the
+  reachable-fact set is monotone along any plan --- the property produced by \<open>relax_eff\<close> in
+  \<open>PDDL_Relaxation\<close>). Both are folded into \<open>relaxed_dom\<close>/\<open>relaxed_prob\<close>. \<close>
+
+text \<open> A single action schema is relaxed when its precondition is a positive conjunction and its
+  effect deletes nothing. \<close>
+definition relaxed_action :: "ast_classical_action_schema \<Rightarrow> bool" where
+  "relaxed_action a \<longleftrightarrow> is_pos_conj (ac_pre a) \<and> dels (ac_eff a) = []"
+
+lemma relaxed_actionI [intro]:
+  assumes "is_pos_conj (ac_pre a)" and "dels (ac_eff a) = []"
+  shows "relaxed_action a"
+  using assms unfolding relaxed_action_def by simp
+
+lemma relaxed_action_preD [dest]: "relaxed_action a \<Longrightarrow> is_pos_conj (ac_pre a)"
+  unfolding relaxed_action_def by simp
+
+lemma relaxed_action_delD [dest]: "relaxed_action a \<Longrightarrow> dels (ac_eff a) = []"
+  unfolding relaxed_action_def by simp
 
 definition (in ast_classical_domain) "relaxed_dom \<equiv>
-  normalized_dom \<and> (\<forall>a \<in> set (actions D). is_pos_conj (ac_pre a))"
+  normalized_dom \<and> (\<forall>a \<in> set (actions D). relaxed_action a)"
+
+lemma (in ast_classical_domain) relaxed_domI [intro]:
+  assumes "normalized_dom" and "\<And>a. a \<in> set (actions D) \<Longrightarrow> relaxed_action a"
+  shows "relaxed_dom"
+  using assms unfolding relaxed_dom_def by blast
+
+lemma (in ast_classical_domain) relaxed_dom_normedD [dest]: "relaxed_dom \<Longrightarrow> normalized_dom"
+  unfolding relaxed_dom_def by simp
+
+lemma (in ast_classical_domain) relaxed_dom_actionD [dest]:
+  "relaxed_dom \<Longrightarrow> a \<in> set (actions D) \<Longrightarrow> relaxed_action a"
+  unfolding relaxed_dom_def by blast
 
 locale relaxed_domain = normalized_domain +
   assumes relaxed_dom: relaxed_dom
 
-definition (in ast_classical_problem) "relaxed_prob \<equiv> normalized_prob \<and>
-  is_pos_conj (goal P) \<and> (\<forall>a \<in> set (actions D). is_pos_conj (ac_pre a))"
+definition (in ast_classical_problem) "relaxed_prob \<equiv> 
+  normalized_prob \<and> is_pos_conj (goal P) \<and> relaxed_dom"
+
+lemma (in ast_classical_problem) relaxed_probI [intro]:
+  assumes "normalized_prob" and "is_pos_conj (goal P)"
+    and "\<And>a. a \<in> set (actions D) \<Longrightarrow> relaxed_action a"
+  shows "relaxed_prob"
+proof -
+  have "normalized_dom"
+    using assms(1) unfolding normalized_prob_def normalized_dom_def typeless_classical_problem_def
+    by blast
+  thus ?thesis using assms unfolding relaxed_prob_def relaxed_dom_def by blast
+qed
+
+lemma (in ast_classical_problem) relaxed_prob_normedD [dest]: "relaxed_prob \<Longrightarrow> normalized_prob"
+  unfolding relaxed_prob_def by simp
+
+lemma (in ast_classical_problem) relaxed_prob_goalD [dest]: "relaxed_prob \<Longrightarrow> is_pos_conj (goal P)"
+  unfolding relaxed_prob_def by simp
+
+lemma (in ast_classical_problem) relaxed_prob_actionD [dest]:
+  "relaxed_prob \<Longrightarrow> a \<in> set (actions D) \<Longrightarrow> relaxed_action a"
+  unfolding relaxed_prob_def relaxed_dom_def by blast
 
 locale relaxed_problem = normalized_problem +
   assumes relaxed_prob: relaxed_prob
