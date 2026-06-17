@@ -18,7 +18,7 @@ subsection \<open>The datalog program handed to the reachability oracle\<close>
 text \<open>The serialization of a (relaxed, normalized) problem into the AFP \<open>Stratified_Datalog\<close>
   clause syntax --- \<^const>\<open>dl_rules\<close> --- and its bridge to the generic certificate checker
   (session \<open>Datalog_Certification\<close>) live in
-  \<^theory>\<open>Reachability_Analysis.Reachability_Certificate\<close>. Here we only package the program of
+  \<^theory>\<open>Reachability_Analysis.PDDL_Reachability_Certificate\<close>. Here we only package the program of
   the pipeline's relaxed normalized problem \<open>relax_prob P\<^sub>T\<close> --- the problem the certificate is
   about --- as the oracle's wire-format input (the constant list feeds the oracle's \<open>dom\<close>
   guards).\<close>
@@ -37,7 +37,7 @@ subsection \<open>Executable mirrors of the grounding checks\<close>
 text \<open>The \<^const>\<open>pddl_datalog\<close>-side mirrors of the certificate checks
   (\<^const>\<open>closure_check_exec\<close>, \<^const>\<open>ordered_check_exec\<close>, \<^const>\<open>local_valid_exec\<close>,
   \<^const>\<open>admissible_exec\<close>, \<^const>\<open>cert_ops_exec\<close>) live in
-  \<^theory>\<open>Reachability_Analysis.Reachability_Certificate\<close> next to their locale originals. The
+  \<^theory>\<open>Reachability_Analysis.PDDL_Reachability_Certificate\<close> next to their locale originals. The
   \<^const>\<open>normalized_problem_rx\<close>-side mirrors below take the \<^emph>\<open>normalized\<close> problem and relax it
   internally; as with the certificate checks, each body replays its locale original verbatim
   (the bodies do not use the locale assumptions), and the \<open>_eq\<close> bridges below record equality

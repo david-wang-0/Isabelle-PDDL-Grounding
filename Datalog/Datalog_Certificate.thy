@@ -6,7 +6,7 @@ section \<open>Certified models of positive datalog programs\<close>
 
 text \<open>A self-contained certificate checker for \<^emph>\<open>positive\<close> datalog programs phrased in the AFP
   \<^theory>\<open>Stratified_Datalog.Datalog\<close> clause syntax --- independent of any PDDL notion (the PDDL
-  reachability certificate in \<open>Reachability_Analysis/Reachability_Certificate.thy\<close> is the
+  reachability certificate in \<open>Reachability_Analysis/PDDL_Reachability_Certificate.thy\<close> is the
   planning-specific analogue; see \<open>ARCHITECTURE_datalog_certification.md\<close>).
 
   The reference least-model semantics is the abstract assumption-free locale predicate

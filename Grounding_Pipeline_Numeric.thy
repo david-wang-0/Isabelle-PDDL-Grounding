@@ -259,10 +259,6 @@ lemma relax_applicables_compact:
   unfolding normalized_problem_rx_def normalized_problem_def'    
   by simp
 
-(* unproven *)
-thm relaxed_problem.found_facts_achievable
-thm relaxed_problem.found_pactions_applicable
-
 thm grounder.ground_prob_grounded
 thm wf_grounder.ground_prob_wf
 lemma (in wf_grounder) ground_prob_normed:
@@ -499,9 +495,13 @@ qed
 subsection \<open> Reachability Analysis & Grounding via Certificate Checking \<close>
 
 context
-  fixes cert :: certificate
-  assumes admissible_cert: "pddl_datalog.admissible (ast_classical_problem.relax_prob P\<^sub>T) cert"
-      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T cert"
+  fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
+  assumes px_numfree: "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
+      and nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T M"
 begin
 
 lemma P_T_normalized_problem_rx:
@@ -521,21 +521,22 @@ qed
 
 lemma certified_reachability_i:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "certified_reachability P\<^sub>T cert"
+  shows "certified_reachability P\<^sub>T M dc"
 proof -
   interpret rx: normalized_problem_rx P\<^sub>T using P_T_normalized_problem_rx[OF assms] .
   show ?thesis
     apply unfold_locales
-    using admissible_cert grounding_cert by simp_all
+    using px_numfree nonempty cert grounding_cert numeric_free_problem.num_free_prob[OF px_numfree]
+    by simp_all
 qed
 
 definition "P\<^sub>G_cert \<equiv> grounder.ground_prob P\<^sub>T
-  (normalized_problem_rx.cert_facts_of P\<^sub>T cert)
-  (normalized_problem_rx.cert_ops_of P\<^sub>T cert)"
+  (normalized_problem_rx.cert_facts_of P\<^sub>T M)
+  (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 definition "reconstruct_plan_ground_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
-    (grounder.restore_ground_plan (normalized_problem_rx.cert_ops_of P\<^sub>T cert) \<pi>s))"
+    (grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
 lemma wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
@@ -543,7 +544,7 @@ lemma wf_ground_cert_problem:
     "ast_classical_problem.normalized_prob P\<^sub>G_cert"
     "ast_classical_problem.grounded_prob P\<^sub>G_cert"
 proof -
-  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
   have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
     using normalization_normalizes[OF assms] unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
   have pg_eq: "P\<^sub>G_cert = cr.wfg.ground_prob"
@@ -560,7 +561,7 @@ lemma ground_cert_num_free:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.num_free_prob P\<^sub>G_cert"
 proof -
-  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
   have pg_eq: "P\<^sub>G_cert = cr.wfg.ground_prob"
     unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
   show ?thesis unfolding pg_eq using cr.wfg.ground_prob_num_free by simp
@@ -570,7 +571,7 @@ lemma ground_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
   shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
 proof -
-  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
   have "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
     using assms normalization_valid_iff by simp
   also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
@@ -588,8 +589,8 @@ lemma ground_cert_plan_reconstruct:
     valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
 proof -
   assume p: "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s"
-  interpret cr: certified_reachability P\<^sub>T cert using certified_reachability_i[OF assms] .
-  let ?q = "grounder.restore_ground_plan (normalized_problem_rx.cert_ops_of P\<^sub>T cert) \<pi>s"
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
+  let ?q = "grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
     using p[unfolded P\<^sub>G_cert_def] cr.wfg.valid_classical_plan_left[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"

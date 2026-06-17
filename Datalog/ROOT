@@ -3,10 +3,12 @@ chapter AFP
 session Datalog_Certification = Tree_Decomp_Grounding_Common +
   description \<open>Certified models of positive datalog programs: a generic, PDDL-free checker
     for Nemo-style ordered-graph certificates, proven exact against the least-model
-    semantics (dl_derivable) of the program.\<close>
+    semantics (dl_derivable) of the program, plus a generic forward-chaining evaluator
+    (Datalog_Evaluation) that computes a candidate model for the checker to validate.\<close>
   options [timeout = 600]
   sessions
     "Stratified_Datalog"
   theories
     Datalog_Sema_Supplement
     Datalog_Certificate
+    Datalog_Evaluation

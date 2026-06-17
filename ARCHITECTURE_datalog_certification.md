@@ -24,11 +24,12 @@ these three checks:
 | **closure check** | for every clause and every `U`-valued substitution: body inside the certified facts + guards hold ⟹ head inside | no extra fact is derivable; the certified facts form a model (`⊇` least model) |
 | **foundedness** | a rank assigns every fact a strictly larger value than the body facts of one justifying rule | the support graph is acyclic, so every fact is genuinely derivable (`⊆` least model) |
 
-(The **PDDL Layer 2** kernel still uses the older Nemo *ograph* variant: one node per fact carrying
-predecessor *indices*, with an `ordered check` `j < i` standing in for the rank and a `local
-validity` check folding rule-validity and exact-body together. The index order is a ready-made
-derivation rank, so it needs no cycle detection; the index-free Layer 1 instead reconstructs that
-rank with a topological-sort / DFS — see `Datalog/HANDOVER.md`.)
+(Since the 2026-06-14 rewrite the **PDDL Layer 2** no longer has its own checker at all — the old
+Nemo *ograph* variant with predecessor indices / `ordered_check` / `local_valid` was removed. Layer 2
+relates PDDL reachability to Layer 1's generic checker *semantically* (the minimal-model identity
+`achievable_eq_minimal_model`), so it inherits Layer 1's checks rather than duplicating them. The
+index-free Layer 1 reconstructs the derivation rank with a topological-sort / DFS — see
+`Datalog/HANDOVER.md`.)
 
 The asymmetry matters downstream: the *grounding pipeline's* soundness theorems only need the
 closure (`⊇`) half — an over-approximation of the reachable facts is safe to ground against.
@@ -69,22 +70,38 @@ right-hand sides) and the `all_combos` enumeration utility from
   (`dl_positive_prog`) — with negation the consequence operator is not monotone and the
   certificate argument does not apply. `Eql`/`Neql` are supported as guards.
 
-## Layer 2 — PDDL reachability certification (`Reachability_Analysis/Reachability_Certificate.thy`)
+## Layer 2 — PDDL reachability certification (`Reachability_Analysis/PDDL_Reachability_*.thy`)
 
-The session `Reachability_Analysis` depends on `Datalog_Certification`; everything
-PDDL-side — the certificate kernel, the PDDL→datalog serialization (`dl_rules`), the
-executable check mirrors (`*_exec`), and the **bridge** to the generic checker — lives in
-`Reachability_Certificate.thy`. The kernel is the planning-specific analogue of Layer 1,
-phrased over the **native clause view of action schemas**
-rather than serialized datalog: `as_action_clause` / `a_clauses` (an action schema read as a
-clause: positive precondition atoms = body, equality conditions = guards, add effects = heads).
-Locale `pddl_datalog = relaxed_problem` defines `closure_check` / `ordered_check` /
-`local_valid` / `admissible` over the certificate type of `Reachability_Certificate.thy`
-(`certificate = Cert (cert_node list)`, facts are `facty` formulas) and proves them
-**directly against the PDDL execution semantics** — `achievable`, `plan_action_enabled`,
-`valuation` — culminating in the image of `{f. achievable f}` under `fact_to_facty` being
-contained in `set (cert_facts c)`, plus the `cert_ops` operator enumeration that feeds
-`wf_grounder`.
+The session `Reachability_Analysis` depends on `Datalog_Certification`. The PDDL side was
+**rewritten 2026-06-14** (de-Nemo) and **split 2026-06-17** into three files:
+
+- `Reachability_Analysis.thy` — shared PDDL→datalog infrastructure only: the native clause view
+  of action schemas (`as_action_clause` / `a_clauses`: positive precondition atoms = body,
+  equality conditions = guards, add effects = heads), `consequence_of`, the fact-store helpers,
+  and the per-problem `init'`. (The retired untrusted `semi_naive` engine that used to live here
+  was deleted; its generic replacement is `Datalog/Datalog_Evaluation.thy`.)
+- `PDDL_Reachability_Locales.thy` — the locale hierarchy (`pddl_datalog = relaxed_problem`,
+  `num_free_relaxed_problem`, `certified_pddl`), the PDDL→datalog serialization (`dl_rules`), and
+  the translation well-formedness bundle (`dl_bridge_wf`).
+- `PDDL_Reachability_Analysis.thy` / `PDDL_Reachability_Certificate.thy` — the proofs.
+
+The kernel no longer has its own PDDL certificate datatype or PDDL-direct `closure_check` /
+`cert_facts` / `cert_ops` (all **removed** in the 2026-06-14 rewrite). Instead the relation to the
+**generic** `dl_certificate` of Layer 1 is established **purely semantically**: the serialized
+program `dl_rules P` is a positive datalog program, and `PDDL_Reachability_Analysis` proves
+
+> `achievable_eq_minimal_model`: `{f. achievable f} = {f. datalog_prog.derivable (set const_names) (set (dl_rules P)) f}`
+
+— PDDL reachability of the (relaxed, normalized) problem is *exactly* the minimal model of the
+translated program (both inclusions, against the PDDL execution semantics `achievable` /
+`plan_action_enabled` / `valuation`). Composed with Layer 1's `dl_certified_model_correct`
+(certified facts = minimal model), `PDDL_Reachability_Certificate` gets the capstone
+
+> `certified_facts_eq_achievable`: `dl_certified_model (set (dl_rules P)) (set const_names) M dc ⟹ set M = {f. achievable f}`
+
+and the `certified_pddl` locale (fix an accepted `M`/`dc`) exposes the reachable-fact set as the
+hypothesis-free fact `certified_facts_eq_reachable` for the grounder. No PDDL-specific check is
+transferred any more; trust flows through the single generic checker.
 
 Key PDDL-specific twists that the generic layer does not have:
 
@@ -101,51 +118,54 @@ Key PDDL-specific twists that the generic layer does not have:
 
 The oracle input is the wire-format datatype `dl_program = DLProgram clause-list const-universe`
 (AFP clause syntax, list-based for code export and deterministic serialization; the constant
-list feeds Nemo's `dom` guards). `dl_program_of P` serializes the relaxed normalized problem;
-the SML driver renders it as a Nemo program, runs Nemo, and parses the certificate back.
-**Transport is untrusted**: the kernel re-checks the returned certificate against `a_clauses`,
-which it recomputes from the problem itself — no proof ever mentions the serialization.
+list feeds the oracle's `dom` guards). `dl_program_of P` serializes the relaxed normalized
+problem; the (untrusted) oracle — either the generic verified evaluator `Datalog_Evaluation.dl_eval`
+or an external solver such as Nemo — produces a candidate minimal model + certificate.
+**Transport is untrusted**: the returned certificate is re-checked by the **generic** Layer 1
+checker `dl_certified_model (set (dl_rules P)) (set const_names) M dc`, and `certified_facts_eq_achievable`
+turns that acceptance into `set M = {f. achievable f}` — no proof ever mentions the serialization
+or the oracle.
 
 ```text
                           (Layer 2: PDDL, verified)
- PDDL problem P ──P_T──▶ normalized ──relax──▶ P_R ──a_clauses──▶ admissible + grounding checks
+ PDDL problem P ──P_T──▶ normalized ──relax──▶ P_R ──dl_rules──▶ generic checker (Layer 1)
         │                                       │                        ▲
-        │                                       │ dl_program_of          │ certificate
-        ▼                                       ▼ (transport, untrusted) │ (Nemo ograph)
-   ground_via_cert ◀── wf_grounder ◀──┐   Nemo program ──▶ Nemo ─────────┘
-                                      └── certified facts/ops
+        │                                       │ dl_program_of          │ certificate + model M
+        ▼                                       ▼ (transport, untrusted) │
+   ground_via_cert ◀── wf_grounder ◀──┐   datalog program ──▶ oracle ────┘
+        (set M = {f. achievable f}  ──┘   (dl_eval / Nemo)
+         via certified_facts_eq_achievable)
 
- (Layer 1: Datalog/Datalog_Certificate.thy — the same ograph checking idea for *arbitrary* positive
-  datalog programs, proven against dl_derivable; independent of everything above)
+ (Layer 1: Datalog/Datalog_Certificate.thy — the generic certificate checker for *arbitrary*
+  positive datalog programs, proven against dl_derivable; Datalog_Evaluation.thy is the generic
+  forward-chaining evaluator. Both independent of everything above.)
 ```
 
 ## Separation rationale & future direction
 
 Layer 1 exists so that datalog certification is meaningful (and reusable) without any planning
 context: certify the model of *any* positive datalog program — hence its own session,
-`Datalog_Certification`. Layer 2 predates it and carries the PDDL-semantics obligations the
-pipeline actually needs. They share the *idea* (identical check structure, same Nemo format);
-the unification lives in the bridge sections of
-`Reachability_Analysis/Reachability_Certificate.thy`
-(see [WIP_datalog_cert_bridge.md](WIP_datalog_cert_bridge.md)), at two levels:
+`Datalog_Certification`. Layer 2 carries the PDDL-semantics obligations the pipeline actually
+needs. As of the 2026-06-14 rewrite the two are unified at a **single, purely semantic level**
+(the earlier fail-closed check-level bridge `cert_to_dl` + per-check transfer lemmas was
+**excised** — the index-free generic checker made it obsolete). The bridge lives in
+`Reachability_Analysis/PDDL_Reachability_{Analysis,Certificate}.thy`:
 
-1. **Check-level**: a fail-closed certificate conversion `cert_to_dl` plus the theorem that
-   `dl_admissible` on the translated program (`dl_rules` = exactly the `dl_program_of`
-   serialization) implies the PDDL `admissible_exec` — structural/ordered/positivity/closure
-   parts proven, the local-validity transfer still sorried.
-2. **Semantic-level** (section *PDDL reachability is the minimal model of the translated
-   program*): under the translation well-formedness bundle `dl_bridge_wf`, the PDDL-achievable
-   facts of the relaxed problem are **exactly the minimal datalog model**
-   (`achievable_eq_minimal_model`: `{f. achievable f} = {f. dl_derivable (dl_rules P)
-   const_names f}` — a PDDL `fact` and a generic ground datalog fact are the *same type*).
-   Combined with the generic `dl_certified_model_correct` (certified facts = minimal model),
-   this discharges the PDDL reachability requirements — the conclusions of `closure_sound`
-   (facts ⊇) and `cert_ops_sound` (ops ⊇) — directly from a generic-checker acceptance,
-   without per-check transfer. Both inclusions + the ops requirement are currently sorried.
+- under the translation well-formedness bundle `dl_bridge_wf` (discharged in
+  `num_free_relaxed_problem`), the PDDL-achievable facts of the relaxed problem are **exactly the
+  minimal datalog model** — `achievable_eq_minimal_model`:
+  `{f. achievable f} = {f. datalog_prog.derivable (set const_names) (set (dl_rules P)) f}`
+  (a PDDL `fact` and a generic ground datalog fact are the *same type*; **both inclusions proven**,
+  0 sorry);
+- combined with the generic `dl_certified_model_correct` (certified facts = minimal model), this
+  discharges the PDDL reachability requirement directly from a generic-checker acceptance, with no
+  per-check transfer: `certified_facts_eq_achievable`, and the `certified_pddl` locale's
+  hypothesis-free `certified_facts_eq_reachable` that the grounder consumes.
 
-End state: parse Nemo's ograph straight into a generic `dl_certificate`, run one exported
-checker, and get the PDDL-side fact by theorem rather than by a second checker implementation.
+End state: the untrusted oracle is the generic `Datalog_Evaluation.dl_eval` (or an external solver
+such as Nemo), and the PDDL-side fact comes out by theorem — one exported generic checker, no
+second PDDL-specific checker implementation.
 
 Reference checker for the certificate format: the Lean 4 `CertifyingDatalog` development
-(closure check = `⊇`, ordered locallyValid = `⊆`), see `WIP.md` history and
-`Reachability_Analysis/Reachability_Certificate.thy` header.
+(closure check = `⊇`, ordered locallyValid = `⊆`); see the
+`Datalog/Datalog_Certificate.thy` / `PDDL_Reachability_Locales.thy` headers.

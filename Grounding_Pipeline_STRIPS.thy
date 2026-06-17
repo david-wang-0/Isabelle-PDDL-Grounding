@@ -87,40 +87,44 @@ proof unfold_locales
 qed
 
 context
-  fixes cert :: certificate
-  assumes admissible_cert: "pddl_datalog.admissible (ast_classical_problem.relax_prob P\<^sub>T) cert"
-      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T cert"
+  fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
+  assumes px_numfree: "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
+      and nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T M"
 begin
 
 subsection \<open> Conversion to STRIPS (Certificate-based) \<close>
 
-definition "P\<^sub>S_cert \<equiv> ast_classical_problem.as_strips (P\<^sub>G_cert cert)"
+definition "P\<^sub>S_cert \<equiv> ast_classical_problem.as_strips (P\<^sub>G_cert M)"
 
 lemma wf_as_strips_cert:
   assumes "restrict_prob" "wf_classical_problem"
   shows "is_valid_problem_strips P\<^sub>S_cert"
 proof -
-  have nf: "ast_classical_problem.num_free_prob (P\<^sub>G_cert cert)"
-    using ground_cert_num_free[OF admissible_cert grounding_cert assms] .
+  have nf: "ast_classical_problem.num_free_prob (P\<^sub>G_cert M)"
+    using ground_cert_num_free[OF px_numfree nonempty cert grounding_cert assms] .
   show ?thesis
     unfolding P\<^sub>S_cert_def
     using assms ast_classical_problem.wf_as_strips_compact
-          wf_ground_cert_problem[OF admissible_cert grounding_cert assms] nf by blast
+          wf_ground_cert_problem[OF px_numfree nonempty cert grounding_cert assms] nf by blast
 qed
 
 text \<open>The grounded goal is a single nullary predicate atom: \<^const>\<open>grounder.ground_fmla\<close> maps the
   single-atom goal of \<^term>\<open>P\<^sub>T\<close> (\<open>goal_P\<^sub>T_single\<close>) to one nullary \<^const>\<open>predAtm\<close>.\<close>
 lemma goal_P\<^sub>G_cert_single:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "\<exists>q. goal (P\<^sub>G_cert cert) = Atom (predAtm q [])"
+  shows "\<exists>q. goal (P\<^sub>G_cert M) = Atom (predAtm q [])"
 proof -
-  interpret cr: certified_reachability P\<^sub>T cert
-    using certified_reachability_i[OF admissible_cert grounding_cert assms] .
-  have pg_eq: "P\<^sub>G_cert cert = cr.wfg.ground_prob"
-    unfolding P\<^sub>G_cert_def[OF admissible_cert grounding_cert]
+  interpret cr: certified_reachability P\<^sub>T M dc
+    using certified_reachability_i[OF px_numfree nonempty cert grounding_cert assms] .
+  have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
+    unfolding P\<^sub>G_cert_def[OF px_numfree nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
   obtain gp where g: "goal P\<^sub>T = Atom (predAtm gp [])" using goal_P\<^sub>T_single by blast
-  have "goal (P\<^sub>G_cert cert) = cr.wfg.ground_fmla (goal P\<^sub>T)"
+  have "goal (P\<^sub>G_cert M) = cr.wfg.ground_fmla (goal P\<^sub>T)"
     unfolding pg_eq using cr.wfg.ground_prob_sel(4) by simp
   also have "\<dots> = Atom (predAtm (the (cr.wfg.fact_map (Atom (predAtm gp [])))) [])"
     unfolding g by simp
@@ -131,15 +135,15 @@ text \<open>Every well-formed predicate of the grounded problem has a nonempty n
   predicate names from \<^const>\<open>distinct_strings_lit\<close> (\<open>dsl_nonempty\<close>).\<close>
 lemma pg_cert_pred_nonempty:
   assumes "restrict_prob" "wf_classical_problem"
-    and "ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert cert)) n"
+    and "ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert M)) n"
   shows "predicate.name n \<noteq> STR ''''"
 proof -
-  interpret cr: certified_reachability P\<^sub>T cert
-    using certified_reachability_i[OF admissible_cert grounding_cert assms(1,2)] .
-  have pg_eq: "P\<^sub>G_cert cert = cr.wfg.ground_prob"
-    unfolding P\<^sub>G_cert_def[OF admissible_cert grounding_cert]
+  interpret cr: certified_reachability P\<^sub>T M dc
+    using certified_reachability_i[OF px_numfree nonempty cert grounding_cert assms(1,2)] .
+  have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
+    unfolding P\<^sub>G_cert_def[OF px_numfree nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
-  from assms(3) have "PredDecl n [] \<in> set (predicates (ast_problem.domain (P\<^sub>G_cert cert)))"
+  from assms(3) have "PredDecl n [] \<in> set (predicates (ast_problem.domain (P\<^sub>G_cert M)))"
     unfolding ast_classical_domain.wf_pred_def .
   hence "PredDecl n [] \<in> set (map (\<lambda>p. PredDecl p []) cr.wfg.fact_names)"
     unfolding pg_eq using cr.wfg.ground_prob_sel(1) cr.wfg.ground_dom_sel(2) by simp
@@ -151,23 +155,23 @@ qed
 
 lemma strips_encodable_P\<^sub>G_cert:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "strips_encodable_problem (P\<^sub>G_cert cert)"
+  shows "strips_encodable_problem (P\<^sub>G_cert M)"
 proof -
-  note wfg = wf_ground_cert_problem[OF admissible_cert grounding_cert assms]
-  obtain q where q: "goal (P\<^sub>G_cert cert) = Atom (predAtm q [])"
+  note wfg = wf_ground_cert_problem[OF px_numfree nonempty cert grounding_cert assms]
+  obtain q where q: "goal (P\<^sub>G_cert M) = Atom (predAtm q [])"
     using goal_P\<^sub>G_cert_single[OF assms] by blast
   show ?thesis
   proof (rule ast_classical_problem.strips_encodable_compact)
-    show "ast_classical_problem.wf_classical_problem (P\<^sub>G_cert cert)" using wfg by blast
-    show "ast_classical_problem.grounded_prob (P\<^sub>G_cert cert)" using wfg by blast
-    show "ast_classical_problem.normalized_prob (P\<^sub>G_cert cert)" using wfg by blast
-    show "ast_classical_problem.num_free_prob (P\<^sub>G_cert cert)"
-      using ground_cert_num_free[OF admissible_cert grounding_cert assms] .
-    show "\<And>p. ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert cert)) p
+    show "ast_classical_problem.wf_classical_problem (P\<^sub>G_cert M)" using wfg by blast
+    show "ast_classical_problem.grounded_prob (P\<^sub>G_cert M)" using wfg by blast
+    show "ast_classical_problem.normalized_prob (P\<^sub>G_cert M)" using wfg by blast
+    show "ast_classical_problem.num_free_prob (P\<^sub>G_cert M)"
+      using ground_cert_num_free[OF px_numfree nonempty cert grounding_cert assms] .
+    show "\<And>p. ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert M)) p
               \<Longrightarrow> predicate.name p \<noteq> STR ''''"
       using pg_cert_pred_nonempty[OF assms] by blast
-    show "\<And>l1 l2. l1 \<in> set (un_and (goal (P\<^sub>G_cert cert)))
-       \<Longrightarrow> l2 \<in> set (un_and (goal (P\<^sub>G_cert cert)))
+    show "\<And>l1 l2. l1 \<in> set (un_and (goal (P\<^sub>G_cert M)))
+       \<Longrightarrow> l2 \<in> set (un_and (goal (P\<^sub>G_cert M)))
        \<Longrightarrow> fst (lit_as_goal l1) = fst (lit_as_goal l2)
        \<Longrightarrow> snd (lit_as_goal l1) = snd (lit_as_goal l2)"
       using q by simp
@@ -175,7 +179,7 @@ proof -
 qed
 
 text \<open>Soundness of the STRIPS encoding (existence form). The literal whole-plan restoration
-  \<open>valid_classical_plan2 (reconstruct_plan_ground_cert cert (restore_pddl_plan ops))\<close>
+  \<open>valid_classical_plan2 (reconstruct_plan_ground_cert M (restore_pddl_plan ops))\<close>
   is \<^emph>\<open>not\<close> provable for the same reason as \<open>restore_pddl_plan_valid\<close>: \<open>execute_serial_plan\<close> halts at
   the first non-applicable operator, so a STRIPS solution may carry trailing non-enabled operators
   that \<^const>\<open>ast_classical_problem.valid_classical_plan2\<close> rejects. We therefore conclude existence
@@ -185,11 +189,11 @@ lemma strips_plan_sound_cert:
     and "is_serial_solution_for_problem P\<^sub>S_cert ops"
   shows "\<exists>\<pi>s. valid_classical_plan2 \<pi>s"
 proof -
-  from assms(3) have "is_serial_solution_for_problem (ast_classical_problem.as_strips (P\<^sub>G_cert cert)) ops"
+  from assms(3) have "is_serial_solution_for_problem (ast_classical_problem.as_strips (P\<^sub>G_cert M)) ops"
     unfolding P\<^sub>S_cert_def .
   with strips_encodable_problem.restore_pddl_plan_valid[OF strips_encodable_P\<^sub>G_cert[OF assms(1,2)]]
-  have "\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert cert) \<pi>s" by blast
-  thus ?thesis using ground_cert_plan_valid_iff[OF admissible_cert grounding_cert assms(1,2)] by blast
+  have "\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert M) \<pi>s" by blast
+  thus ?thesis using ground_cert_plan_valid_iff[OF px_numfree nonempty cert grounding_cert assms(1,2)] by blast
 qed
 
 text \<open>Solvability equivalence: the grounded problem has a STRIPS serial solution iff the original
@@ -201,11 +205,11 @@ lemma strips_plan_iff_cert:
     (\<exists>\<pi>s. valid_classical_plan2 \<pi>s)"
 proof -
   have "(\<exists>ops. is_serial_solution_for_problem P\<^sub>S_cert ops)
-      \<longleftrightarrow> (\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert cert) \<pi>s)"
+      \<longleftrightarrow> (\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert M) \<pi>s)"
     unfolding P\<^sub>S_cert_def
     using strips_encodable_problem.valid_plan_iff[OF strips_encodable_P\<^sub>G_cert[OF assms]] by blast
   also have "\<dots> \<longleftrightarrow> (\<exists>\<pi>s. valid_classical_plan2 \<pi>s)"
-    using ground_cert_plan_valid_iff[OF admissible_cert grounding_cert assms] by blast
+    using ground_cert_plan_valid_iff[OF px_numfree nonempty cert grounding_cert assms] by blast
   finally show ?thesis .
 qed
 
@@ -214,12 +218,12 @@ subsection \<open> Concrete plan reconstruction (STRIPS solution \<open>\<righta
 text \<open>End-to-end \<^emph>\<open>executable\<close> reconstruction: decode a STRIPS serial solution of \<^term>\<open>P\<^sub>S_cert\<close>
   into a concrete valid plan of the \<^emph>\<open>original\<close> problem \<^term>\<open>P\<close>. Two concrete stages compose:
   \<^const>\<open>ast_classical_problem.restore_prefix\<close> turns the STRIPS solution into a valid plan of the
-  grounded problem \<^term>\<open>P\<^sub>G_cert cert\<close> (its applicable prefix), and \<^const>\<open>reconstruct_plan_ground_cert\<close>
+  grounded problem \<^term>\<open>P\<^sub>G_cert M\<close> (its applicable prefix), and \<^const>\<open>reconstruct_plan_ground_cert\<close>
   lifts that back through grounding + the normalization chain to \<^term>\<open>P\<close>.\<close>
 definition "reconstruct_pipeline_plan_cert ops \<equiv>
-  reconstruct_plan_ground_cert cert
-    (ast_classical_problem.restore_prefix (P\<^sub>G_cert cert)
-       (ast_classical_problem.I (P\<^sub>G_cert cert)) ops)"
+  reconstruct_plan_ground_cert M
+    (ast_classical_problem.restore_prefix (P\<^sub>G_cert M)
+       (ast_classical_problem.I (P\<^sub>G_cert M)) ops)"
 
 theorem strips_plan_reconstruct_cert:
   assumes "restrict_prob" "wf_classical_problem"
@@ -227,15 +231,15 @@ theorem strips_plan_reconstruct_cert:
   shows "valid_classical_plan2 (reconstruct_pipeline_plan_cert ops)"
 proof -
   from assms(3) have ser:
-    "is_serial_solution_for_problem (ast_classical_problem.as_strips (P\<^sub>G_cert cert)) ops"
+    "is_serial_solution_for_problem (ast_classical_problem.as_strips (P\<^sub>G_cert M)) ops"
     unfolding P\<^sub>S_cert_def .
-  have v: "ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert cert)
-            (ast_classical_problem.restore_prefix (P\<^sub>G_cert cert)
-               (ast_classical_problem.I (P\<^sub>G_cert cert)) ops)"
+  have v: "ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert M)
+            (ast_classical_problem.restore_prefix (P\<^sub>G_cert M)
+               (ast_classical_problem.I (P\<^sub>G_cert M)) ops)"
     using strips_encodable_problem.restore_prefix_valid[OF strips_encodable_P\<^sub>G_cert[OF assms(1,2)] ser] .
   show ?thesis
     unfolding reconstruct_pipeline_plan_cert_def
-    using ground_cert_plan_reconstruct[OF admissible_cert grounding_cert assms(1,2) v] .
+    using ground_cert_plan_reconstruct[OF px_numfree nonempty cert grounding_cert assms(1,2) v] .
 qed
 
 end

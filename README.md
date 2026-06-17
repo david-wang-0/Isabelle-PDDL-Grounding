@@ -25,16 +25,19 @@ Repository
 ├── Common/  - - - - - - - - - - - - shared foundation: PDDL semantics supplement,
 │                                    normalization definitions, formula/graph/string utilities
 ├── Datalog/ - - - - - - - - - - - - standalone session Datalog_Certification: generic,
-│                                    PDDL-free certificate checker for positive datalog
+│                                    PDDL-free certificate checker + forward-chaining evaluator
+│                                    (Datalog_Evaluation) for positive datalog
 ├── Type_Normalization/  - - - - - - \
 ├── Goal_Normalization/              |
 ├── Definedness_Normalization/      |  the normalization pipeline steps, each its own session
 ├── Precondition_Normalization/      |  (detype, degoal, definedness explication, DNF split,
 ├── Definedness_Translation/         |  definedness translation, delete relaxation)
 ├── PDDL_Relaxation/ - - - - - - - -/
-├── Reachability_Analysis/ - - - - - reachability certificate kernel (Nemo ograph format),
-│                                    PDDL→datalog serialization, generic-checker bridge,
-│                                    certificate→grounder plug-in
+├── Reachability_Analysis/ - - - - - PDDL reachability-certificate kernel: shared PDDL→datalog
+│                                    infrastructure (Reachability_Analysis.thy) + the
+│                                    PDDL_Reachability_{Locales,Analysis,Certificate}.thy
+│                                    development (reachability = minimal model of the translated
+│                                    program; certified_pddl grounding-input locale)
 ├── Grounded_PDDL/ - - - - - - - - - the verified grounder core (fully proven)
 ├── PDDL_to_STRIPS/  - - - - - - - - conversion of the grounded task to STRIPS + plan restoration
 ├── Grounding_Pipeline_Numeric.thy - pipeline wiring (with numerics, up to the grounded task)
@@ -54,8 +57,13 @@ conversion, the pipeline wiring, and the executable planner soundness theorem
 the two untrusted oracles) are proven with `0 sorry`. The compiled binary plans the running
 example and its output is confirmed by an independent PDDL plan validator.
 
-Remaining `sorry`s are confined to the deliberately-unverified legacy reachability engine
-(`Reachability_Analysis.thy`, retired in favor of certificate checking) and the in-progress
-bridge between the generic datalog certificate checker and the PDDL reachability requirements
-(`Reachability_Certificate.thy`). See `HANDOVER.md` for the precise inventory and
-`ARCHITECTURE_pipeline.md` / `ARCHITECTURE_datalog_certification.md` for the design.
+The PDDL reachability-certificate development
+(`PDDL_Reachability_{Locales,Analysis,Certificate}.thy`) is also `0 sorry`: reachability is proven
+to be exactly the minimal model of the translated datalog program, and the `certified_pddl` locale
+exposes the reachable-fact set to the grounder. The retired untrusted reachability engine was
+deleted and replaced by the generic, verified `Datalog_Evaluation` evaluator (also `0 sorry`).
+
+The only remaining gap is the `Certified_Grounding*` bridge theories, which still reference the
+removed PDDL certificate datatype and are being rewired onto the generic entry point. See
+`HANDOVER.md` for the precise inventory and `ARCHITECTURE_pipeline.md` /
+`ARCHITECTURE_datalog_certification.md` for the design.

@@ -34,8 +34,8 @@ Details: session layout in `CLAUDE.md`, certification design in
 | --- | --- | --- |
 | Type / goal / precondition / definedness normalization | `Type_Normalization`, `Goal_Normalization`, `Precondition_Normalization`, `Definedness_Normalization`, `Definedness_Translation` | proven plan-preserving |
 | Delete relaxation (monotone reachability) | `PDDL_Relaxation` | proven |
-| Reachability certificate kernel (PDDL-specific) | `Reachability_Analysis/Reachability_Certificate.thy` | 0 sorry |
-| Generic positive-datalog certificate kernel | `Datalog/Datalog_Certificate.thy` | 0 sorry (2026-06-12) |
+| Reachability certificate kernel (PDDL-specific) | `Reachability_Analysis/PDDL_Reachability_{Locales,Analysis,Certificate}.thy` (+ shared infra in `Reachability_Analysis.thy`) | 0 sorry |
+| Generic positive-datalog certificate kernel + evaluator | `Datalog/Datalog_Certificate.thy`, `Datalog/Datalog_Evaluation.thy` | 0 sorry |
 | Grounder | `Grounded_PDDL` | fully proven |
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |

@@ -152,6 +152,64 @@ sublocale typeless_classical_problem \<subseteq>
   unfolding typeless_domain_signature_def typeless_problem_signature_def
   by simp
 
+text \<open>In a typeless problem every object name has the universal type \<open>\<omega>\<close>, so any object name
+  trivially matches the universal parameter type (reverse of \<open>is_obj_of_type_const_name\<close>).\<close>
+lemma (in typeless_classical_problem) const_name_is_obj_of_type:
+  assumes "n \<in> set (map fst all_consts)"
+  shows "is_obj_of_type n \<omega>"
+proof -
+  have all\<omega>: "T = \<omega>" if "(m, T) \<in> set all_consts" for m T
+  proof -
+    from that have "(m, T) \<in> set (consts D) \<or> (m, T) \<in> set (objects P)" by auto
+    thus ?thesis
+    proof
+      assume "(m, T) \<in> set (consts D)"
+      thus ?thesis using typeless_classical_problem
+        unfolding typeless_classical_problem_def typeless_classical_domain_def
+          typeless_domain_signature_def by auto
+    next
+      assume "(m, T) \<in> set (objects P)"
+      thus ?thesis using typeless_classical_problem unfolding typeless_classical_problem_def by auto
+    qed
+  qed
+  from assms have "n \<in> dom objT"
+    by (auto simp: objT_alt dom_map_of_conv_image_fst)
+  then obtain oT where oT: "objT n = Some oT" by auto
+  hence "(n, oT) \<in> set all_consts" unfolding objT_alt by (auto dest: map_of_SomeD)
+  hence "oT = \<omega>" using all\<omega> by blast
+  thus ?thesis using oT unfolding is_obj_of_type_def by (simp add: of_type_refl)
+qed
+
+text \<open>An argument tuple of the right length drawn entirely from the object names matches an
+  action's (typeless) parameters.\<close>
+lemma (in typeless_classical_problem) params_match_from_const_args:
+  assumes sch_mem: "sch \<in> set (actions D)"
+    and len: "length args = length (ac_params sch)"
+    and inc: "\<And>x. x \<in> set args \<Longrightarrow> x \<in> set (map fst all_consts)"
+  shows "action_params_match (ac_head sch) args"
+proof -
+  obtain n ps b where sch_eq: "sch = SimpleActionSchema (ActionHead n ps) b"
+    by (metis ast_classical_action_schema_cases_unfold)
+  have ph: "ac_head sch = ActionHead n ps" and pp: "ac_params sch = ps"
+    using sch_eq by simp_all
+  have types: "snd x = \<omega>" if "x \<in> set ps" for x
+    using param_types_omega[OF sch_mem] that pp by (cases x) auto
+  show ?thesis
+    unfolding ph action_params_match_def list_all2_conv_all_nth
+  proof (intro conjI allI impI)
+    show "length args = length (map snd (parameters (ActionHead n ps)))"
+      using len pp by simp
+  next
+    fix i assume i: "i < length args"
+    have "args ! i \<in> set (map fst all_consts)" using inc i by simp
+    hence "is_obj_of_type (args ! i) \<omega>" using const_name_is_obj_of_type by simp
+    moreover have "map snd (parameters (ActionHead n ps)) ! i = \<omega>"
+      using i len pp types by (simp add: nth_mem)
+    ultimately show "is_obj_of_type (args ! i) (map snd (parameters (ActionHead n ps)) ! i)"
+      by simp
+  qed
+qed
+
 text \<open> Definedness explication: every PNE appearing in the formula has its
   definedness atom \<open>numericEqAtm (FunctionExpr p) (FunctionExpr p)\<close> sitting
   in the formula's top-level conjunctive prefix. This is the syntactic
@@ -233,10 +291,10 @@ sublocale normalized_problem \<subseteq> normalized_domain D
   using normalized_prob normalized_dom_def normalized_prob_def typeless_classical_problem_def
   by (unfold_locales) blast
 
-(*sublocale normalized_problem \<subseteq> typeless_classical_problem P
+sublocale normalized_problem \<subseteq> typeless_classical_problem P
   using normalized_prob normalized_prob_def by (unfold_locales) simp
 
-sublocale normalized_problem \<subseteq> precond_normed_problem P
+(*sublocale normalized_problem \<subseteq> precond_normed_problem P
   using normalized_prob normalized_prob_def by (unfold_locales) simp*)
 
 text \<open> Relaxation combines two restrictions: \<^emph>\<open>precondition relaxation\<close> (preconditions and goal
