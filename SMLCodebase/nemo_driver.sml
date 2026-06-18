@@ -22,7 +22,12 @@
 structure NemoDriver :
 sig
   exception NemoError of string
-  val certify : PDDL_SAT_Planner_Exported.dl_program -> PDDL_SAT_Planner_Exported.certificate
+  (* reachability oracle: returns the candidate model M (a fact list) together with the
+     generic datalog certificate dc, in derivation (topological) order. *)
+  val certify : PDDL_SAT_Planner_Exported.dl_program ->
+                (PDDL_SAT_Planner_Exported.predicate * PDDL_SAT_Planner_Exported.object list) list
+                * (PDDL_SAT_Planner_Exported.predicate, PDDL_SAT_Planner_Exported.object)
+                    PDDL_SAT_Planner_Exported.dl_certificate
 end =
 struct
   structure E = PDDL_SAT_Planner_Exported
@@ -300,8 +305,21 @@ struct
                "nemo_driver: warning: " ^ Int.toString (length (!pending)) ^
                " unplaceable trace inferences dropped (kernel will fail closed if this matters)\n")
     in
-      E.Cert (List.map (fn (f, ps) =>
-                          E.CNode (f, List.map (E.nat_of_integer o IntInf.fromInt) ps))
-                       (List.rev (!nodes)))
+      (* Emit the generic (M, dc) pair: M is the derived fact list, dc = DLCert of one DLRule
+         per node (head fact + the body facts at its predecessor indices), in topological order.
+         Each node fact is a ground predicate atom Atom (PredAtm (p, args)) -> dl_fact (p, args). *)
+      let
+        fun toFact (E.Atom (E.PredAtm (p, args))) = (p, args)
+          | toFact _ = raise NemoError "certificate node is not a ground predicate atom"
+        val fwd = List.rev (!nodes)          (* (fact_formula, pred_indices), position = node index *)
+        val facts = List.map (fn (f, _) => toFact f) fwd
+        val factVec = Vector.fromList facts
+        val rules =
+          List.map
+            (fn (f, ps) => E.DLRule (toFact f, List.map (fn i => Vector.sub (factVec, i)) ps))
+            fwd
+      in
+        (facts, E.DLCert rules)
+      end
     end
 end

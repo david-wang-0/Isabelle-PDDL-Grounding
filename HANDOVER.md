@@ -1,12 +1,88 @@
 # Handover: verified PDDL grounding + SAT planning (Isabelle-PDDL-Grounding)
 
 Full-repository summary and handover, written 2026-06-12 (read-through of every theory, ROOT, doc,
-and SML file) and updated 2026-06-17. Companion one-pagers:
+and SML file) and updated 2026-06-18. Companion one-pagers:
 [ARCHITECTURE_pipeline.md](ARCHITECTURE_pipeline.md) (dataflow + trust story) and
 [ARCHITECTURE_datalog_certification.md](ARCHITECTURE_datalog_certification.md) (certificate design).
 The per-stage `WIP*.md` notes have been retired — the work they tracked is done; the few remaining
 open items are folded into this handover (below). The PDDL reachability-certificate development is
 `0 sorry` and was split + extended this session (see the note next).
+
+## Latest session (2026-06-18) — executable layer DONE + validated end-to-end
+
+The **executable layer** is finished and validated after the certificate rework (the PDDL-side
+ograph `certificate`/`CNode` datatype was removed; the kernel now consumes the **generic** pair
+`M :: (predicate × object list) list` + `dc :: (predicate, object) dl_certificate = DLCert (dl_rules
+:: dl_ground_rule list)`, `dl_ground_rule = DLRule gr_head gr_body`). The compiled planner runs
+Nemo → verified kernel → grounder → SAT → plan and prints a **verified-valid plan**
+(`plan_by_cert_sound`). All Isabelle below is `jedit-status`-green, 0 sorry.
+
+`dl_founded` was discharged via **path 1** (ordered-cert linear scan); the verified-DFS path 2 is
+still future work (see "Other open work"). The Nemo parser AND printer stay standard ML (untrusted
+oracle glue, fail-closed against the verified checker).
+
+**Datalog kernel — fully executable:**
+
+- `Datalog/Datalog_Certificate.thy` — abstract checker + correctness (`dl_certified_model_correct`),
+  0 sorry.
+- `Datalog/Datalog_Certificate_Code.thy` (NEW, `imports Datalog_Certificate`) — the executable
+  refinement: `dl_founded_scan`/`dl_founded_exec` (left-to-right scan, each `DLRule head body`
+  requires every body fact `∈ set acc`) + `dl_founded_exec_imp_dl_founded` (rank `f` = list index,
+  `LEAST i. i < length rs ∧ gr_head (rs!i) = f`; helper `dl_founded_scan_body`),
+  `dl_{positive_prog,rule_valid,closure_check,admissible,certified_model}_exec` (all `[code]`), the
+  `cls_substs_tabulate` + `subst_atom_head/body_cong`/`eval_guard_cls_cong` bridges, the `*_exec_imp`
+  soundness chain, and the capstone `dl_certified_model_exec_correct`. 0 sorry. (Gotchas: don't
+  annotate `define rank :: dl_rank` — proof-local tyvar clash; a `subset` transitivity `by blast`
+  diverged, use a `subset_trans` chain.)
+- `Datalog/ROOT`: + `Datalog_Certificate_Code`. Side fix: converted `Datalog/Datalog_Sema_Supplement.thy`
+  from raw-Unicode glyphs to ASCII escapes (lone raw-Unicode file; broke the batch lexer at the first
+  control symbol `\<^emph>`).
+
+**Exec-layer rewire (PDDL side), all 0 sorry / green:**
+
+- `Grounding_Pipeline_STRIPS_Executable.thy` — oracle retyped `f :: dl_program ⇒ (predicate × object
+  list) list × (predicate,object) dl_certificate`; exec mirrors (`cert_ops_of_exec`/`extra_eff_atoms_of_exec`/
+  `cert_facts_of_exec`/`grounding_checks_exec`) **retargeted from the old cert `c` onto `M :: fact
+  list`**, `_eq` lemmas by `refl`; `numeric_free_problem_exec` (`num_free_prob R ⟹ numeric_free_problem
+  R` by `unfold_locales`); `ground_by_cert`/`ground_via_cert(')` (returns `((M,dc), PS)`)/
+  `reconstruct_plan_by_cert` + `ground_by_cert_eq`/`_strips_eq`/`reconstruct_plan_by_cert_eq`; plus
+  `declare num_free_code [code]` (needed because `num_free_prob` enters the exec path via
+  `ground_via_cert'`). Gotcha: in `grounding_checks`, `px.wf_fmla_atom px.objT` simplifies to **N's**
+  signature, so the mirror must use `domain N`/`objects N`, not `relax_prob N`.
+- `Planner_STRIPS_Executable.thy` — `plan_by_cert` binds `(Mdc, PS)` and reconstructs with `fst Mdc`;
+  `plan_by_cert_sound` retargeted to the new 4-assumption discharges (`numeric_free_problem_exec` /
+  `dl_certified_model_exec_imp` / `grounding_checks_exec_P⇩T`, then `[OF pnf ne cert gc' rp wf …]`).
+- `Planner_STRIPS_Export.thy` — `export_code` cert ctors `Cert CNode cert_facts nodes cn_fact cn_preds`
+  → `DLCert DLRule gr_head gr_body`; runs clean, regenerates `SMLCodebase/code/PDDL_SAT_Planner_Exported.sml`
+  (134 KB, with `DLCert`/`DLRule`, no stale ctors).
+- `Code_Setup.thy` — unchanged (generic code-equation setup only).
+- top `ROOT`: + `Datalog_Certification` in `sessions` (the exec file is the first `Tree_Decomp_Grounding`
+  theory to *directly* import a `Datalog_Certification` theory; transitive reachability via
+  `Reachability_Analysis` was NOT enough; import is session-qualified
+  `Datalog_Certification.Datalog_Certificate_Code`). Re-register (`isabelle components -u .`) + restart
+  jEdit after ROOT edits.
+
+**SML driver + build + end-to-end run:**
+
+- `SMLCodebase/nemo_driver.sml` — `NemoDriver.certify` now returns `(M, dc)`: each node fact
+  `E.Atom (E.PredAtm (p,args))` → `dl_fact (p,args)`; predecessor *indices* resolved to predecessor
+  *facts* via a `Vector`; emits `E.DLCert [E.DLRule ((p,args), body) …]` in topo order (replaced the
+  old `E.Cert [E.CNode …]`). Oracle type: `dl_program → (predicate × object list) list × (predicate,
+  object) dl_certificate`.
+- `make all` (MLton) compiles `SMLCodebase/bin/pddl_sat_planner` clean (only pre-existing
+  non-exhaustive-match warnings); `./bin/pddl_sat_planner examples/domain.pddl examples/problem.pddl`
+  with `nmo` + `z3` **plans end-to-end** — Nemo cert (new format) re-checked by
+  `dl_certified_model_exec`, grounded, SAT-solved, reconstructed. By `plan_by_cert_sound` a printed
+  plan is verified-valid.
+
+**`Running_Example.thy` demo — DONE (2026-06-18).** The 6 action schemas were rewired off the
+removed `Cert`/`CNode` ograph onto the generic `(M, dc)` pair (`naive_cert` saturates `dl_rules R`),
+and the pre-existing bare-`Var` clash was fixed by qualifying every `(Var STR …)` → `(variable.Var
+STR …)` and removing the dead `hide_const (open) Datalog.id.Var` block. Fully green (0 errors/warnings,
+processed + consolidated); the `value` probes give the expected results: `dl_certified_model_exec …
+= True`, `grounding_checks_exec … = True`, `ground_via_cert (λ_. ([], DLCert [])) … = None`
+(fail-closed), `ground_via_cert (λ_. my_cert) … = Some (problem_for …)`. **The whole
+`Tree_Decomp_Grounding` top session is now wireable end-to-end.**
 
 ## Latest session (2026-06-17 cont.) — grounding pipelines re-pointed onto `certified_reachability`
 
@@ -31,17 +107,15 @@ fully processed):
   `interpret cr: certified_reachability P\<^sub>T cert` → `… P\<^sub>T M dc`. `P\<^sub>S_cert`/`strips_plan_*_cert`/
   `reconstruct_pipeline_plan_cert` all carry through.
 
-**Still BROKEN (deliberately deferred — blocked on DFS/Nemo work):** the **executable layer**
-(`Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Code_Setup`,
-`Running_Example`, `Planner_STRIPS_Export`) still references the removed `admissible_exec` /
-`cert_ops_exec` / `cert_facts` / `certificate` datatype (the HANDOVER's earlier claim that these
-were "rewired earlier" was **inaccurate**). Rewiring them requires an **executable re-check of
-`dl_certified_model`**, but `dl_founded` is a non-executable `∃rank` acyclicity obligation — it
-needs the planned **cycle-detecting DFS** to construct the rank and refine it (and a Nemo parser
-that produces the `(M, dc)` pair). The user plans to represent the datalog certificate via the
-**Isabelle-Graph-Library** graph representation and interpret a graph locale on it to get that DFS.
-So the executable end-to-end path (and a green `Tree_Decomp_Grounding` top-session build) is on
-hold until that lands. The two grounding pipelines above are the wireable part and are done.
+**~~Still BROKEN~~ — RESOLVED 2026-06-18** (see the top-of-file session note): the **executable
+layer** (`Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Code_Setup`,
+`Running_Example`, `Planner_STRIPS_Export`) was rewired off the removed
+`admissible_exec`/`cert_ops_exec`/`cert_facts`/`certificate` onto the generic `(M, dc)` interface.
+`dl_founded` got an **executable re-check** via the ordered-cert linear scan (`dl_founded_exec`,
+rank = list index — discharged from the SML driver's existing toposort, no DFS needed); the Nemo
+parser/printer produce the `(M, dc)` pair in standard ML. The verified cycle-detecting DFS is left
+as a second, independent refinement (future work). The whole executable layer — including the
+`Running_Example` demo — is now green (2026-06-18).
 
 ## Latest session (2026-06-17) — certificate split, `certified_pddl`, generic datalog evaluator
 
@@ -90,7 +164,7 @@ both minimal-model inclusions, style sweep) that brought the file to 0 sorry is 
   `[OF …]` premise-order breakage — green on first reload. Importers re-pointed:
   `Certified_Grounding_Locales` now `imports PDDL_Reachability_Certificate`; the two
   `\<^theory>` antiquotations in `Grounding_Pipeline_STRIPS_Executable.thy` point at
-  `PDDL_Reachability_Certificate`. ROOT updated. Not committed.
+  `PDDL_Reachability_Certificate`. ROOT updated.
 
 **Retired engine replaced (2026-06-17).** Rather than move the PDDL-specific `semi_naive_eval`,
 the untrusted forward-chaining solver was **deleted** from `Reachability_Analysis.thy` (along with
@@ -103,7 +177,7 @@ total, executable, `[code]` forward-chaining `dl_eval` over the generic clause t
 now keeps **only** the shared PDDL→datalog infra the certificate uses (`as_action_clause`,
 `consequence_of`, `organize_facts`/`in_orga`, `a_clauses`, `init'`, …) and is **0 sorry** — the four
 retired-engine sorries are gone. The two stale `thm` lines in `Grounding_Pipeline_Numeric.thy` were
-removed. All green in jEdit. Not committed.
+removed. All green in jEdit.
 
 **Certified grounding rewired (2026-06-17).** `Certified_Grounding_Locales/Certified_Grounding{,_Semantics}.thy`
 were re-pointed off the removed PDDL certificate datatype onto the **generic** entry point and are now
@@ -127,7 +201,8 @@ cert_facts' cert_ops'` goes through with all 12 obligations discharged.
 ~~Still open: the pipeline entry points still assume `pddl_datalog.admissible`~~ — **DONE**
 (2026-06-17 cont., see the top-of-file note): `Grounding_Pipeline_Numeric.thy` /
 `Grounding_Pipeline_STRIPS.thy` are re-pointed onto `certified_reachability P\<^sub>T M dc` and green.
-What remains is the **executable layer**, blocked on the cycle-detecting DFS for `dl_founded`.
+The **executable layer** (including the `Running_Example` demo) was finished + validated 2026-06-18
+(`dl_founded` via the ordered-cert linear scan, no DFS needed for path 1).
 
 ⚠ **jEdit buffer/disk gotcha** (learned the hard way): never edit an open `.thy` on disk. For a bulk
 reorg, kill jEdit and delete `#*#` autosave + `*.thy~` backup files **before** relaunching, else
@@ -157,14 +232,14 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 | --- | --- | --- |
 | `Tree_Decomp_Grounding_Base` | external deps only (FPS Classical/Continuous, STRIPS+SAT incl. `Solve_SASP`, `Propositional_Proof_Systems`, `Show`); build once, load as frozen jEdit heap | stable |
 | `Tree_Decomp_Grounding_Common` (`Common/`) | editable shared layer: `Formula_Utils` (is_conj/un_and/pos-conj/relax_lit), `DNF` (`dnf_list` + semantics), `Graph_Funs` (`reachable_nodes`, `all_combos`/`chosen_from`), `String_Utils` (fresh-name machinery: `safe_prefix`, `distinct_strings_lit`), `Nat_Show_Utils` (`show_nat_inj`), `Grounding_Utils`, `PDDL_Sema_Supplement` (alt defs, `valid_classical_plan_alt`, `plan_action_enabled`, `ac_tsubst`, wf lemmas), `STRIPS_Sema_Supplement`, `PDDL_Checker_Utils` (reduced to `reveal_error`), `Normalization_Definitions` (restriction/typeless/normalized/relaxed/grounded locale ladder, `achievable`/`applicable`), `Numeric_Free` | 0 sorry |
-| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker. `Datalog_Sema_Supplement.thy` (locale hierarchy `datalog_prog` ⊂ `datalog_universe` ⊂ `positive_datalog_universe`; inductive least-model `datalog_prog.derivable`; AFP `⊨⇩l⇩s⇩t` bridge `derivable_iff_least_solution`) + `Datalog_Certificate.thy` (**index-free** `dl_certificate` = list of `DLRule` ground rules; **set-based** `dl_rule_valid`/`dl_closure_check`/`dl_founded`/`dl_admissible`; `dl_certified_model_correct` = certified facts = `datalog_prog.derivable`; `certified_model_is_least_solution` = AFP least solution) + `Datalog_Evaluation.thy` (**new 2026-06-17**: generic, executable, `[code]` forward-chaining evaluator `dl_eval`, proven **sound** `dl_eval_sound` — the untrusted oracle that produces a candidate model for the checker to validate). **2026-06-14 rework**: was Nemo ograph + indices + list program; cycle-detecting DFS for `dl_founded` + executable refinement + downstream `dl_derivable` re-point are TODO (see `Datalog/HANDOVER.md`) | 0 sorry |
+| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker. `Datalog_Sema_Supplement.thy` (locale hierarchy `datalog_prog` ⊂ `datalog_universe` ⊂ `positive_datalog_universe`; inductive least-model `datalog_prog.derivable`; AFP `⊨⇩l⇩s⇩t` bridge `derivable_iff_least_solution`) + `Datalog_Certificate.thy` (**index-free** `dl_certificate` = list of `DLRule` ground rules; **set-based** `dl_rule_valid`/`dl_closure_check`/`dl_founded`/`dl_admissible`; `dl_certified_model_correct` = certified facts = `datalog_prog.derivable`; `certified_model_is_least_solution` = AFP least solution) + `Datalog_Evaluation.thy` (**2026-06-17**: generic, executable, `[code]` forward-chaining evaluator `dl_eval`, proven **sound** `dl_eval_sound` — the untrusted oracle that produces a candidate model for the checker to validate) + `Datalog_Certificate_Code.thy` (**2026-06-18**: executable refinement `dl_certified_model_exec`, `dl_founded_exec` ordered-cert linear scan, all `[code]`, 0 sorry). **History**: was Nemo ograph + indices; executable refinement + downstream `dl_derivable` re-point now **DONE**; the verified graph topological order / cycle-check for `dl_founded` is planned (`PLAN_datalog_graph.md`, `Datalog/HANDOVER.md`) | 0 sorry |
 | `Type_Normalization` | detype: types → unary predicates (`detype_classical_prob`); `*2` locale hierarchy with `rewrites`-collapsed sublocales; `detyped_valid_iff` | 0 sorry |
 | `Goal_Normalization` | degoal: fresh goal predicate + goal action (`degoal_prob`); `*3` hierarchy; `degoaled_valid_iff` + plan restore | 0 sorry |
 | `Definedness_Normalization` | explicate PNE definedness as reflexive `numericEqAtm` conj-prefix (`explicate_def_prob`); `explicate_valid_iff` | 0 sorry |
 | `Precondition_Normalization` | DNF split, one action per disjunct (`split_prob`, `*4` hierarchy); needs the definedness conj-prefix invariant; `split_valid_iff` + `restore_plan_split_valid` | 0 sorry |
 | `Definedness_Translation` | numeric definedness → fresh `Defined_*` propositional predicates (`def_translate_prob`, `*_dt`); `def_translate_valid_iff` | 0 sorry |
 | `PDDL_Relaxation` | delete relaxation (`relax_prob`, `*_rx` hierarchy with `px` sublocale): `relax_wf/normed/relaxes`, **`relax_achievables` / `relax_applicables`** (the P vs P_R bridge that makes certificate-grounding sound) | 0 sorry |
-| `Reachability_Analysis` | see below | 5 sorries (4 retired-engine + 1 minimal-model core: the reverse direction) |
+| `Reachability_Analysis` | see below | 0 sorry (retired-engine sorries deleted; minimal-model reverse direction proven) |
 | `Grounded_PDDL` | the verified grounder core: `grounder`/`wf_grounder` locales (input: problem + achievable-facts/applicable-ops supersets), fresh nullary fact/op names, `ground_dom/prob_grounded`, `ground_dom/prob_wf`, `ground_enabled_iff`, `valid_classical_plan_iff` / `valid_classical_plan_left` + `restore_ground_pa` plan restoration | 0 sorry |
 | `Tree_Decomp_Grounding` (top, `./ROOT`) | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS`, `Code_Setup`, `Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Planner_STRIPS_Export` (`export_files` → `SMLCodebase/code/`), `Running_Example` | 0 sorry |
 
@@ -239,12 +314,12 @@ Two-layer frozen/editable split, then one session per pipeline stage:
     index-free/set-based rework made it the obsolete path; the semantic relation supersedes it.
   - ✅ **`Certified_Grounding*` rewired (2026-06-17), 0 sorry** onto the generic entry point
     (`dl_certified_model` + `certified_facts_eq_achievable`), feeding `wf_grounder` — see the
-    "Certified grounding rewired" note up top. (The pipeline/executable theories
+    "Certified grounding rewired" note up top. (The pipeline theories
     `Grounding_Pipeline_STRIPS/Numeric.thy` are rewired onto `certified_reachability` and green
-    (2026-06-17 cont.). **Still open**: the executable layer `Planner_STRIPS_*` / `Running_Example`
-    / `Code_Setup` / `Grounding_Pipeline_STRIPS_Executable` / `Planner_STRIPS_Export` still
-    reference the removed `admissible_exec`/`cert_ops_exec`/`cert_facts`/`certificate` — blocked on
-    an executable `dl_founded` (cycle-detecting DFS) + a Nemo `(M,dc)` parser.)
+    (2026-06-17 cont.). The executable layer `Planner_STRIPS_*` / `Code_Setup` /
+    `Grounding_Pipeline_STRIPS_Executable` / `Planner_STRIPS_Export` was rewired onto the generic
+    `(M, dc)` + `dl_certified_model_exec` and is green/validated end-to-end, including the
+    `Running_Example` demo (2026-06-18, see top note).)
   - ✅ **Ops/applicable superset DONE (2026-06-17)** — the direction the grounder needs,
     `px_applicable_super` in `Certified_Grounding.thy`: `{π. px.applicable π} ⊆ set (cert_ops_of M)`,
     where `cert_ops_of M` enumerates ground instances of `a_clauses` whose substituted positive
@@ -293,9 +368,11 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 - `Planner_STRIPS_Export.thy` — `export_code` of the planner + oracle datatypes + AST
   constructors (incl. temporal ones the reused parser mentions) → `SMLCodebase/code/`.
 - `Running_Example.thy` — Helmert-2009-style example; green `value`s through `P⇩T`/`P⇩R`,
-  `dl_program_of`; plus an executable in-Isabelle untrusted oracle `naive_cert` (naive
-  saturation emitting a Nemo-format certificate) with `value` probes for `admissible_exec`,
-  `grounding_checks_exec`, `ground_by_cert`, `ground_via_cert`.
+  `dl_program_of`; plus an executable in-Isabelle untrusted oracle `naive_cert` (naive saturation
+  of `dl_rules R`, emitting the generic `(M, dc)` pair) with `value` probes for
+  `dl_certified_model_exec`, `grounding_checks_exec`, `ground_by_cert`, `ground_via_cert`.
+  **Demo only — not on the verified-binary path; green (2026-06-18).** Fully rewired to `(M, dc)`;
+  the pre-existing bare-`Var` clash was fixed by qualifying the schemas' `Var` → `variable.Var`.
 
 ### SMLCodebase/ (untrusted glue around the exported kernel)
 
@@ -331,9 +408,11 @@ bridge/serialization relocation into what was then `Reachability_Certificate.thy
 visible in `PDDL_Reachability_Locales` with `id.Var`/`id.Cst` capture handled by a `hide_const`.
 `Certified_Grounding*` was rewired onto the generic minimal-model entry point (2026-06-17, 0 sorry —
 see the "Certified grounding rewired" note). `Grounding_Pipeline_STRIPS/Numeric.thy` are now
-rewired onto `certified_reachability` and green (2026-06-17 cont.). The remaining broken consumers
-are the **executable layer** theories (`Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_*`,
-`Code_Setup`, `Running_Example`, `Planner_STRIPS_Export`), blocked on an executable `dl_founded`.
+rewired onto `certified_reachability` and green (2026-06-17 cont.). The **executable layer**
+(`Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_*`, `Code_Setup`, `Planner_STRIPS_Export`,
+and the `Running_Example` demo) was rewired onto the generic `(M, dc)` + `dl_certified_model_exec`
+and is green/validated end-to-end (2026-06-18). **The full `Tree_Decomp_Grounding` top session is
+now consistent.**
 
 ## Refactor — split the certificate theory (DONE 2026-06-17)
 
@@ -364,26 +443,44 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
   `PDDL_Reachability_Certificate`). Extends `num_free_relaxed_problem`, fixes an accepted generic
   certificate (`fixes M dc` + `assumes cert: dl_certified_model (set (dl_rules P)) (set const_names)
   M dc`), exposing `certified_facts_eq_reachable: set M = {f. achievable f}` hypothesis-free.
-- **Certified grounding** — DONE (2026-06-17). `Certified_Grounding*` rewired onto the generic
-  entry point, 0 sorry, `wf_grounder` interpretation discharged; the ops superset
-  `px_applicable_super` reads applicable actions off the certified facts `M`. The pipeline theories
-  `Grounding_Pipeline_STRIPS/Numeric.thy` are now re-pointed onto `certified_reachability P\<^sub>T M dc`
-  and green (2026-06-17 cont.). **Still to do:** the executable layer (`*_Executable`,
-  `Planner_STRIPS_*`, `Code_Setup`, `Running_Example`, `Export`) — blocked on an executable
-  `dl_founded` (the cycle-detecting DFS, planned via the Isabelle-Graph-Library graph locale) and a
-  Nemo parser producing the generic `(M, dc)` pair.
+- **Certified grounding + executable layer** — DONE (2026-06-17 / 2026-06-18). `Certified_Grounding*`
+  rewired onto the generic entry point, 0 sorry, `wf_grounder` interpretation discharged; the ops
+  superset `px_applicable_super` reads applicable actions off the certified facts `M`. The pipeline
+  theories `Grounding_Pipeline_STRIPS/Numeric.thy` are re-pointed onto `certified_reachability P⇩T M dc`
+  and green (2026-06-17 cont.). The **executable layer** (`*_Executable`, `Planner_STRIPS_*`,
+  `Code_Setup`, `Export`, the SML driver) was rewired onto the generic `(M, dc)` +
+  `dl_certified_model_exec` (ordered-cert linear scan for `dl_founded`) and **validates end-to-end**
+  (2026-06-18, see top note). The verified cycle-detecting DFS for `dl_founded` (path 2) is future
+  work below.
+- **`Running_Example.thy` demo — DONE (2026-06-18).** `naive_round`/`naive_sat`/`naive_cert` rewired
+  to saturate `dl_rules R` and return the `(M, dc)` pair; `value` probes + descriptive texts updated
+  to the generic checker. The pre-existing bare-`Var` clash (the 6 action schemas used bare `Var`,
+  which resolved to the AFP datalog `Datalog.id.Var` rather than the PDDL `variable.Var`) was fixed by
+  qualifying every `(Var STR …)` → `(variable.Var STR …)` in the schemas (`term.VAR` left untouched)
+  and removing the dead `hide_const (open) Datalog.id.Var` block. Fully green; the `value` probes
+  evaluate as expected (`dl_certified_model_exec … = True`, `grounding_checks_exec … = True`,
+  `ground_via_cert (λ_. my_cert) … = Some (problem_for …)`, empty-cert dummy `= None`).
+- **Path 2 — graph topological order / cycle-detection for `dl_founded`** (future work; the stronger
+  end-state). **Plan written 2026-06-18 — see [`PLAN_datalog_graph.md`](PLAN_datalog_graph.md).**
+  `dl_founded` is currently discharged by the ordered-cert linear scan (`dl_founded_exec`, rank =
+  list index), which trusts the SML driver's topological order. Path 2 constructs the rank *inside*
+  the kernel: convert the certificate's support relation to the Isabelle-Graph-Library `'a dgraph`
+  (`dl_dep_graph`), prove the purely graph-theoretic `finite E ⟹ (∄p. cycle E p) ⟷ has_top_num E`
+  (the library `cycle`, **not** `cycle'`), and derive `acyclic dep-graph ⟹ dl_founded` — a second
+  refinement onto the same abstract `dl_founded` so the certificate need not carry a trusted order.
+  Uses the directed `cycle`/`awalk` notions (sidestepping `DFS_Cycles`, which is undirected-only); a
+  verified cycle-detecting DFS *producing* the order plugs into the acyclic side afterwards. Two
+  theories to draft (`Graph_Topological_Order`, `Datalog_To_Graph`) in a new `Datalog_Graph/` session.
 - **End state of the certification story**: parse Nemo's ograph directly into the generic
-  `dl_certificate`, export the generic checker, and obtain `admissible_exec` (or directly the
-  reachability requirements via the minimal-model theorems) by theorem — retiring the
-  duplicated PDDL-side check implementations. (SML wiring sketch lived in the now-removed
-  `WIP_datalog_cert_bridge.md`; recover from git history if needed.)
+  `dl_certificate`, export the generic checker, and obtain the reachability requirements via the
+  minimal-model theorems by theorem — retiring the duplicated PDDL-side check implementations. (SML
+  wiring sketch lived in the now-removed `WIP_datalog_cert_bridge.md`; recover from git history if
+  needed.)
 - **Upstreaming**: a `def_translate_code` bundle in `Definedness_Translation_Semantics.thy`
   (the only stage without one) and `padl_lit_code`/`distinct_strings_lit_eq[code]` into
   `Common/String_Utils.thy` — both currently patched in `Code_Setup.thy`.
 - **Base-heap rebuild** (optional, saves ~10 min jEdit warmup): the `Tree_Decomp_Grounding_Base`
   ROOT already preloads `Solve_SASP`; rebuild the heap to freeze it.
-- `Running_Example.thy`'s final subsection ("next step" text) predates `naive_cert` and the
-  SML round-trip — stale comment, tidy when the file is next open.
 - Optional next step on the evaluator: `dl_eval` is proven **sound**; a **completeness**
   theorem (`{f. datalog_prog.derivable …} \<subseteq> set (dl_eval U Pl)`, via the
   `all_head_facts` iteration bound) would upgrade it to exactly the least model. Not needed for
@@ -410,6 +507,9 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
 ## Document map (after the 2026-06-12 cleanup)
 
 - `HANDOVER.md` (this file) — summary + handover.
+- `Datalog/HANDOVER.md` — the `Datalog_Certification` session sub-handoff (kernel internals).
+- `PLAN_datalog_graph.md` — active plan for the Path-2 graph foundation of `dl_founded`
+  (datalog→graph conversion + `acyclic ⟺ topological order`). Fold in + delete when the theories land.
 - `ARCHITECTURE_pipeline.md` — pipeline one-pager. `ARCHITECTURE_datalog_certification.md` —
   certification design.
 - `README.md` — public-facing overview (refreshed). `GUIDANCE.md` — proof-style principles.
@@ -422,3 +522,7 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
   `Documentation/dependencies.md`, and (2026-06-17) `WIP.md`, `WIP_cert_cleanup_and_locales.md`,
   `WIP_datalog_cert_bridge.md`, `WIP_reverse_direction.md` — their work is done; remaining items are
   folded into this handover.
+- Removed 2026-06-18 (never committed; folded into this handover's top note + "Other open work"):
+  `WIP_executable_layer.md` (the executable-layer step-by-step) and
+  `HANDOVER_2026-06-18_executable_layer.md` (the per-session handover) — the executable layer landed
+  and validated end-to-end (including the `Running_Example` demo).

@@ -3,6 +3,7 @@ theory Running_Example
     Grounding_Pipeline_STRIPS_Executable
 begin
 
+
 subsection \<open> Problem Description \<close>
 
 text \<open>
@@ -42,57 +43,57 @@ definition "my_consts \<equiv> [
 
 definition "op_drive \<equiv> SimpleActionSchema
   (ActionHead STR ''drive''
-    [(Var STR ''c'', Either [STR ''Car'']), (Var STR ''from'', Either [STR ''City'']), (Var STR ''to'', Either [STR ''City''])])
+    [(variable.Var STR ''c'', Either [STR ''Car'']), (variable.Var STR ''from'', Either [STR ''City'']), (variable.Var STR ''to'', Either [STR ''City''])])
   (SimpleActionBody
-    (And (Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''c''), term.VAR (Var STR ''from'')]))
-       (Or (Atom (predAtm (Pred STR ''road'') [term.VAR (Var STR ''from''), term.VAR (Var STR ''to'')]))
-           (Atom (predAtm (Pred STR ''road'') [term.VAR (Var STR ''to''), term.VAR (Var STR ''from'')]))))
+    (And (Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''c''), term.VAR (variable.Var STR ''from'')]))
+       (Or (Atom (predAtm (Pred STR ''road'') [term.VAR (variable.Var STR ''from''), term.VAR (variable.Var STR ''to'')]))
+           (Atom (predAtm (Pred STR ''road'') [term.VAR (variable.Var STR ''to''), term.VAR (variable.Var STR ''from'')]))))
     (Effect
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''c''), term.VAR (Var STR ''to'')])]
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''c''), term.VAR (Var STR ''from'')])] []))"
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''c''), term.VAR (variable.Var STR ''to'')])]
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''c''), term.VAR (variable.Var STR ''from'')])] []))"
 definition "op_choochoo \<equiv> SimpleActionSchema
   (ActionHead STR ''choochoo''
-    [(Var STR ''t'', Either [STR ''Train'']), (Var STR ''from'', Either [STR ''City'']), (Var STR ''to'', Either [STR ''City''])])
+    [(variable.Var STR ''t'', Either [STR ''Train'']), (variable.Var STR ''from'', Either [STR ''City'']), (variable.Var STR ''to'', Either [STR ''City''])])
   (SimpleActionBody
-    (And (Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''t''), term.VAR (Var STR ''from'')]))
-       (Or (Atom (predAtm (Pred STR ''rails'') [term.VAR (Var STR ''from''), term.VAR (Var STR ''to'')]))
-           (Atom (predAtm (Pred STR ''rails'') [term.VAR (Var STR ''to''), term.VAR (Var STR ''from'')]))))
+    (And (Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''t''), term.VAR (variable.Var STR ''from'')]))
+       (Or (Atom (predAtm (Pred STR ''rails'') [term.VAR (variable.Var STR ''from''), term.VAR (variable.Var STR ''to'')]))
+           (Atom (predAtm (Pred STR ''rails'') [term.VAR (variable.Var STR ''to''), term.VAR (variable.Var STR ''from'')]))))
     (Effect
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''t''), term.VAR (Var STR ''to'')])]
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''t''), term.VAR (Var STR ''from'')])] []))"
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''t''), term.VAR (variable.Var STR ''to'')])]
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''t''), term.VAR (variable.Var STR ''from'')])] []))"
 (* into has to be Car/Train instead of Vehicle because of the definition of the predicate "in" *)
 definition "op_load \<equiv> SimpleActionSchema
   (ActionHead STR ''load''
-    [(Var STR ''what'', Either [STR ''Parcel'']), (Var STR ''where'', Either [STR ''City'']), (Var STR ''into'', Either [STR ''Car'', STR ''Train''])])
+    [(variable.Var STR ''what'', Either [STR ''Parcel'']), (variable.Var STR ''where'', Either [STR ''City'']), (variable.Var STR ''into'', Either [STR ''Car'', STR ''Train''])])
   (SimpleActionBody
-     (And (Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''into''), term.VAR (Var STR ''where'')]))
-         (Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''where'')])))
+     (And (Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''into''), term.VAR (variable.Var STR ''where'')]))
+         (Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''where'')])))
     (Effect
-      [Atom (predAtm (Pred STR ''in'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''into'')])]
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''where'')])] []))"
+      [Atom (predAtm (Pred STR ''in'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''into'')])]
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''where'')])] []))"
 definition "op_unload \<equiv> SimpleActionSchema
   (ActionHead STR ''unload''
-    [(Var STR ''what'', Either [STR ''Parcel'']), (Var STR ''from'', Either [STR ''Car'', STR ''Train'']), (Var STR ''where'', Either [STR ''City''])])
+    [(variable.Var STR ''what'', Either [STR ''Parcel'']), (variable.Var STR ''from'', Either [STR ''Car'', STR ''Train'']), (variable.Var STR ''where'', Either [STR ''City''])])
   (SimpleActionBody
-     (And (Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''from''), term.VAR (Var STR ''where'')]))
-         (Atom (predAtm (Pred STR ''in'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''from'')])))
+     (And (Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''from''), term.VAR (variable.Var STR ''where'')]))
+         (Atom (predAtm (Pred STR ''in'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''from'')])))
     (Effect
-      [Atom (predAtm (Pred STR ''at'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''where'')])]
-      [Atom (predAtm (Pred STR ''in'') [term.VAR (Var STR ''what''), term.VAR (Var STR ''from'')])] []))"
+      [Atom (predAtm (Pred STR ''at'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''where'')])]
+      [Atom (predAtm (Pred STR ''in'') [term.VAR (variable.Var STR ''what''), term.VAR (variable.Var STR ''from'')])] []))"
 (* btw, this is considered well-formed as long as x is not used in precondition or effects *)
 definition "op_broken \<equiv> SimpleActionSchema
   (ActionHead STR ''broken''
-    [(Var STR ''x'', Either [STR ''n'existe pas''])])
+    [(variable.Var STR ''x'', Either [STR ''n'existe pas''])])
   (SimpleActionBody \<bottom> (Effect [] [] []))"
 (* This operator is only there to demonstrate relaxation of action preconditions, since I couldn't think of anything
   better that would make use of negative preconditions.*)
 definition "op_build_tracks \<equiv> SimpleActionSchema
   (ActionHead STR ''lay_tracks''
-    [(Var STR ''from'', Either [STR ''City'']), (Var STR ''to'', Either [STR ''City''])])
+    [(variable.Var STR ''from'', Either [STR ''City'']), (variable.Var STR ''to'', Either [STR ''City''])])
   (SimpleActionBody
-    (And (Not (Atom (predAtm (Pred STR ''rails'') [term.VAR (Var STR ''from''), term.VAR (Var STR ''to'')])))
-         (Not (Atom (predAtm (Pred STR ''rails'') [term.VAR (Var STR ''to''), term.VAR (Var STR ''from'')]))))
-    (Effect [Atom (predAtm (Pred STR ''rails'') [term.VAR (Var STR ''from''), term.VAR (Var STR ''to'')])] [] []))"
+    (And (Not (Atom (predAtm (Pred STR ''rails'') [term.VAR (variable.Var STR ''from''), term.VAR (variable.Var STR ''to'')])))
+         (Not (Atom (predAtm (Pred STR ''rails'') [term.VAR (variable.Var STR ''to''), term.VAR (variable.Var STR ''from'')]))))
+    (Effect [Atom (predAtm (Pred STR ''rails'') [term.VAR (variable.Var STR ''from''), term.VAR (variable.Var STR ''to'')])] [] []))"
 
 definition "my_funcs \<equiv> []"
 
@@ -205,40 +206,40 @@ value "ast_classical_problem.a_clauses my_P\<^sub>R"
 value "ast_classical_problem.init' my_P\<^sub>R"
 value "dl_program_of my_problem"
 
-text \<open>Codegen probes for the grounding half (dummy empty certificate): \<open>ground_via_cert\<close> with a
-  trivial oracle must reduce to \<^term>\<open>None\<close> (the empty certificate fails \<open>admissible\<close>), and the
+text \<open>Codegen probe for the grounding half (dummy empty model + certificate): \<open>ground_via_cert\<close>
+  with a trivial oracle must reduce to \<^term>\<open>None\<close> (the empty certificate fails
+  \<^const>\<open>dl_certified_model_exec\<close> / \<^const>\<open>grounding_checks_exec\<close>, i.e.\ fails closed), and the
   grounder/STRIPS conversion must itself be code-generable.\<close>
-value "ground_via_cert (\<lambda>_. Cert []) my_problem"
-\<comment> \<open>The next probe bypasses the \<open>admissible\<close> guard and grounds a garbage empty certificate
-  directly, so it raises a runtime \<open>Match\<close> on the degenerate (no-facts/no-ops) input --- not a real
-  code path (\<open>ground_via_cert\<close> returns \<^const>\<open>None\<close>). Kept commented as a codegen reminder.\<close>
-(* value "ast_classical_problem.as_strips (ground_by_cert my_problem (Cert []))" *)
+value "ground_via_cert (\<lambda>_. ([], DLCert [])) my_problem"
 
 subsection \<open>Grounding via a generated certificate\<close>
 
-text \<open>An executable \<^emph>\<open>untrusted\<close> reference oracle: naive datalog saturation over the action
-  clauses of the relaxed problem, recording for every derived fact the indices of the body facts
-  that justify it (the Nemo ograph format, see \<^typ>\<open>certificate\<close>). Nothing here is trusted ---
-  \<^const>\<open>ground_via_cert\<close> re-checks the result via \<^const>\<open>admissible_exec\<close> +
-  \<^const>\<open>grounding_checks_exec\<close>. The construction makes the checks hold: init facts (including
-  the pseudo-init of bodyless clauses) come first with no predecessors; each round fires every
-  \<^const>\<open>ast_classical_problem.pred_clauses\<close> instantiation whose ground body is already present
-  and appends the new consequences, so predecessor indices always point backwards (ordered
-  check), every node records an actual clause firing (local validity), and saturating to a
-  fixpoint gives closure.\<close>
+text \<open>An executable \<^emph>\<open>untrusted\<close> reference oracle (the in-Isabelle analogue of \<open>nemo_driver.sml\<close>):
+  naive datalog saturation of the relaxed problem's datalog program \<^term>\<open>dl_rules R\<close>, returning the
+  generic \<open>(M, dc)\<close> pair --- the derived model \<open>M\<close> and a \<^typ>\<open>(predicate, object) dl_certificate\<close>
+  recording, for each derived fact, the body facts that justify it. Nothing here is trusted ---
+  \<^const>\<open>ground_via_cert\<close> re-checks the result via \<^const>\<open>dl_certified_model_exec\<close> +
+  \<^const>\<open>grounding_checks_exec\<close>. The construction makes the checks hold: each round fires every
+  clause of \<^term>\<open>dl_rules R\<close> at every \<^const>\<open>cls_substs\<close> universe substitution whose ground body is
+  already derived and whose guards hold, appending the new heads with their body facts; bodyless
+  (init) clauses fire first, so every rule's body lies among strictly-earlier heads (foundedness),
+  every node is an actual clause instance (rule validity), and saturating to a fixpoint gives
+  closure --- exactly the obligations of \<^const>\<open>dl_certified_model_exec\<close>.\<close>
 
 definition naive_round where
   "naive_round R ns \<equiv>
      foldl (\<lambda>ns' cl.
-       foldl (\<lambda>ns'' args.
-          (let fs = map cn_fact ns'';
-               body = map (map_atom_fmla (ac_tsubst (cl_params cl) args)) (cl_pred_pre cl)
-           in if set body \<subseteq> set fs \<and> satisfies_conds (cl_params cl) (cl_cond_pre cl) args
-              then ns'' @ map (\<lambda>f. CNode f (map (\<lambda>b. the (find_index b fs)) body))
-                              (remdups (filter (\<lambda>f. f \<notin> set fs) (consequence_of cl args)))
+       foldl (\<lambda>ns'' \<sigma>.
+          (let fs = map fst ns'';
+               body = map (subst_atom \<sigma>) (cls_body_atoms cl);
+               head = subst_atom \<sigma> (the_lh cl)
+           in if set body \<subseteq> set fs
+                 \<and> (\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g)
+                 \<and> head \<notin> set fs
+              then ns'' @ [(head, body)]
               else ns''))
-         ns' (all_combos \<checkmark> (replicate (length (cl_params cl)) (ast_classical_problem.const_names R))))
-       ns (ast_classical_problem.pred_clauses R)"
+         ns' (cls_substs (ast_classical_problem.const_names R) cl))
+       ns (dl_rules R)"
 
 fun naive_sat where
   "naive_sat R 0 ns = ns"
@@ -248,32 +249,31 @@ fun naive_sat where
 
 definition naive_cert where
   "naive_cert R \<equiv>
-     Cert (naive_sat R 1000 (map (\<lambda>f. CNode f []) (remdups (ast_classical_problem.init' R))))"
+     (let ns = naive_sat R 1000 []
+      in (map fst ns, DLCert (map (\<lambda>(h, b). DLRule h b) ns)))"
 
 definition "my_cert \<equiv> naive_cert my_P\<^sub>R"
 
 value "my_cert"
-value "admissible_exec my_P\<^sub>R my_cert"
-value "grounding_checks_exec my_P\<^sub>T my_cert"
+value "dl_certified_model_exec (dl_rules my_P\<^sub>R)
+         (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
+value "grounding_checks_exec my_P\<^sub>T (fst my_cert)"
 
 text \<open>The fully grounded problem: first as nullary propositional PDDL, then as STRIPS via the
   guarded end-to-end entry point (\<^const>\<open>None\<close> would mean the certificate failed the kernel
   re-checks).\<close>
-value "ground_by_cert my_problem my_cert"
+value "ground_by_cert my_problem (fst my_cert)"
 value "ground_via_cert (\<lambda>_. my_cert) my_problem"
 
-subsection \<open>Reachability / grounding by certification (next step)\<close>
+subsection \<open>The real (untrusted) oracle: Nemo via the SML driver\<close>
 
-text \<open>\<open>my_P\<^sub>R\<close> (above) is the normalized, delete-relaxed problem fed to the certification step.
-  The executable oracle \<open>ast_classical_problem.semi_naive_eval my_P\<^sub>R\<close> is \<^emph>\<open>not\<close> code-runnable:
-  its \<open>valuation\<close> drags in \<open>numeric_expression_valuation \<rightarrow> sin \<rightarrow> suminf \<rightarrow> Inf [filter]\<close>
-  (a wellsortedness error \<open>filter :: enum\<close>), even though this numeric-free problem never takes
-  those paths. The certificate route side-steps this: \<open>pddl_datalog.closure_check\<close> /
-  \<open>admissible\<close> validate a (Nemo \<open>ograph\<close>) certificate against the action clauses and facts of
-  \<open>my_P\<^sub>R\<close> directly, without the numeric \<open>valuation\<close>. Next: emit the datalog program for
-  \<open>my_P\<^sub>R\<close>, run Nemo, parse the certificate, and \<open>by eval\<close> the checks, then
-  \<open>grounder.ground_prob my_P\<^sub>T (cert_facts_of \<dots>) (cert_ops_of \<dots>)\<close>. See
-  \<open>WIP_running_example_certification.md\<close>.\<close>
+text \<open>The \<open>naive_cert\<close> oracle above is an in-Isabelle reference saturation. In the deployed planner
+  the model+certificate \<open>(M, dc)\<close> come instead from an external solver (Nemo) through
+  \<open>SMLCodebase/nemo_driver.sml\<close>, which emits the same generic
+  \<^typ>\<open>(predicate, object) dl_certificate\<close>; the verified \<^const>\<open>dl_certified_model_exec\<close> re-check
+  inside \<^const>\<open>ground_via_cert\<close> makes that path fail closed. The compiled
+  \<open>SMLCodebase/bin/pddl_sat_planner\<close> runs the whole chain (Nemo \<open>\<rightarrow>\<close> verified kernel \<open>\<rightarrow>\<close> grounder
+  \<open>\<rightarrow>\<close> SAT \<open>\<rightarrow>\<close> plan reconstruction); by \<open>plan_by_cert_sound\<close> any plan it prints is verified-valid.\<close>
 
 end
 

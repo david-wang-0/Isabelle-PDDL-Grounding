@@ -98,6 +98,7 @@ definition dl_founded :: "('p, 'c) dl_certificate \<Rightarrow> bool" where
              \<and> set (gr_body r) \<subseteq> set (dl_cert_facts c)
              \<and> (\<forall>b \<in> set (gr_body r). rank b < rank f))"
 
+
 definition dl_admissible :: "('p, 'x, 'c) dl_program \<Rightarrow> 'c set \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_admissible P U c \<equiv>
      dl_positive_prog P
@@ -195,6 +196,7 @@ proof -
     using dl_derivable_in_cert[OF cc] by auto
   ultimately show ?thesis using M by auto
 qed
+
 
 text \<open>\<^bold>\<open>Relation to the AFP datalog semantics.\<close> The locale \<open>certified_positive_datalog_model\<close>
   extends the supplement's \<^locale>\<open>positive_datalog_universe\<close> (a \<^emph>\<open>positive\<close>, \<^emph>\<open>safe\<close>,

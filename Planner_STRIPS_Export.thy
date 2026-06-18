@@ -8,7 +8,8 @@ text \<open>Pattern: Formal-PDDL-Semantics \<open>Classical_Planning/Classical_P
   (paired with the \<open>export_files\<close> clause in \<open>./ROOT\<close>; regenerate with
   \<open>isabelle build -e -d . Tree_Decomp_Grounding\<close>, or \<open>make export\<close> in \<open>SMLCodebase/\<close>).
   Exported names: the planner entry points, the oracle-interface datatypes (\<open>dl_program\<close> over the
-  AFP \<open>Stratified_Datalog\<close> clause syntax, plus \<open>certificate\<close>, consumed and produced by
+  AFP \<open>Stratified_Datalog\<close> clause syntax, plus the generic \<open>dl_certificate\<close> = \<open>DLCert\<close> of
+  \<open>DLRule\<close>s, and the model \<open>M\<close> as a \<open>fact list\<close>, consumed and produced by
   \<open>SMLCodebase/nemo_driver.sml\<close>), the integer/string bridges, and the classical subset of the
   PDDL AST constructors needed by the parser glue (\<open>SMLCodebase/pddl_to_isabelle.sml\<close>).
   \<open>id.Var\<close>/\<open>variable.Var\<close> are spelled type-qualified: the AFP \<open>Datalog.id\<close> constructor shadows
@@ -19,7 +20,7 @@ export_code
   reconstruct_plan_by_cert
   DLProgram dl_clauses dl_consts
   Cls id.Var id.Cst Eql Neql PosLit NegLit
-  Cert CNode cert_facts nodes cn_fact cn_preds
+  DLCert DLRule gr_head gr_body
   nat_of_integer integer_of_nat int_of_integer integer_of_int Inl Inr
   Rat.Fract Rat.of_int rat_of_digits_pair
   String.explode String.implode

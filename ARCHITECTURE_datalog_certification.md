@@ -1,14 +1,18 @@
 # Architecture: certificate-based datalog / reachability checking
 
 How the project certifies the result of an *untrusted* datalog engine (Nemo), and how that
-splits into a **generic datalog layer** and a **PDDL-specific layer**. Last updated 2026-06-14.
+splits into a **generic datalog layer** and a **PDDL-specific layer**. Last updated 2026-06-18.
 
-> **2026-06-14 — Layer 1 reworked.** The generic checker (`Datalog_Certification`) moved from the
-> Nemo *ordered-graph* form (predecessor indices) to an **index-free list of grounded rules** with
-> an abstract well-foundedness obligation, and its checks / program / universe are now **set-based**,
-> proven exact against the locale predicate `datalog_prog.derivable`. The PDDL kernel (Layer 2)
-> still uses the ograph form, so the two certificate shapes currently **diverge** — reconciling
-> them is open work (see the bridge note below and `Datalog/HANDOVER.md`).
+> **2026-06-14 — Layer 1 reworked; 2026-06-17 — Layer 2 unified; 2026-06-18 — kernel made
+> executable.** The generic checker (`Datalog_Certification`) moved from the Nemo *ordered-graph*
+> form (predecessor indices) to an **index-free list of grounded rules** with an abstract
+> well-foundedness obligation, and its checks / program / universe are now **set-based**, proven
+> exact against `datalog_prog.derivable`. Layer 2's own ograph certificate datatype was **removed**;
+> both layers now share the *single* generic `(M, dc)` certificate, related purely semantically
+> (`certified_facts_eq_achievable`). The set-based checks were given an executable refinement
+> (`Datalog/Datalog_Certificate_Code.thy`: `dl_certified_model_exec`, `dl_founded` via an ordered-cert
+> linear scan), so the whole kernel is now code-generable. The remaining open item is the stronger
+> Path-2 foundedness story (rank from a verified graph topological order; see `PLAN_datalog_graph.md`).
 
 ## The certification idea
 
@@ -28,8 +32,9 @@ these three checks:
 Nemo *ograph* variant with predecessor indices / `ordered_check` / `local_valid` was removed. Layer 2
 relates PDDL reachability to Layer 1's generic checker *semantically* (the minimal-model identity
 `achievable_eq_minimal_model`), so it inherits Layer 1's checks rather than duplicating them. The
-index-free Layer 1 reconstructs the derivation rank with a topological-sort / DFS — see
-`Datalog/HANDOVER.md`.)
+index-free Layer 1's foundedness rank is currently supplied by the cert's rule order
+(`dl_founded_exec`, an executable linear scan); reconstructing it *inside* the kernel from a verified
+graph topological order is the Path-2 plan — see `PLAN_datalog_graph.md` and `Datalog/HANDOVER.md`.)
 
 The asymmetry matters downstream: the *grounding pipeline's* soundness theorems only need the
 closure (`⊇`) half — an over-approximation of the reachable facts is safe to ground against.
@@ -53,9 +58,12 @@ right-hand sides) and the `all_combos` enumeration utility from
   support), bundled with `dl_positive_prog` into `dl_admissible`; entry point
   `dl_certified_model P U M cert` (admissible + `set M = set (dl_cert_facts cert)`). The program
   `P :: ('p,'x,'c) dl_program` and universe `U :: 'c set` are now **sets**, matching the reference
-  semantics — so the checks are *not* `eval`-executable (∀σ/∃σ over substitutions); an executable
-  list-based refinement, plus a cycle-detecting DFS discharging `dl_founded`, are deferred (see
-  `Datalog/HANDOVER.md`).
+  semantics — so the *abstract* checks are not `eval`-executable (∀σ/∃σ over substitutions). The
+  executable **list-based refinement** is `Datalog/Datalog_Certificate_Code.thy` (`dl_admissible_exec`
+  / `dl_certified_model_exec` over `set Pl` / `set Ul`, with `dl_founded_exec` an ordered-cert linear
+  scan, all `[code]` and proven sound, 0 sorry). A verified cycle-detecting DFS that *constructs* the
+  `dl_founded` rank (rather than trusting the cert's order) is the remaining Path-2 item — see
+  `PLAN_datalog_graph.md`.
 - **Reference semantics**: `datalog_prog.derivable U P f` — an inductive bottom-up least-model
   semantics of a positive program, owned by the **assumption-free** locale `datalog_prog`, with
   substitutions mapping clause variables into the universe set `U`.

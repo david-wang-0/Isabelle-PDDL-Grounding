@@ -11,4 +11,5 @@ session Datalog_Certification = Tree_Decomp_Grounding_Common +
   theories
     Datalog_Sema_Supplement
     Datalog_Certificate
+    Datalog_Certificate_Code
     Datalog_Evaluation

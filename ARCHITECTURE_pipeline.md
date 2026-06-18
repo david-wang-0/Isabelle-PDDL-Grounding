@@ -3,7 +3,7 @@
 One-page summary of the end-to-end pipeline (Helmert-2009-style grounding + SAT planning).
 Details: session layout in `CLAUDE.md`, certification design in
 [ARCHITECTURE_datalog_certification.md](ARCHITECTURE_datalog_certification.md). Last updated
-2026-06-12.
+2026-06-18.
 
 ```text
  PDDL problem P
@@ -13,8 +13,8 @@ Details: session layout in `CLAUDE.md`, certification design in
  P_T  (normalized: typed→unary preds, single goal atom, DNF preconds, numeric-free on the
    │   STRIPS path)
    ├────────────► relax (drop deletes) ──► P_R ──dl_program_of──► Nemo (untrusted)
-   │                                        ▲                        │ certificate (ograph)
-   │              verified kernel re-checks ┘ admissible + grounding checks
+   │                                        ▲                        │ model M + certificate (M, dc)
+   │              verified kernel re-checks ┘ dl_certified_model + grounding checks
    ▼
  ground (wf_grounder, targets P_N = real deletes, pruned by the certified reachable set)
    │
@@ -40,16 +40,17 @@ Details: session layout in `CLAUDE.md`, certification design in
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`), `Planner_STRIPS_Executable.thy` (`plan_by_cert`) | green, `plan_by_cert_sound` 0 sorry |
+| Generic kernel executable refinement | `Datalog/Datalog_Certificate_Code.thy` (`dl_certified_model_exec`) | 0 sorry |
 | Code export + SML harness | `Planner_STRIPS_Export.thy`, `SMLCodebase/` | binary plans the running example |
-| End-to-end demo | `Running_Example.thy` | green; in-Isabelle cert demo WIP |
+| End-to-end demo | `Running_Example.thy` | green; in-Isabelle `(M, dc)` cert demo (`naive_cert`) |
 
 ## Trust story
 
 Two untrusted oracles, both re-checked by verified kernels, so soundness never depends on them:
 
-1. **Reachability (Nemo)** — input is the serialized `dl_program` (transport only); the
-   returned certificate is re-checked (`admissible_exec` + `grounding_checks_exec`) against
-   action clauses the kernel recomputes from the problem itself.
+1. **Reachability (Nemo)** — input is the serialized `dl_program` (transport only); the returned
+   model + certificate `(M, dc)` is re-checked (`dl_certified_model_exec` + `grounding_checks_exec`)
+   against action clauses the kernel recomputes from the problem itself.
 2. **SAT solver** — the decoded plan is re-checked with `is_serial_solution_for_problem`
    after the parallel→serial bridge.
 

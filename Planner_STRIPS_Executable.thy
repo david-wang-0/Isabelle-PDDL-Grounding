@@ -92,9 +92,9 @@ text \<open>End-to-end: ground via the (re-checked) reachability oracle \<open>f
   \<^emph>\<open>original\<close> problem through the verified restoration chain.\<close>
 definition plan_by_cert where
   [code]: "plan_by_cert f g t_max P \<equiv>
-     Option.bind (ground_via_cert' f P) (\<lambda>(cert, PS).
+     Option.bind (ground_via_cert' f P) (\<lambda>(Mdc, PS).
        Option.bind (sat_solve_strips g t_max PS) (\<lambda>ops.
-         Some (reconstruct_plan_by_cert P cert ops)))"
+         Some (reconstruct_plan_by_cert P (fst Mdc) ops)))"
 
 subsection \<open>Soundness\<close>
 
@@ -107,30 +107,42 @@ theorem plan_by_cert_sound:
   assumes "plan_by_cert f g t_max P = Some \<pi>s"
   shows "ast_classical_problem.valid_classical_plan2 P \<pi>s"
 proof -
-  from assms obtain cert PS ops where
-    g1: "ground_via_cert' f P = Some (cert, PS)" and
+  from assms obtain Mdc PS ops where
+    g1: "ground_via_cert' f P = Some (Mdc, PS)" and
     g2: "sat_solve_strips g t_max PS = Some ops" and
-    \<pi>s: "\<pi>s = reconstruct_plan_by_cert P cert ops"
+    \<pi>s: "\<pi>s = reconstruct_plan_by_cert P (fst Mdc) ops"
     unfolding plan_by_cert_def by (auto split: Option.bind_splits)
-  from g1 have rp: "ast_classical_problem.restrict_prob P"
+  obtain M dc where Mdc: "Mdc = (M, dc)" by (cases Mdc)
+  from g1[unfolded Mdc] have
+        rp: "ast_classical_problem.restrict_prob P"
     and wf: "ast_classical_problem.wf_classical_problem P"
-    and adm: "admissible_exec (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) cert"
-    and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) cert"
-    and PS: "PS = ast_classical_problem.as_strips (ground_by_cert P cert)"
-    unfolding ground_via_cert'_def by (auto simp: Let_def split: if_splits)
-  note adm' = admissible_exec_P\<^sub>T[OF rp wf adm]
-  note gc' = grounding_checks_exec_P\<^sub>T[OF rp wf gc]
-  have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P cert"
-    using PS ground_by_cert_strips_eq[OF rp wf adm gc] by simp
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and pnfE: "ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    and certE: "dl_certified_model_exec
+                  (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and PS: "PS = ast_classical_problem.as_strips (ground_by_cert P M)"
+    unfolding ground_via_cert'_def by (auto simp: Let_def split: if_splits prod.splits)
+  have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    by (rule numeric_free_problem_exec[OF pnfE])
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_exec_imp[OF certE])
+  have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule grounding_checks_exec_P\<^sub>T[OF rp wf gc])
+  have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
+    using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
   have valid: "is_valid_problem_strips PS"
-    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF adm' gc' rp wf])
-  have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P cert) ops"
+    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF pnf ne cert gc' rp wf])
+  have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
     using sat_solve_strips_sound[OF valid g2] unfolding PS_cert .
   have "ast_classical_problem.valid_classical_plan2 P
-          (ast_classical_problem.reconstruct_pipeline_plan_cert P cert ops)"
-    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF adm' gc' rp wf serial])
+          (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
+    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF pnf ne cert gc' rp wf serial])
   thus ?thesis
-    unfolding \<pi>s reconstruct_plan_by_cert_eq[OF rp wf adm gc] .
+    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
 qed
 
 end

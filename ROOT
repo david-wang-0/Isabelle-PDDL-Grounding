@@ -4,6 +4,7 @@ session Tree_Decomp_Grounding = Tree_Decomp_Grounding_Common +
   description \<open>An executable grounder for PDDL tasks based on FastDownward system.\<close>
   options [timeout = 900]
   sessions
+	"Datalog_Certification"
 	"Type_Normalization"
 	"Definedness_Normalization"
 	"Goal_Normalization"
