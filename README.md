@@ -67,8 +67,12 @@ generic certificate kernel is fully executable (`Datalog/Datalog_Certificate_Cod
 
 The whole pipeline is wired end-to-end: the `Certified_Grounding*` bridge, both grounding pipelines,
 and the executable layer (`ground_via_cert` / `plan_by_cert` / the SML export) are rewired onto the
-generic `(M, dc)` certificate and verified; the compiled binary plans the running example. The main
-remaining work is the stronger Path-2 foundedness story (construct the rank inside the kernel from a
-verified graph topological order / cycle check, so the certificate needs no trusted order — see
-`PLAN_datalog_graph.md`). See `HANDOVER.md` for the precise inventory and `ARCHITECTURE_pipeline.md` /
-`ARCHITECTURE_datalog_certification.md` for the design.
+generic `(M, dc)` certificate and verified; the compiled binary plans the running example. The
+stronger foundedness story is also done: the `Datalog_Graph` session proves, purely graph-theoretically,
+that a finite directed graph is acyclic iff it has a topological numbering, converts a certificate to
+its support graph, and derives `acyclic (dl_dep_graph c) ⟹ dl_founded c` — wired into the kernel's
+admissibility check (`dl_admissible_via_acyclic`). This gives a second, complementary way to discharge
+foundedness: both are kept, the fast ordered-cert linear scan (`dl_founded_exec`) when the certificate
+carries a trusted order, and the graph/acyclicity path when it does not. The one remaining piece is a
+verified cycle-detecting DFS that *produces* the acyclicity witness. See `HANDOVER.md` for the precise inventory
+and `ARCHITECTURE_pipeline.md` / `ARCHITECTURE_datalog_certification.md` for the design.

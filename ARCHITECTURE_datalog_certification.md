@@ -11,8 +11,10 @@ splits into a **generic datalog layer** and a **PDDL-specific layer**. Last upda
 > both layers now share the *single* generic `(M, dc)` certificate, related purely semantically
 > (`certified_facts_eq_achievable`). The set-based checks were given an executable refinement
 > (`Datalog/Datalog_Certificate_Code.thy`: `dl_certified_model_exec`, `dl_founded` via an ordered-cert
-> linear scan), so the whole kernel is now code-generable. The remaining open item is the stronger
-> Path-2 foundedness story (rank from a verified graph topological order; see `PLAN_datalog_graph.md`).
+> linear scan), so the whole kernel is now code-generable. The stronger **Path-2 foundedness story**
+> (rank from a verified graph topological order) is **DONE** in session `Datalog_Graph` — `acyclic
+> (dl_dep_graph c) ⟹ dl_founded c`, wired into `dl_admissible` via `dl_admissible_via_acyclic`; only a
+> verified cycle-detecting DFS *producing* the order remains.
 
 ## The certification idea
 
@@ -32,9 +34,10 @@ these three checks:
 Nemo *ograph* variant with predecessor indices / `ordered_check` / `local_valid` was removed. Layer 2
 relates PDDL reachability to Layer 1's generic checker *semantically* (the minimal-model identity
 `achievable_eq_minimal_model`), so it inherits Layer 1's checks rather than duplicating them. The
-index-free Layer 1's foundedness rank is currently supplied by the cert's rule order
-(`dl_founded_exec`, an executable linear scan); reconstructing it *inside* the kernel from a verified
-graph topological order is the Path-2 plan — see `PLAN_datalog_graph.md` and `Datalog/HANDOVER.md`.)
+index-free Layer 1's foundedness rank can be supplied either by the cert's rule order
+(`dl_founded_exec`, an executable linear scan) or, **Path-2 (DONE, session `Datalog_Graph`)**,
+reconstructed *inside* the kernel from a verified graph topological order — `acyclic (dl_dep_graph c)
+⟹ dl_founded c` — see `Datalog/HANDOVER.md`.)
 
 The asymmetry matters downstream: the *grounding pipeline's* soundness theorems only need the
 closure (`⊇`) half — an over-approximation of the reachable facts is safe to ground against.
@@ -61,9 +64,10 @@ right-hand sides) and the `all_combos` enumeration utility from
   semantics — so the *abstract* checks are not `eval`-executable (∀σ/∃σ over substitutions). The
   executable **list-based refinement** is `Datalog/Datalog_Certificate_Code.thy` (`dl_admissible_exec`
   / `dl_certified_model_exec` over `set Pl` / `set Ul`, with `dl_founded_exec` an ordered-cert linear
-  scan, all `[code]` and proven sound, 0 sorry). A verified cycle-detecting DFS that *constructs* the
-  `dl_founded` rank (rather than trusting the cert's order) is the remaining Path-2 item — see
-  `PLAN_datalog_graph.md`.
+  scan, all `[code]` and proven sound, 0 sorry). Constructing the `dl_founded` rank *inside* the
+  kernel from support-graph acyclicity (rather than trusting the cert's order) is **Path-2 (DONE,
+  session `Datalog_Graph`)**: `acyclic (dl_dep_graph c) ⟹ dl_founded c` + `dl_admissible_via_acyclic`.
+  Only a verified cycle-detecting DFS *producing* the acyclicity witness remains.
 - **Reference semantics**: `datalog_prog.derivable U P f` — an inductive bottom-up least-model
   semantics of a positive program, owned by the **assumption-free** locale `datalog_prog`, with
   substitutions mapping clause variables into the universe set `U`.

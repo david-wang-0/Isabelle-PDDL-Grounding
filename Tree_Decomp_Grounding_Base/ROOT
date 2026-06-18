@@ -13,6 +13,7 @@ session Tree_Decomp_Grounding_Base = HOL +
     "HOL-Library"
     "Show"
     "Propositional_Proof_Systems"
+    "Directed_Set_Graphs"
   theories [document = false]
     "HOL-Library.Sublist"
     "HOL-Library.List_Lexorder"
@@ -31,3 +32,5 @@ session Tree_Decomp_Grounding_Base = HOL +
     "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
     "Verified_SAT_Based_AI_Planning.SAT_Plan_Extensions"
     "Verified_SAT_Based_AI_Planning.Solve_SASP"
+    "Directed_Set_Graphs.Pair_Graph"
+    "Directed_Set_Graphs.Awalk"

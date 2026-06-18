@@ -232,7 +232,7 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 | --- | --- | --- |
 | `Tree_Decomp_Grounding_Base` | external deps only (FPS Classical/Continuous, STRIPS+SAT incl. `Solve_SASP`, `Propositional_Proof_Systems`, `Show`); build once, load as frozen jEdit heap | stable |
 | `Tree_Decomp_Grounding_Common` (`Common/`) | editable shared layer: `Formula_Utils` (is_conj/un_and/pos-conj/relax_lit), `DNF` (`dnf_list` + semantics), `Graph_Funs` (`reachable_nodes`, `all_combos`/`chosen_from`), `String_Utils` (fresh-name machinery: `safe_prefix`, `distinct_strings_lit`), `Nat_Show_Utils` (`show_nat_inj`), `Grounding_Utils`, `PDDL_Sema_Supplement` (alt defs, `valid_classical_plan_alt`, `plan_action_enabled`, `ac_tsubst`, wf lemmas), `STRIPS_Sema_Supplement`, `PDDL_Checker_Utils` (reduced to `reveal_error`), `Normalization_Definitions` (restriction/typeless/normalized/relaxed/grounded locale ladder, `achievable`/`applicable`), `Numeric_Free` | 0 sorry |
-| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker. `Datalog_Sema_Supplement.thy` (locale hierarchy `datalog_prog` ⊂ `datalog_universe` ⊂ `positive_datalog_universe`; inductive least-model `datalog_prog.derivable`; AFP `⊨⇩l⇩s⇩t` bridge `derivable_iff_least_solution`) + `Datalog_Certificate.thy` (**index-free** `dl_certificate` = list of `DLRule` ground rules; **set-based** `dl_rule_valid`/`dl_closure_check`/`dl_founded`/`dl_admissible`; `dl_certified_model_correct` = certified facts = `datalog_prog.derivable`; `certified_model_is_least_solution` = AFP least solution) + `Datalog_Evaluation.thy` (**2026-06-17**: generic, executable, `[code]` forward-chaining evaluator `dl_eval`, proven **sound** `dl_eval_sound` — the untrusted oracle that produces a candidate model for the checker to validate) + `Datalog_Certificate_Code.thy` (**2026-06-18**: executable refinement `dl_certified_model_exec`, `dl_founded_exec` ordered-cert linear scan, all `[code]`, 0 sorry). **History**: was Nemo ograph + indices; executable refinement + downstream `dl_derivable` re-point now **DONE**; the verified graph topological order / cycle-check for `dl_founded` is planned (`PLAN_datalog_graph.md`, `Datalog/HANDOVER.md`) | 0 sorry |
+| `Datalog_Certification` (`Datalog/`) | **standalone, PDDL-free** generic positive-datalog certificate checker. `Datalog_Sema_Supplement.thy` (locale hierarchy `datalog_prog` ⊂ `datalog_universe` ⊂ `positive_datalog_universe`; inductive least-model `datalog_prog.derivable`; AFP `⊨⇩l⇩s⇩t` bridge `derivable_iff_least_solution`) + `Datalog_Certificate.thy` (**index-free** `dl_certificate` = list of `DLRule` ground rules; **set-based** `dl_rule_valid`/`dl_closure_check`/`dl_founded`/`dl_admissible`; `dl_certified_model_correct` = certified facts = `datalog_prog.derivable`; `certified_model_is_least_solution` = AFP least solution) + `Datalog_Evaluation.thy` (**2026-06-17**: generic, executable, `[code]` forward-chaining evaluator `dl_eval`, proven **sound** `dl_eval_sound` — the untrusted oracle that produces a candidate model for the checker to validate) + `Datalog_Certificate_Code.thy` (**2026-06-18**: executable refinement `dl_certified_model_exec`, `dl_founded_exec` ordered-cert linear scan, all `[code]`, 0 sorry). **History**: was Nemo ograph + indices; executable refinement + downstream `dl_derivable` re-point now **DONE**; the verified graph topological order / cycle-check for `dl_founded` is **DONE** in session `Datalog_Graph` (see that row + `Datalog/HANDOVER.md`) | 0 sorry |
 | `Type_Normalization` | detype: types → unary predicates (`detype_classical_prob`); `*2` locale hierarchy with `rewrites`-collapsed sublocales; `detyped_valid_iff` | 0 sorry |
 | `Goal_Normalization` | degoal: fresh goal predicate + goal action (`degoal_prob`); `*3` hierarchy; `degoaled_valid_iff` + plan restore | 0 sorry |
 | `Definedness_Normalization` | explicate PNE definedness as reflexive `numericEqAtm` conj-prefix (`explicate_def_prob`); `explicate_valid_iff` | 0 sorry |
@@ -242,6 +242,7 @@ Two-layer frozen/editable split, then one session per pipeline stage:
 | `Reachability_Analysis` | see below | 0 sorry (retired-engine sorries deleted; minimal-model reverse direction proven) |
 | `Grounded_PDDL` | the verified grounder core: `grounder`/`wf_grounder` locales (input: problem + achievable-facts/applicable-ops supersets), fresh nullary fact/op names, `ground_dom/prob_grounded`, `ground_dom/prob_wf`, `ground_enabled_iff`, `valid_classical_plan_iff` / `valid_classical_plan_left` + `restore_ground_pa` plan restoration | 0 sorry |
 | `Tree_Decomp_Grounding` (top, `./ROOT`) | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS`, `Code_Setup`, `Grounding_Pipeline_STRIPS_Executable`, `Planner_STRIPS_Executable`, `Planner_STRIPS_Export` (`export_files` → `SMLCodebase/code/`), `Running_Example` | 0 sorry |
+| `Datalog_Graph` (`Datalog_Graph/`, `= Datalog_Certification +`) | **Path-2 foundedness via graphs (2026-06-18)**: `Graph_Topological_Order.thy` (graph-theoretic `acyclic ⟺ has_top_num`, `no_cycle_iff_acyclic`) + `Datalog_To_Graph.thy` (`dl_dep_graph` support-graph conversion; `acyclic ⟹ dl_founded`; `dl_admissible_via_acyclic` kernel integration). Builds on the graph library now in the Base heap | 0 sorry |
 
 ### Reachability_Analysis session in detail
 
@@ -460,17 +461,34 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
   and removing the dead `hide_const (open) Datalog.id.Var` block. Fully green; the `value` probes
   evaluate as expected (`dl_certified_model_exec … = True`, `grounding_checks_exec … = True`,
   `ground_via_cert (λ_. my_cert) … = Some (problem_for …)`, empty-cert dummy `= None`).
-- **Path 2 — graph topological order / cycle-detection for `dl_founded`** (future work; the stronger
-  end-state). **Plan written 2026-06-18 — see [`PLAN_datalog_graph.md`](PLAN_datalog_graph.md).**
-  `dl_founded` is currently discharged by the ordered-cert linear scan (`dl_founded_exec`, rank =
-  list index), which trusts the SML driver's topological order. Path 2 constructs the rank *inside*
-  the kernel: convert the certificate's support relation to the Isabelle-Graph-Library `'a dgraph`
-  (`dl_dep_graph`), prove the purely graph-theoretic `finite E ⟹ (∄p. cycle E p) ⟷ has_top_num E`
-  (the library `cycle`, **not** `cycle'`), and derive `acyclic dep-graph ⟹ dl_founded` — a second
-  refinement onto the same abstract `dl_founded` so the certificate need not carry a trusted order.
-  Uses the directed `cycle`/`awalk` notions (sidestepping `DFS_Cycles`, which is undirected-only); a
-  verified cycle-detecting DFS *producing* the order plugs into the acyclic side afterwards. Two
-  theories to draft (`Graph_Topological_Order`, `Datalog_To_Graph`) in a new `Datalog_Graph/` session.
+- **Path 2 — graph topological order / cycle-detection for `dl_founded`** — **DONE (2026-06-18),
+  session `Datalog_Graph` (own folder, in `ROOTS`), 0 sorry.** This is a *second, complementary*
+  refinement of `dl_founded` — **both discharge paths are kept** (it's efficient): `dl_founded_exec`
+  (ordered-cert linear scan) is the fast O(n) check when the certificate carries a trusted order,
+  while the graph path lets the rank be *constructed* from acyclicity of the support graph when no
+  trusted order is available. Two theories, both `jedit-status`-green:
+  - `Datalog_Graph/Graph_Topological_Order.thy` (parent on the graph library, now in the Base heap):
+    the **purely graph-theoretic** result `finite E ⟹ (∄p. cycle E p) ⟷ has_top_num E` (the library
+    `cycle`, **not** `cycle'`). `has_top_num`/`top_num` (a strictly-increasing vertex numbering);
+    `finite_acyclic_imp_has_top_num` via the strict-predecessor-count witness `card {u. (u,x) ∈ E⁺}`;
+    `no_cycle_iff_acyclic` whose hard direction `not_acyclic_imp_cycle` (closed walk → proper cycle)
+    is proven by `closed_walk_imp_cycle` — strong induction on walk length, peeling the first arc to
+    a strictly-shorter *open* walk and extracting a closed sub-walk via `awalk_not_distinct_decomp`.
+    `acyclic` is surfaced as first-class API (it gives the HOL `trancl`/`wf`/`acyclic` leverage; the
+    `cycle` formulation is the thin equivalent on top).
+  - `Datalog_Graph/Datalog_To_Graph.thy`: the **datalog→graph bridge**. `dl_dep_graph c` (edge
+    `b → f` per supplied rule with head `f`, body fact `b`); `top_num_imp_dl_founded` (a topological
+    numbering *is* a foundedness rank, under the mild `dl_body_closed`); capstones
+    `acyclic_dep_graph_imp_dl_founded` / `no_cycle_dep_graph_imp_dl_founded` /
+    `acyclic_dep_graph_imp_derivable`; and the **kernel-integration** lemmas
+    `dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic` that replace the non-executable
+    `dl_founded` conjunct in `dl_admissible` by support-graph acyclicity — so a future verified
+    cycle-detecting DFS slots straight into `dl_certified_model` → `dl_certified_model_correct`.
+    Documented as *sufficient, not necessary* (the support graph carries edges for *all* rules,
+    while `dl_founded` needs only one per fact). A verified DFS *producing* the order is the only
+    remaining piece; the kernel side is done.
+  - Infra: `Tree_Decomp_Grounding_Base/ROOT` now pulls in `Directed_Set_Graphs` (`Pair_Graph`/`Awalk`
+    baked into the heap) so the datalog + graph theories share one heap.
 - **End state of the certification story**: parse Nemo's ograph directly into the generic
   `dl_certificate`, export the generic checker, and obtain the reachability requirements via the
   minimal-model theorems by theorem — retiring the duplicated PDDL-side check implementations. (SML
@@ -508,8 +526,6 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
 
 - `HANDOVER.md` (this file) — summary + handover.
 - `Datalog/HANDOVER.md` — the `Datalog_Certification` session sub-handoff (kernel internals).
-- `PLAN_datalog_graph.md` — active plan for the Path-2 graph foundation of `dl_founded`
-  (datalog→graph conversion + `acyclic ⟺ topological order`). Fold in + delete when the theories land.
 - `ARCHITECTURE_pipeline.md` — pipeline one-pager. `ARCHITECTURE_datalog_certification.md` —
   certification design.
 - `README.md` — public-facing overview (refreshed). `GUIDANCE.md` — proof-style principles.
@@ -526,3 +542,6 @@ in the now-0-sorry `Reachability_Analysis.thy`. See the top-of-file session note
   `WIP_executable_layer.md` (the executable-layer step-by-step) and
   `HANDOVER_2026-06-18_executable_layer.md` (the per-session handover) — the executable layer landed
   and validated end-to-end (including the `Running_Example` demo).
+- Removed 2026-06-18 (folded into the Path-2 bullet in "Other open work"): `PLAN_datalog_graph.md`
+  — the `Datalog_Graph` theories (`Graph_Topological_Order`, `Datalog_To_Graph`) landed and are
+  green/0-sorry, so the plan is done.

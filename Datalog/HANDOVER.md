@@ -80,18 +80,21 @@ positive_datalog       fixes P + assumes dl_positive_prog P  -- relation to stra
 
 ## Relating `dl_founded` to topological order and PDDL reachability
 
-**Topological order (graph library).** `dl_founded c` is exactly "the support digraph — each fact
-→ the body facts of *one* justifying rule — is acyclic", and the witnessing `rank` is a topological
-numbering of that DAG. **This is now planned in `../PLAN_datalog_graph.md`** (repo-root): convert the
-support relation to the `Isabelle-Graph-Library` `'a dgraph` (`dl_dep_graph`), prove the
-graph-theoretic `finite E ⟹ (∄p. cycle E p) ⟷ has_top_num E` (the **directed** library `cycle`,
-**not** `cycle'`), and derive `has_top_num (dl_dep_graph c) ⟹ dl_founded c`. The target shape is
-exactly `graph_topological_order (support_graph c) rank ⟹ dl_founded c`. **Resolved caveat** (private
-memory `reachability-datalog-plan`): the `DFS_Cycles` development is **undirected-only**, but the plan
-uses the directed `cycle`/`awalk` notions from `Awalk.thy` (via `reachable1_awalk`) plus a
-self-contained `acyclic ⟺ topological order` proof, sidestepping that gap. The interim
-`dl_founded_exec` (ordered-cert linear scan, **shipped** in `Datalog_Certificate_Code.thy`) already
-discharges `dl_founded` by trusting the cert's emit order; the graph path removes that trust.
+**Topological order (graph library) — DONE 2026-06-18 in session `Datalog_Graph` (`../Datalog_Graph/`).**
+`dl_founded c` is exactly "the support digraph — each fact → the body facts of *one* justifying rule
+— is acyclic", and the witnessing `rank` is a topological numbering of that DAG. Implemented in two
+theories: `Graph_Topological_Order.thy` proves the graph-theoretic `finite E ⟹ (∄p. cycle E p) ⟷
+has_top_num E` (the **directed** library `cycle`, **not** `cycle'`; `not_acyclic_imp_cycle` via
+`closed_walk_imp_cycle`, strong induction peeling the first arc + `awalk_not_distinct_decomp`);
+`Datalog_To_Graph.thy` converts the support relation to the `Isabelle-Graph-Library` `'a dgraph`
+(`dl_dep_graph`) and derives `acyclic (dl_dep_graph c) ⟹ dl_founded c`, plus the kernel-integration
+`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`. **Resolved caveat** (private memory
+`reachability-datalog-plan`): `DFS_Cycles` is undirected-only, but we used the directed `cycle`/`awalk`
+notions from `Awalk.thy` (via `reachable1_awalk`) plus a self-contained `acyclic ⟺ topological order`
+proof, sidestepping that gap. **Both discharge paths are kept (efficiency):** `dl_founded_exec`
+(ordered-cert linear scan, in `Datalog_Certificate_Code.thy`) is the fast O(n) check when the cert
+carries a trusted order, and the graph path (`acyclic (dl_dep_graph c) ⟹ dl_founded c`) needs no
+trusted order. **Still open:** only a verified cycle-detecting DFS *producing* the acyclicity witness.
 
 **PDDL reachability.** Certifying a *least model* matters because it is the datalog image of PDDL
 **reachability**: under the relaxation bridge the achievable facts of the relaxed problem are
@@ -105,12 +108,12 @@ the initial facts — precisely an *unreachable* fact in PDDL terms.
 
 ## Pending / next steps
 
-1. **Graph topological order for `dl_founded`** (the stronger, no-trusted-order path). `dl_founded`
-   is a `∃rank` acyclicity witness. The interim `dl_founded_exec` (ordered-cert linear scan, **DONE**
-   in `Datalog_Certificate_Code.thy`) discharges it by trusting the cert's emit order. The next step
-   *constructs* the rank inside the kernel from a verified graph topological order /
-   cycle-check, with `acyclic (dl_dep_graph c) ⟹ dl_founded c`. **Planned in
-   `../PLAN_datalog_graph.md`** (two theories: `Graph_Topological_Order`, `Datalog_To_Graph`).
+1. ~~**Graph topological order for `dl_founded`.**~~ **DONE 2026-06-18** in session `Datalog_Graph`
+   (`../Datalog_Graph/`, two theories `Graph_Topological_Order` + `Datalog_To_Graph`, 0 sorry):
+   `acyclic (dl_dep_graph c) ⟹ dl_founded c` is proven, with `dl_admissible_via_acyclic` slotting it
+   into the kernel's `dl_admissible`/`dl_certified_model`. See the "Relating `dl_founded` to
+   topological order" section above. **Remaining:** a verified cycle-detecting DFS that *produces*
+   the acyclicity witness (so the certificate carries no trusted order at all).
 2. ~~**Executable checker refinement.**~~ **DONE (2026-06-18)** — `Datalog_Certificate_Code.thy`:
    `dl_admissible_exec` / `dl_certified_model_exec` over `set Pl` / `set Ul` with executable
    substitution enumeration (`cls_substs`) and the `cls_substs_tabulate` soundness bridge, all
