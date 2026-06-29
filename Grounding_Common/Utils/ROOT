@@ -1,0 +1,11 @@
+chapter AFP
+
+session Grounding_Utils = Grounding_Light_Base +
+  description \<open>PDDL-free shared utility theories: list/string/show helpers and graph functions.
+    Reusable by any grounder (classical or temporal) and by the datalog/graph branch, which must
+    stay free of the Collections/ODE tower. Depends only on HOL-Library + Show.\<close>
+  theories [document = false]
+    Graph_Funs
+    Grounding_Utils
+    Nat_Show_Utils
+    String_Utils

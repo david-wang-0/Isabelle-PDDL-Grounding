@@ -1,0 +1,16 @@
+chapter AFP
+
+session Datalog_Graph = Datalog_Certification +
+  description \<open>Datalog-to-graph (Path 2 of the certificate foundedness story). First the purely
+    graph-theoretic fact that a finite directed graph has a topological numbering iff it has no
+    (directed) cycle (\<open>Graph_Topological_Order\<close>), then the bridge: convert a datalog certificate to
+    the graph library's \<open>dgraph\<close> support graph and discharge the foundedness obligation
+    \<open>dl_founded\<close> from acyclicity of that graph (\<open>Datalog_To_Graph\<close>). The graph library
+    (Directed_Set_Graphs) is pulled in HERE -- and only here -- so its imperative/Separation_Logic
+    stack never meets the AFP Collections/ODE tower of the PDDL branch.\<close>
+  options [timeout = 600]
+  sessions
+    "Directed_Set_Graphs"
+  theories
+    Graph_Topological_Order
+    Datalog_To_Graph

@@ -1,0 +1,13 @@
+chapter AFP
+
+session Grounding_Classical_Base = Grounding_Base +
+  description \<open>Thin layer loading the Formal-PDDL-Semantics classical PDDL semantics
+    (Classical_Planning, which extends Temporal_Planning) on top of the stable Grounding_Base heap.
+    Because the heavy continuous/ODE tower lives BELOW this layer, an edit to the temporal /
+    classical PDDL semantics in Formal-PDDL-Semantics only re-elaborates these light theories,
+    not the whole Continuous_Planning tower. SAT-free and graph-free. No project-local theories.\<close>
+  sessions
+    "Classical_Planning"
+  theories [document = false]
+    "Classical_Planning.Classical_Happening_Semantics"
+    "Classical_Planning.Classical_PDDL_Checker_Numeric"

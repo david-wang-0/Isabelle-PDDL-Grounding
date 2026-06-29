@@ -1,0 +1,17 @@
+chapter AFP
+
+session Grounding_Light_Base = HOL +
+  description \<open>Light, PDDL-free foundation: HOL-Library and Show only. No PDDL semantics, no
+    graph library, no SAT planner, no Collections/ODE tower. Shared by both the PDDL pipeline
+    branch and the datalog/graph branch (via Grounding_Utils), keeping the two heavy,
+    mutually-incompatible towers (Continuous_Planning/Collections vs the graph library's
+    imperative/Separation_Logic stack) on separate branches.\<close>
+  sessions
+    "HOL-Library"
+    "Show"
+  theories [document = false]
+    "HOL-Library.Sublist"
+    "HOL-Library.List_Lexorder"
+    "HOL-Library.Char_ord"
+    "HOL-Library.Monad_Syntax"
+    "Show.Show_Instances"

@@ -1,0 +1,12 @@
+chapter AFP
+
+session Grounding_Classical_Common = Classical_Grounding_Utils +
+  description \<open>Classical PDDL normalization-property definitions (classical-AST): the
+    type/precondition/relaxation/grounded normalization locales and Numeric_Free, built on the
+    classical utils. Pulls AST-agnostic helpers from Grounding_Common.\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Common"
+  theories
+    Normalization_Definitions
+    Numeric_Free

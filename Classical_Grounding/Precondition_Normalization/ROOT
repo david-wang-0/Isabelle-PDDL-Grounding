@@ -1,0 +1,10 @@
+chapter AFP
+
+session Precondition_Normalization = Grounding_Classical_Common +
+  description \<open>Precondition normalization: rewrite action preconditions into
+    a DNF-friendly shape so each disjunct can be split into its own action.\<close>
+  options [timeout = 900]
+  theories
+    Precondition_Normalization_Locales
+    Precondition_Normalization
+    Precondition_Normalization_Semantics

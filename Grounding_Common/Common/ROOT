@@ -1,0 +1,11 @@
+chapter AFP
+
+session Grounding_Common = Grounding_Base +
+  description \<open>Project-local shared, AST-agnostic PDDL helpers reusable by classical AND temporal
+    grounding: formula utilities and DNF over the shared \<open>atom\<close> type (from Continuous_Planning's
+    Abstract_Syntax) and the propositional-logic library. SAT-free and Classical-free.\<close>
+  options [timeout = 900]
+  theories
+    Formula_Utils
+    DNF
+    Signature_Normalization

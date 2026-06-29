@@ -1,0 +1,18 @@
+chapter AFP
+
+session Datalog_Certification = Grounding_Utils +
+  description \<open>Certified models of positive datalog programs: a generic, PDDL-free checker
+    for Nemo-style ordered-graph certificates, proven exact against the least-model
+    semantics (dl_derivable) of the program, plus a generic forward-chaining evaluator
+    (Datalog_Evaluation) that computes a candidate model for the checker to validate. Built on the
+    light Grounding_Utils heap (no PDDL semantics, no Collections/ODE tower), so the
+    datalog/graph branch stays free of the AFP Collections code-gen tower that the graph library
+    conflicts with.\<close>
+  options [timeout = 600]
+  sessions
+    "Stratified_Datalog"
+  theories
+    Datalog_Sema_Supplement
+    Datalog_Certificate
+    Datalog_Certificate_Code
+    Datalog_Evaluation

@@ -1,0 +1,13 @@
+chapter AFP
+
+session Classical_Grounding_Utils = Grounding_Classical_Base +
+  description \<open>Classical-specific PDDL utility/supplement theories: the PDDL semantic supplement and
+    PDDL checker utilities, built on the classical base. Pulls the AST-agnostic helpers from
+    Grounding_Common / Grounding_Utils.\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Common"
+    "Grounding_Utils"
+  theories
+    PDDL_Sema_Supplement
+    PDDL_Checker_Utils

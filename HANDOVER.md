@@ -138,7 +138,7 @@ both minimal-model inclusions, style sweep) that brought the file to 0 sorry is 
   now enabled.
 - **Style sweep** — every `from`/`with` proof command rewritten to `using`/`hence`/`thus`/`then
   obtain`; `moreover`/`ultimately` on their own lines; `obtain … where` and multi-`and` `have`s
-  reformatted one-fact-per-line. Rules codified in `~/.claude/isabelle.md`.
+  reformatted one-fact-per-line. Rules follow the contributor's Isabelle/HOL working-rules style guide.
 - **Lemma extraction** — `bridge` 187→46 lines (`dcl_vars_subset_params`, `init'_is_predAtom`);
   `dl_derivable_imp_achievable` 200→146 (`satisfies_conds_of_guards`, `ach_of_pred_pre`).
 
@@ -307,8 +307,8 @@ Two-layer frozen/editable split, then one session per pipeline stage:
      `fst M ⊆ fst (execute_plan_action a M)`; plan validity monotone in start state; fold/concatenate
      plans) are all proven.
   - GREEN in jEdit (0 error / 0 `sorry`). REPL note: the `iq` session is NOT on this
-    submodule's path (`Bad theory import iq.iq`); to use the I/R REPL, `repl_connect` with explicit
-    `ir_home=~/bin/AutoCorrode2025-2/ir` (works without adding the import). The old **check-level
+    submodule's path (`Bad theory import iq.iq`); to use the I/R REPL, `repl_connect` with an explicit
+    `ir_home` pointing at the AutoCorrode `ir` backend directory (works without adding the import). The old **check-level
     bridge** (`cert_to_dl`,
     `dl_closure_imp_closure_exec`, `dl_local_valid_imp_local_valid_exec`,
     `dl_admissible_imp_admissible_exec`) was **excised** — the generic checker's 2026-06-14

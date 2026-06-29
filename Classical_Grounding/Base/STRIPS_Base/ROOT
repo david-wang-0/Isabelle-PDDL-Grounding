@@ -1,0 +1,13 @@
+chapter AFP
+
+session Grounding_Base_STRIPS = Grounding_Classical_Base +
+  description \<open>Adds the AFP verified SAT-based planner STRIPS theories on top of the classical
+    base, for the classical-only top session and the PDDL-to-STRIPS translation. Kept OUT of
+    Grounding_Common so the shared/normalization layer stays SAT-free and temporal-reusable.\<close>
+  sessions
+    "Verified_SAT_Based_AI_Planning"
+  theories [document = false]
+    "Verified_SAT_Based_AI_Planning.STRIPS_Representation"
+    "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
+    "Verified_SAT_Based_AI_Planning.SAT_Plan_Extensions"
+    "Verified_SAT_Based_AI_Planning.Solve_SASP"

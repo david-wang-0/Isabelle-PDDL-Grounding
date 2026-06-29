@@ -1,0 +1,25 @@
+chapter AFP
+
+session Grounding_Base = Continuous_Planning +
+  description \<open>Stable, frozen base for the PDDL pipeline: the Continuous_Planning Abstract_Syntax
+    + the propositional-logic library + assorted HOL-Library/Show theories, re-elaborated ONCE on
+    top of the cached Continuous_Planning heap (the heavy HOL-Analysis / ODE tower). Does NOT depend
+    on Temporal_Planning or Classical_Planning, so editing the temporal PDDL semantics in
+    Formal-PDDL-Semantics does not invalidate it -- only the thin Grounding_Classical_Base layer
+    above is rebuilt. SAT-free and graph-free. Contains no project-local theories.\<close>
+  sessions
+    "HOL-Library"
+    "Show"
+    "Propositional_Proof_Systems"
+  theories [document = false]
+    "HOL-Library.Sublist"
+    "HOL-Library.List_Lexorder"
+    "HOL-Library.Char_ord"
+    "HOL-Library.Monad_Syntax"
+    "Show.Show_Instances"
+    "Propositional_Proof_Systems.Sema"
+    "Propositional_Proof_Systems.CNF"
+    "Propositional_Proof_Systems.CNF_Formulas"
+    "Propositional_Proof_Systems.CNF_Sema"
+    "Propositional_Proof_Systems.CNF_Formulas_Sema"
+    "Continuous_Planning.Abstract_Syntax"
