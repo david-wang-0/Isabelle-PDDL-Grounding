@@ -114,5 +114,61 @@ locale grounded_normalized_temporal_problem = grounded_temporal_problem +
 sublocale grounded_normalized_temporal_problem \<subseteq> grounded_normalized_temporal_domain D
   using normed_prob by (unfold_locales) blast
 
+subsection \<open> Positive Temporal PDDL (positive preconditions; keeps deletes) \<close>
+
+text \<open>Positivity only: positive (negation-free conjunctive) preconditions / timed conditions and goal.
+  Unlike the classical \<open>relaxed_\<close> locales this does \<^emph>\<open>not\<close> bundle delete-relaxation (\<open>dels = []\<close>) ---
+  it is the positivity half needed by the temporal NTA reduction, which is the real planning problem
+  and keeps deletes. Built on \<^locale>\<open>wf_ast_temporal_domain\<close> / \<^locale>\<open>wf_ast_temporal_problem\<close>,
+  orthogonal to grounded-ness and normalization, so a consumer can bundle it with
+  \<^locale>\<open>grounded_temporal_problem\<close> independently.\<close>
+
+fun positive_temporal_ac :: "ast_temporal_action_schema \<Rightarrow> bool" where
+  "positive_temporal_ac (SimpleActionSchema h (SimpleActionBody pre eff)) \<longleftrightarrow> is_pos_conj pre"
+| "positive_temporal_ac (DurativeActionSchema h (DurativeActionBody dc cond deff))
+     \<longleftrightarrow> (\<forall>(t, c) \<in> set cond. is_pos_conj c)"
+
+definition (in ast_temporal_domain) "positive_temporal_dom \<equiv>
+  \<forall>a \<in> set (actions D). positive_temporal_ac a"
+
+lemma (in ast_temporal_domain) positive_temporal_domI [intro]:
+  assumes "\<And>a. a \<in> set (actions D) \<Longrightarrow> positive_temporal_ac a"
+  shows positive_temporal_dom
+  using assms unfolding positive_temporal_dom_def by blast
+
+lemma (in ast_temporal_domain) positive_temporal_domD [dest]:
+  "positive_temporal_dom \<Longrightarrow> a \<in> set (actions D) \<Longrightarrow> positive_temporal_ac a"
+  unfolding positive_temporal_dom_def by blast
+
+locale positive_temporal_domain = wf_ast_temporal_domain +
+  assumes positive_temporal_dom: positive_temporal_dom
+
+definition (in ast_temporal_problem) "positive_temporal_prob \<equiv>
+  positive_temporal_dom \<and> is_pos_conj (goal P)"
+
+lemma (in ast_temporal_problem) positive_temporal_probI [intro]:
+  assumes positive_temporal_dom
+    and "is_pos_conj (goal P)"
+  shows positive_temporal_prob
+  using assms unfolding positive_temporal_prob_def by blast
+
+lemma (in ast_temporal_problem) positive_temporal_prob_domD [dest]:
+  "positive_temporal_prob \<Longrightarrow> positive_temporal_dom"
+  unfolding positive_temporal_prob_def by simp
+
+lemma (in ast_temporal_problem) positive_temporal_prob_goalD [dest]:
+  "positive_temporal_prob \<Longrightarrow> is_pos_conj (goal P)"
+  unfolding positive_temporal_prob_def by simp
+
+lemma (in ast_temporal_problem) positive_temporal_prob_acD [dest]:
+  "positive_temporal_prob \<Longrightarrow> a \<in> set (actions D) \<Longrightarrow> positive_temporal_ac a"
+  unfolding positive_temporal_prob_def positive_temporal_dom_def by blast
+
+locale positive_temporal_problem = wf_ast_temporal_problem +
+  assumes positive_temporal_prob: positive_temporal_prob
+
+sublocale positive_temporal_problem \<subseteq> positive_temporal_domain D
+  using positive_temporal_prob positive_temporal_prob_def by (unfold_locales) blast
+
 end
 

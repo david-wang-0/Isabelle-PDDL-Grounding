@@ -6,12 +6,17 @@ out, see `README.md` and `CLAUDE.md`; for design, `ARCHITECTURE_pipeline.md` /
 
 ## Current state
 
-Everything in this development is **`0 sorry` and `jedit-status`-green**. The full pipeline builds
+The **classical** pipeline is **`0 sorry` and `jedit-status`-green**. It builds
 (`isabelle build -d <Isabelle-Graph-Library> -d . Classical_Grounding`), the exported SML binary plans
 the running example, and the payoff theorem `plan_by_cert_sound` (any returned plan is a valid plan of
 the original task, regardless of the two untrusted oracles) is proven. The repo was reorganized into two
 mirrored trees (`Grounding_Common/` reusable + `Classical_Grounding/` classical) with a per-stage
 ladder; that refactor is done and committed.
+
+A sibling **`Temporal_Grounding/`** tree (numeric temporal grounding, grounding-only — no STRIPS) is an
+**in-progress draft**: the normalization-ladder locales are green (including the positivity-only
+`positive_temporal_problem`), but the reachability/relaxation locales are still placeholders and the
+numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
@@ -38,6 +43,20 @@ ladder; that refactor is done and committed.
   (`{f. datalog_prog.derivable …} ⊆ set (dl_eval U Pl)`, via the `all_head_facts` iteration bound) would
   make it exactly the least model. Not needed for trust (the certificate checker validates the oracle's
   output).
+- **Temporal negation-elimination (positive normal form) stage** — *do this last, if ever*; general-PDDL
+  future-proofing, NOT needed for the Gigante benchmark set (which has no negated predicate
+  preconditions). The positivity-only target locale `positive_temporal_problem` already exists in the
+  temporal ladder (`Temporal_Grounding/Common/Temporal_PDDL_Normalization.thy`, positivity-only — keeps
+  deletes); this stage is what would *establish* it for domains that do use negative predicate
+  preconditions. Mirroring FD/TFD `normalize.py`: for each predicate occurring negatively, a fresh
+  complementary `not-p`; init sets it; every effect on `p` mirrors onto `not-p` (in **both**
+  at_start/at_end snap effects); replace `¬p` preconditions — including `over all` invariants — with
+  `not-p`. Semantics-preserving. **Placement: post-grounding** on the nullary ground actions (not
+  pre-grounding like FD): the grounder's reachability is delete-relaxed and monotone, so it already
+  ignores negation — the complements are only needed in the final real-deletes ground problem, where
+  adding `not-p` per *negatively-occurring reachable* ground atom is precise and minimal. Keep negatives
+  out of the *reduction* (its certified mutex / `acts_non_intrf` stays positive) rather than supporting
+  them there.
 
 ## Gotchas (hard-won; keep in mind)
 
