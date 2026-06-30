@@ -3,7 +3,7 @@
 One-page summary of the end-to-end pipeline (Helmert-2009-style grounding + SAT planning).
 Details: session layout in `CLAUDE.md`, certification design in
 [ARCHITECTURE_datalog_certification.md](ARCHITECTURE_datalog_certification.md). Last updated
-2026-06-18.
+2026-06-30 (two-tree + ladder refactor).
 
 ```text
  PDDL problem P
@@ -30,17 +30,20 @@ Details: session layout in `CLAUDE.md`, certification design in
 
 ## Stages and where they live
 
+Theory names below carry the per-stage `Classical_` prefix (the classical half); the reusable half of
+each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md`.
+
 | Stage | Session / theory | Status |
 | --- | --- | --- |
-| Type / goal / precondition / definedness normalization | `Type_Normalization`, `Goal_Normalization`, `Precondition_Normalization`, `Definedness_Normalization`, `Definedness_Translation` | proven plan-preserving |
-| Delete relaxation (monotone reachability) | `PDDL_Relaxation` | proven |
-| Reachability certificate kernel (PDDL-specific) | `Reachability_Analysis/PDDL_Reachability_{Locales,Analysis,Certificate}.thy` (+ shared infra in `Reachability_Analysis.thy`) | 0 sorry |
-| Generic positive-datalog certificate kernel + evaluator | `Datalog/Datalog_Certificate.thy`, `Datalog/Datalog_Evaluation.thy` | 0 sorry |
-| Grounder | `Grounded_PDDL` | fully proven |
+| Type / goal / precondition / definedness normalization | sessions `Classical_Type_Normalization`, `Classical_Goal_Normalization`, `Classical_Precondition_Normalization`, `Classical_Definedness_Normalization`, `Classical_Definedness_Translation` | proven plan-preserving |
+| Delete relaxation (monotone reachability) | `Classical_PDDL_Relaxation` | proven |
+| Reachability certificate kernel (PDDL-specific) | session `Classical_Reachability_Analysis`: `Classical_PDDL_Reachability_{Locales,Analysis,Certificate}.thy` (+ shared infra in `Classical_Reachability_Analysis.thy`) | 0 sorry |
+| Generic positive-datalog certificate kernel + evaluator | session `Datalog_Certification` (`Grounding_Common/Datalog/`): `Datalog_Certificate.thy`, `Datalog_Evaluation.thy` | 0 sorry |
+| Grounder | `Classical_Grounded_PDDL` | fully proven |
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`), `Planner_STRIPS_Executable.thy` (`plan_by_cert`) | green, `plan_by_cert_sound` 0 sorry |
-| Generic kernel executable refinement | `Datalog/Datalog_Certificate_Code.thy` (`dl_certified_model_exec`) | 0 sorry |
+| Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`) | 0 sorry |
 | Code export + SML harness | `Planner_STRIPS_Export.thy`, `SMLCodebase/` | binary plans the running example |
 | End-to-end demo | `Running_Example.thy` | green; in-Isabelle `(M, dc)` cert demo (`naive_cert`) |
 

@@ -46,12 +46,12 @@ with unreachable facts/operators.
 
 ## Layer 1 — generic datalog certification (session `Datalog_Certification`, `Datalog/Datalog_Certificate.thy`)
 
-A **standalone session** (`Datalog/ROOT`, parent `Tree_Decomp_Grounding_Common`, plus
+A **standalone session** (`Grounding_Common/Datalog/ROOT`, parent `Grounding_Utils`, plus
 `Stratified_Datalog`): datalog certification is meaningful and reusable without any planning
 context. Self-contained and **PDDL-free**: imports only the AFP `Stratified_Datalog` clause syntax
 (`('p,'x,'c) clause = Cls head-pred head-args rhs` with `PosLit` / `Eql` / `Neql` / `NegLit`
 right-hand sides) and the `all_combos` enumeration utility from
-`Tree_Decomp_Grounding_Common.Graph_Funs`.
+`Grounding_Utils.Graph_Funs`.
 
 - **Certificate**: `('p,'c) dl_certificate = DLCert (dl_rules: ('p,'c) dl_ground_rule list)`,
   rules `DLRule (gr_head: fact) (gr_body: fact list)` over ground facts

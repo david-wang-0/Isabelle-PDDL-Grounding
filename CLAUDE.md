@@ -6,53 +6,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Do NOT build automatically.** Never run `isabelle build` / `make build` / any compile command while editing files or answering questions, unless the user explicitly asks for a build.
 - **Verify via the `jedit-status` skill, not a batch build.** jEdit only processes the band around the caret + visible viewport, so `get_diagnostics` can report a *false* `0 errors` over an unprocessed tail. The skill forces tail-processing; do not declare a file clean until it reports `fully_processed: true` **and** `consolidated: true`. Fall back to a batch build only if the MCP server is down or the user asks for a clean/heap rebuild.
-- **This is a Git submodule.** `git rev-parse --show-superproject-working-tree` is non-empty. Push with the `push-ssh` skill (explicit SSH URL override); never `git remote set-url` on `origin` — that drifts from the superproject's `.gitmodules`. `origin` is `david-wang-0/Isabelle-PDDL-Grounding`.
+- **Not a submodule.** `git rev-parse --show-superproject-working-tree` is empty (the former superproject is gone). `origin` is `david-wang-0/Isabelle-PDDL-Grounding` and is already an SSH URL, so a plain `git push` goes over SSH.
 
 ## Project Overview
 
 A partially-verified Isabelle/HOL implementation of the PDDL grounder from **Helmert 2009**. It takes a PDDL task, normalizes it, runs reachability analysis to find the achievable facts / applicable operators, grounds the task to a nullary purely-propositional task, and converts the result to STRIPS (the AFP `Verified_SAT_Based_AI_Planning` input format). Every stage is proven well-formedness- and plan-preserving on the classical pair-world-model PDDL semantics.
 
-Built on two AFP entries: **AI_Planning_Languages_Semantics** (PDDL input) and **Verified_SAT_Based_AI_Planning** (STRIPS output). The PDDL/Continuous semantics actually used come from the sibling **Formal-PDDL-Semantics** submodule (sessions `Classical_Planning`, `Continuous_Planning`), registered as Isabelle components by the superproject's `make register-components`.
+The PDDL semantics (input) come entirely from the sibling **Formal-PDDL-Semantics** repo (sessions `Classical_Planning`, `Continuous_Planning`) — which **supersedes** the older AFP `AI_Planning_Languages_Semantics` entry — and must be registered as Isabelle components. STRIPS output targets the AFP **Verified_SAT_Based_AI_Planning** entry. The **Isabelle-Graph-Library** (`Directed_Set_Graphs`, needed only by `Datalog_Graph`) is supplied on the command line via `-d`.
 
-> `HANDOVER.md` (repo root) is the full repository summary + handover: per-session contents, the exact sorry inventory, gotchas, and the ordered next-steps list. `README.md` was refreshed to the current layout (2026-06-12); the ROOT files remain authoritative.
+> `HANDOVER.md` (repo root) is a short pick-up note for **incomplete work** — current open items + gotchas, not documentation. The `ROOT`/`ROOTS` files are authoritative for the current layout.
 
 ## Session Architecture
 
-This is a multi-session AFP-style development. `ROOTS` lists every sub-session directory; each has its own `ROOT`. The dependency spine is a **two-layer frozen/editable split**:
+This is a multi-session AFP-style development laid out as **two mirrored trees** under the repo root, plus `ROOTS` and the docs. `ROOTS` lists every session directory; each has its own `ROOT`.
 
-- **`Tree_Decomp_Grounding_Base`** (`Tree_Decomp_Grounding_Base/ROOT`, `= HOL +`) — external/library dependencies only (AFP PDDL Classical/Continuous semantics, the STRIPS theories, `Propositional_Proof_Systems`, `HOL-Library`, `Show`). No project-local theories. Build it once and load it in jEdit as a **stable prebuilt heap**; it is then frozen — you cannot add imports (e.g. `iq.iq`) to anything in it at runtime.
-- **`Tree_Decomp_Grounding_Common`** (`Common/ROOT`, `= Tree_Decomp_Grounding_Base +`) — the **editable** shared layer: formula/graph/string/show utilities, PDDL/STRIPS semantic supplements, DNF, and `Normalization_Definitions` / `Numeric_Free`. Everything else builds on top of this.
+- **`Grounding_Common/`** — the **reusable**, Classical-free spine (usable by classical *and* a future temporal grounder).
+- **`Classical_Grounding/`** — the **classical** grounder built on top of it.
 
-On top of `Common`, each pipeline stage is its **own session** (`= Tree_Decomp_Grounding_Common +`):
+Stage directories keep a plain name (e.g. `Type_Normalization/`), but the session/theories *inside* a classical stage dir carry the `Classical_` prefix; the reusable session in the mirrored dir under `Grounding_Common/` does not.
 
-| Session | Role |
+### Base spine (3-tier: continuous-isolation + light-datalog + SAT-free)
+
+- **`Grounding_Light_Base`** (`= HOL +`) — `HOL-Library` + `Show`; the light root for the PDDL-free utility/datalog branch.
+- **`Grounding_Base`** (`= Continuous_Planning +`) — the **frozen heavy heap** (FPS `Continuous_Planning`, `Continuous_Planning.Abstract_Syntax`, `Propositional_Proof_Systems`). Build once and load in jEdit as a prebuilt heap; frozen at runtime.
+- **`Grounding_Classical_Base`** (`= Grounding_Base +`) — thin classical layer (`Classical_Planning` happening semantics + numeric checker).
+- **`Grounding_Base_STRIPS`** (`= Grounding_Classical_Base +`) — the AFP SAT planner (`Verified_SAT_Based_AI_Planning`); SAT lives **only** here.
+
+### Reusable tree — `Grounding_Common/` (Classical-free)
+
+| Session (dir) | Contents |
 |---|---|
-| `Datalog_Certification` (`Datalog/`) | standalone, PDDL-free positive-datalog certificate checker (proven against its least-model semantics `dl_derivable`) plus a generic, executable, sound forward-chaining evaluator (`Datalog_Evaluation.dl_eval`) |
-| `Type_Normalization` | detype — encode type membership as unary predicates |
-| `Goal_Normalization` | rewrite the goal (runs before definedness, no definedness invariant) |
-| `Precondition_Normalization` | DNF-friendly preconditions, one disjunct → one action |
-| `Definedness_Normalization` | conjoin reflexive numeric equalities so every DNF disjunct carries the full atom set |
-| `Definedness_Translation` | translate numeric definedness into propositional predicates |
-| `PDDL_Relaxation` | delete-relaxation (drop negative effects) so reachability is monotone |
-| `Reachability_Analysis` | PDDL datalog-**certificate** kernel: shared PDDL→datalog infra (`Reachability_Analysis.thy`) + the `PDDL_Reachability_{Locales,Analysis,Certificate}.thy` development (reachability = minimal model of the translated program; `certified_pddl` grounding-input locale) that feeds the grounder. The untrusted forward-chaining oracle is now the generic `Datalog_Evaluation` |
-| `Grounded_PDDL` | the verified grounder core (fully proven, `0 sorry`) |
+| `Grounding_Utils` (`Utils/`) | PDDL-free utilities: `Graph_Funs`, `Grounding_Utils`, `Nat_Show_Utils`, `String_Utils` |
+| `Grounding_Common` (`Common/`) | AST-agnostic PDDL helpers: `Formula_Utils`, `DNF`, `PDDL_Normalization` (signature locales), `PDDL_Sema_Supplement` (reusable PDDL-semantics + signature supplements + wf-covariance) |
+| `Datalog_Certification` (`Datalog/`), `Datalog_Graph` (`Datalog_Graph/`) | standalone PDDL-free positive-datalog certificate checker + sound forward-chaining evaluator (`Datalog_Evaluation.dl_eval`); the graph-lib (`Directed_Set_Graphs`) is isolated to `Datalog_Graph` |
+| `Grounding_<Stage>` (`<Stage>/`) | the AST-agnostic half of each pipeline stage (e.g. `Grounding_Type_Normalization`: `Type_Normalization`, `Type_Normalization_Proofs`) |
 
-The top session **`Tree_Decomp_Grounding`** (`./ROOT`, `= Tree_Decomp_Grounding_Common +`) pulls in all the stage sessions and wires them together via the top-level theories: `Grounding_Pipeline_Numeric` (with-numerics path, green), `Grounding_Pipeline_STRIPS` (numeric-free path to STRIPS), `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, and `Running_Example` (end-to-end demo).
+### Classical tree — `Classical_Grounding/`
+
+| Session (dir) | Contents |
+|---|---|
+| `Classical_Grounding_Utils` (`Utils/`) | classical PDDL supplements: `Classical_PDDL_Sema_Supplement`, `PDDL_Checker_Utils` |
+| `Grounding_Classical_Common` (`Common/`) | `Classical_PDDL_Normalization`, `Numeric_Free` |
+| `Classical_<Stage>` (`<Stage>/`) | each stage's classical-AST half: `Classical_<Stage>_Locales`, `Classical_<Stage>`, `Classical_<Stage>_Semantics` |
+| `Classical_Grounding` (top, `./ROOT`) | the pipelines (`Grounding_Pipeline_Numeric`/`_STRIPS`), `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS`, `Code_Setup`, `Planner_STRIPS_*`, `Running_Example` |
+
+Pipeline stages, in order: **Type_Normalization** (detype → unary predicates) → **Goal_Normalization** → **Precondition_Normalization** (DNF-friendly, one disjunct → one action) → **Definedness_Normalization** → **Definedness_Translation** (numeric definedness → propositional predicates) → **PDDL_Relaxation** (delete-relaxation, monotone reachability) → **Reachability_Analysis** (the PDDL→datalog **certificate** kernel feeding the grounder) → **Grounded_PDDL** (the verified grounder core, `0 sorry`).
 
 ### Two recurring code patterns
 
-1. **Three-file per stage.** Each normalization stage ships `X_Locales.thy` (the abstract locale + sig constants and assumptions), `X.thy` (the executable implementation), and `X_Semantics.thy` (the plan-equivalence / well-formedness proofs). Stages compose via `sublocale` with rewrites that fold one stage's signature constants onto the next.
+1. **The ladder (reusable / classical columns per stage).** Each stage has a reusable column in `Grounding_<Stage>` (bare-named theories: signature/formula-level defs + proofs) and a classical column in `Classical_<Stage>` (`Classical_`-prefixed theories carrying the classical AST). A theory imports its predecessor *in its own column* plus its *common equivalent* across the columns. Classical stages still ship `Classical_X_Locales` (the abstract locale + sig constants/assumptions), `Classical_X` (the executable impl + proofs), and `Classical_X_Semantics` (plan-equivalence / well-formedness); stages compose via `sublocale` rewrites that fold one stage's signature constants onto the next.
 2. **Certified reachability, not trusted reachability.** The reachability oracle (the generic `Datalog_Evaluation.dl_eval`, or an external solver) is *untrusted*; correctness flows through a datalog certificate that the verified checker validates, with PDDL reachability related to the certificate's minimal model purely semantically (`certified_facts_eq_achievable`). The grounder is targeted at the real-deletes problem `P_N` (via the relaxation bridge), **not** the relaxed over-approximation `P_R` — grounding the over-approximation directly would be unsound. See `ARCHITECTURE_datalog_certification.md`.
 
 ## Building (when explicitly asked)
 
-There is **no Makefile in this submodule** — builds run through `isabelle build` or, more usually, the superproject's `make`. The external dependency sessions (AFP entries, `Formal-PDDL-Semantics`) must be registered as components first (superproject `make register-components`). Then a given session builds with:
+There is **no Makefile** here. The FPS sibling (`Continuous_Planning`/`Classical_Planning`) and the AFP entries must be registered as Isabelle components first; the **Isabelle-Graph-Library** is supplied on the command line. Then a session builds with:
 
 ```bash
-isabelle build -d . <Session>      # e.g. Grounded_PDDL, or Tree_Decomp_Grounding for the whole pipeline
+isabelle build -d <Isabelle-Graph-Library> -d . <Session>   # e.g. Classical_Grounding for the whole pipeline
 ```
 
-`Tree_Decomp_Grounding_Base` is the expensive heap (heavy `Continuous_Planning` theories); build it once, keep it as a warm heap, and develop the `Common`-and-above sessions on top. Per the Critical Rules, prefer `jedit-status` over rebuilding.
+`Grounding_Base` is the expensive heap (heavy `Continuous_Planning` theories); build it once, keep it warm, and develop the `Grounding_Common`-and-above sessions on top (jEdit is usually launched with `-l Grounding_Classical_Common` so the stages/pipeline process live). Per the Critical Rules, prefer `jedit-status` over rebuilding.
 
 ## Proof Development (MCP server)
 
@@ -68,7 +81,6 @@ Always develop in Isabelle/jEdit. The Isabelle/Q MCP server (`mcp__isabelle__*`)
 
 - When a `.thy` is **open in jEdit**, mutate it through `mcp__isabelle__write_file` (edits the buffer + reprocesses). Do **not** mix disk `Edit`/`Write` with `write_file` on the same open file — the buffer flush clobbers disk-only edits. `Edit`/`Write` are fine for ROOT/ROOTS, new files before first open, and bulk syntactic renames (then `open_file` to refresh).
 - Write Isabelle symbols as **ASCII escapes** (`\<subseteq>`, `\<Rightarrow>`, `\<open>`, `\<close>`), never raw Unicode glyphs.
-- `iq.iq` is a **development-only** import (pulls in `Isar_Explore`, needed for `explore` / `get_proof_context` live goal state). It must never land in a commit. Keep it on its own import line; the per-repo strip hook lives in the *Formal-PDDL-Semantics* submodule, **not here**, so in this repo remove it by hand before committing.
 
 In specs and locale assumptions prefer bounded `\<forall>x \<in> set xs. P x` over `list_all` (keep `list_all` only on executable/`[code]` paths). Use `(in -)` only inside an open `context`/`locale` block, never at theory top level. See `GUIDANCE.md` for the underlying philosophy (surgical Isar, `sorry`-then-fill, hoist complex subgoals into named lemmas).
 

@@ -8,9 +8,9 @@ datalog engine + verified certificate checker) → ground → convert to STRIPS 
 
 ## Dependencies
 
-- **Formal-PDDL-Semantics** (sibling submodule, sessions `Classical_Planning` /
-  `Continuous_Planning`): the classical PDDL semantics used throughout, plus the PDDL parser
-  reused by the SML harness
+- **Formal-PDDL-Semantics** (sibling repo, sessions `Classical_Planning` /
+  `Continuous_Planning`): the classical PDDL semantics used throughout (this supersedes the older
+  AFP `AI_Planning_Languages_Semantics` entry), plus the PDDL parser reused by the SML harness
 - [Verified_SAT_Based_AI_Planning](https://www.isa-afp.org/entries/Verified_SAT_Based_AI_Planning.html):
   propositional STRIPS (the output format) and the verified SATPlan encoding
 - [Stratified_Datalog](https://www.isa-afp.org/entries/Stratified_Datalog.html): the datalog
@@ -18,35 +18,32 @@ datalog engine + verified certificate checker) → ground → convert to STRIPS 
 
 ## Layout
 
+The repo is two mirrored trees: a reusable, Classical-free `Grounding_Common/` and the classical
+grounder `Classical_Grounding/` built on top of it. Stage directories keep a plain name; the session
+and theories inside the classical half carry a `Classical_` prefix, the reusable half does not.
+
 ```text
 Repository
-├── ROOT, ROOTS  - - - - - - - - - - Isabelle session definitions (one session per stage)
-├── Tree_Decomp_Grounding_Base/  - - external/library dependencies (prebuilt heap)
-├── Common/  - - - - - - - - - - - - shared foundation: PDDL semantics supplement,
-│                                    normalization definitions, formula/graph/string utilities
-├── Datalog/ - - - - - - - - - - - - standalone session Datalog_Certification: generic,
-│                                    PDDL-free certificate checker + forward-chaining evaluator
-│                                    (Datalog_Evaluation) for positive datalog
-├── Type_Normalization/  - - - - - - \
-├── Goal_Normalization/              |
-├── Definedness_Normalization/      |  the normalization pipeline steps, each its own session
-├── Precondition_Normalization/      |  (detype, degoal, definedness explication, DNF split,
-├── Definedness_Translation/         |  definedness translation, delete relaxation)
-├── PDDL_Relaxation/ - - - - - - - -/
-├── Reachability_Analysis/ - - - - - PDDL reachability-certificate kernel: shared PDDL→datalog
-│                                    infrastructure (Reachability_Analysis.thy) + the
-│                                    PDDL_Reachability_{Locales,Analysis,Certificate}.thy
-│                                    development (reachability = minimal model of the translated
-│                                    program; certified_pddl grounding-input locale)
-├── Grounded_PDDL/ - - - - - - - - - the verified grounder core (fully proven)
-├── PDDL_to_STRIPS/  - - - - - - - - conversion of the grounded task to STRIPS + plan restoration
-├── Grounding_Pipeline_Numeric.thy - pipeline wiring (with numerics, up to the grounded task)
-├── Grounding_Pipeline_STRIPS.thy  - numeric-free specialization down to STRIPS
-├── *_Executable.thy, Code_Setup.thy executable entry points (ground_via_cert, plan_by_cert)
-├── Planner_STRIPS_Export.thy  - - - SML code export
-├── SMLCodebase/ - - - - - - - - - - compiled planner binary + untrusted oracle drivers (Nemo,
-│                                    external SAT solver), reusing the Formal-PDDL-Semantics parser
-└── Running_Example.thy  - - - - - - a full project demonstration
+├── ROOTS, *.md - - - - - - - - - - - session list + docs (README, HANDOVER, ARCHITECTURE_*, GUIDANCE)
+├── Grounding_Common/  - - - - - - - - REUSABLE, Classical-free tree (reusable by a future temporal grounder)
+│   ├── Base/  - - - - - - - - - - - - Grounding_Light_Base (= HOL +) and Grounding_Base (frozen heavy heap)
+│   ├── Utils/  - - - - - - - - - - - - PDDL-free utilities (Graph_Funs, Grounding_Utils, String_Utils, ...)
+│   ├── Common/  - - - - - - - - - - - Formula_Utils, DNF, PDDL_Normalization, PDDL_Sema_Supplement
+│   ├── Datalog/, Datalog_Graph/  - - - PDDL-free datalog certificate checker + evaluator (graph-lib isolated)
+│   └── <stage>/  - - - - - - - - - - - the AST-agnostic half of each pipeline stage (session Grounding_<stage>)
+├── Classical_Grounding/  - - - - - - - the CLASSICAL grounder, built on Grounding_Common/
+│   ├── Base/  - - - - - - - - - - - - Grounding_Classical_Base and Grounding_Base_STRIPS (SAT lives only here)
+│   ├── Utils/, Common/  - - - - - - - Classical_PDDL_Sema_Supplement, PDDL_Checker_Utils;
+│   │                                  Classical_PDDL_Normalization, Numeric_Free
+│   ├── <stage>/  - - - - - - - - - - - each stage's classical half: Classical_<stage>{_Locales,,_Semantics}
+│   │                                  (Type/Goal/Precondition/Definedness_Normalization,
+│   │                                   Definedness_Translation, PDDL_Relaxation, Reachability_Analysis, Grounded_PDDL)
+│   ├── PDDL_to_STRIPS/  - - - - - - - conversion of the grounded task to STRIPS + plan restoration
+│   ├── Grounding_Pipeline_{Numeric,STRIPS}.thy  pipeline wiring (with numerics / numeric-free to STRIPS)
+│   ├── Code_Setup.thy, *_Executable.thy, Planner_STRIPS_Export.thy  executable entry points + SML export
+│   ├── SMLCodebase/ - - - - - - - - - compiled planner binary + untrusted oracle drivers (Nemo, SAT solver),
+│   │                                  reusing the Formal-PDDL-Semantics parser
+│   └── Running_Example.thy  - - - - - a full project demonstration
 ```
 
 ## Status
