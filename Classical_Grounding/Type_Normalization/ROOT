@@ -5,6 +5,8 @@ session Type_Normalization = Grounding_Classical_Common +
     type membership as unary predicates, so downstream steps can assume a
     typeless signature.\<close>
   options [timeout = 900]
+  sessions
+    "Grounding_Type_Normalization"
   theories
     Type_Normalization_Locales
     Type_Normalization

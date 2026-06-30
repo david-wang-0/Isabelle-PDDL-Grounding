@@ -2,6 +2,13 @@ Grounding_Common/Base/Light_Base
 Grounding_Common/Base/Base
 Grounding_Common/Utils
 Grounding_Common/Common
+Grounding_Common/Type_Normalization
+Grounding_Common/PDDL_Relaxation
+Grounding_Common/Definedness_Translation
+Grounding_Common/Grounded_PDDL
+Grounding_Common/Goal_Normalization
+Grounding_Common/Definedness_Normalization
+Grounding_Common/Reachability_Analysis
 Grounding_Common/Datalog
 Grounding_Common/Datalog_Graph
 Classical_Grounding/Base/Classical_Base

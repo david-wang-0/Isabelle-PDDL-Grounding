@@ -8,6 +8,7 @@ session Reachability_Analysis = Grounding_Classical_Common +
   options [timeout = 900]
   sessions
     "Datalog_Certification"
+    "Grounding_Reachability_Analysis"
     "Grounded_PDDL"
     "PDDL_Relaxation"
   theories

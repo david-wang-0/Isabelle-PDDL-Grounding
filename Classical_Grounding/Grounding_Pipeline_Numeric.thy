@@ -308,7 +308,7 @@ lemma goal_norm_preserves_typeless_gen:
   unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
     domain_signature.typeless_domain_signature_def
     Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel Goal_Normalization_Locales.ast_classical_problem.degoal_dom_sel
-  unfolding Goal_Normalization_Locales.domain_signature.goal_pred_decl_def
+  unfolding Goal_Normalization_Pred.domain_signature.goal_pred_decl_def
     Goal_Normalization_Locales.ast_classical_domain.goal_ac_def by auto
 
 lemma explicate_def_preserves_typeless_gen:
@@ -370,7 +370,7 @@ theorem normalization_normalizes:
     Definedness_Normalization_Locales.ast_classical_problem.explicate_def_prob_sel(4)
     Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel(4))
   apply (unfold explicate_def_fmla_def)
-  apply (unfold Definedness_Normalization_Locales.definedness_atoms_def)
+  apply (unfold Definedness_Normalization_Explicate.definedness_atoms_def)
   by simp
   
 

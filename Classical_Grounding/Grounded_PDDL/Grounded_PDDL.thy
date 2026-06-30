@@ -3,7 +3,7 @@ imports "Classical_Planning.Classical_Abstract_Syntax"
     Classical_Grounding_Utils.PDDL_Sema_Supplement
     Grounding_Classical_Common.Normalization_Definitions
     Grounding_Utils.Grounding_Utils
-    Grounding_Utils.String_Utils
+    Grounding_Utils.String_Utils Grounding_Grounded_PDDL.Grounded_PDDL_Covered
 begin
 
 type_synonym facty = "object atom formula"
@@ -145,37 +145,6 @@ abbreviation restore_ground_plan :: "ast_classical_plan_action list \<Rightarrow
 
 end
 
-text \<open>A formula is \<open>covered\<close> by \<open>facts\<close> if every predicate atom occurring in it is one of the
-  achievable \<open>facts\<close>, and it contains no numeric atoms (only predicate atoms and equalities). The
-  latter restriction is what makes \<open>ground_fmla\<close> sound: the grounded output is purely
-  propositional, so a numeric atom could not be faithfully grounded.\<close>
-definition "covered \<phi> facts \<equiv> \<forall>a \<in> atoms \<phi>.
-  (case a of predAtm p xs \<Rightarrow> Atom (predAtm p xs) \<in> set facts
-           | eqAtm x y \<Rightarrow> True
-           | _ \<Rightarrow> False)"
-
-lemma covered_atoms:
-  assumes "covered \<phi> facts" "a \<in> atoms \<phi>"
-  shows "(\<exists>p xs. a = predAtm p xs \<and> Atom a \<in> set facts) \<or> (\<exists>x y. a = eqAtm x y)"
-  using assms unfolding covered_def by (cases a) auto
-
-lemma covered_predAtm_mem:
-  assumes "covered \<phi> facts" "predAtm p xs \<in> atoms \<phi>"
-  shows "Atom (predAtm p xs) \<in> set facts"
-  using assms unfolding covered_def by (auto split: atom.splits)
-
-lemma covered_mono:
-  assumes "covered \<phi> facts" "atoms \<psi> \<subseteq> atoms \<phi>"
-  shows "covered \<psi> facts"
-  using assms unfolding covered_def by blast
-
-lemma covered_simps[simp]:
-  "covered \<bottom> facts"
-  "covered (\<^bold>\<not> \<phi>) facts \<longleftrightarrow> covered \<phi> facts"
-  "covered (\<phi> \<^bold>\<and> \<psi>) facts \<longleftrightarrow> covered \<phi> facts \<and> covered \<psi> facts"
-  "covered (\<phi> \<^bold>\<or> \<psi>) facts \<longleftrightarrow> covered \<phi> facts \<and> covered \<psi> facts"
-  "covered (\<phi> \<^bold>\<rightarrow> \<psi>) facts \<longleftrightarrow> covered \<phi> facts \<and> covered \<psi> facts"
-  unfolding covered_def by auto
 
 text \<open>Some of these may follow from one another\<close>
 

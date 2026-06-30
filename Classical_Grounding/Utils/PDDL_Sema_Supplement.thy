@@ -1,6 +1,6 @@
 theory PDDL_Sema_Supplement                
   imports Classical_Planning.Classical_Happening_Semantics
-  Grounding_Utils.Grounding_Utils Grounding_Common.Formula_Utils
+  Grounding_Utils.Grounding_Utils Grounding_Common.Formula_Utils Grounding_Common.Signature_Normalization
 begin
 
 subsection \<open>Formulas\<close>
@@ -53,11 +53,6 @@ lemma is_predAtom_decomp:
   subgoal for x
     by (cases x) simp_all
   by simp_all
-
-abbreviation (in domain_signature) pred_names :: "name list" where
-    "pred_names \<equiv> map (predicate.name \<circ> pred) predicates"
-
-abbreviation (in problem_signature) "all_consts \<equiv> consts @ objs"
 
 subsection \<open>Alternative definitions\<close>
 

@@ -1,0 +1,12 @@
+chapter AFP
+
+session Grounding_Type_Normalization = Grounding_Common +
+  description \<open>Reusable, AST-agnostic signature-level type normalization: detyping helpers over a
+    PDDL domain/problem signature, the detyped predicate/function/object lists, and the signature
+    \<open>*2\<close> locale hierarchy. Mirrors the classical Type_Normalization stage; Classical-free, so a
+    temporal grounder can reuse it.\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Utils"
+  theories
+    Type_Normalization_Signature

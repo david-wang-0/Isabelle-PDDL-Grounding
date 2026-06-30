@@ -1,0 +1,11 @@
+chapter AFP
+
+session Grounding_Definedness_Translation = Grounding_Common +
+  description \<open>Reusable, AST-agnostic core of definedness translation: PNE-to-predicate atom
+    translation over formulas/effects and the signature-fresh \<open>def_prefix\<close>. Mirrors the classical
+    Definedness_Translation stage; Classical-free.\<close>
+  options [timeout = 600]
+  sessions
+    "Grounding_Utils"
+  theories
+    Definedness_Translation_Defs

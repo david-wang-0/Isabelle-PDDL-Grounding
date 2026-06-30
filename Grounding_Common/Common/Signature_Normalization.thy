@@ -8,6 +8,13 @@ text \<open>AST-agnostic signature-level normalization properties: input restric
   classical or temporal. The classical-AST counterparts live in
   \<open>Grounding_Classical_Common.Normalization_Definitions\<close>.\<close>
 
+text \<open> Signature accessors (AST-agnostic). \<close>
+
+abbreviation (in domain_signature) pred_names :: "name list" where
+    "pred_names \<equiv> map (predicate.name \<circ> pred) predicates"
+
+abbreviation (in problem_signature) "all_consts \<equiv> consts @ objs"
+
 text \<open> Input Restriction \<close>
 
 abbreviation "\<omega> \<equiv> Either [STR ''object'']"

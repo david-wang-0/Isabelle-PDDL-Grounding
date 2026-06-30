@@ -1,0 +1,8 @@
+chapter AFP
+
+session Grounding_Definedness_Normalization = Grounding_Common +
+  description \<open>Reusable, AST-agnostic core of definedness explication (\<open>definedness_atoms\<close>,
+    \<open>explicate_def_fmla\<close>). Mirrors the classical Definedness_Normalization stage; Classical-free.\<close>
+  options [timeout = 600]
+  theories
+    Definedness_Normalization_Explicate

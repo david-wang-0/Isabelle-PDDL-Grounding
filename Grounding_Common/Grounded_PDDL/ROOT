@@ -1,0 +1,9 @@
+chapter AFP
+
+session Grounding_Grounded_PDDL = Grounding_Common +
+  description \<open>Reusable, AST-agnostic notion from grounding: \<open>covered\<close> (a formula's predicate atoms
+    all lie in a fact set, no numeric atoms) and its lemmas. Mirrors the classical Grounded_PDDL stage;
+    Classical-free.\<close>
+  options [timeout = 600]
+  theories
+    Grounded_PDDL_Covered

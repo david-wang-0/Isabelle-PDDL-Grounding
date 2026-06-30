@@ -4,7 +4,7 @@ theory Goal_Normalization_Locales
     Classical_Grounding_Utils.PDDL_Sema_Supplement
     Grounding_Utils.String_Utils
     Grounding_Utils.Grounding_Utils
-    Grounding_Common.DNF
+    Grounding_Common.DNF Grounding_Goal_Normalization.Goal_Normalization_Pred
 begin
 
 section \<open>Goal Normalization Definitions and Locales\<close>
@@ -16,12 +16,6 @@ text \<open>Goal normalization replaces an arbitrary goal formula with a single
 
 subsection \<open>Degoaling definitions\<close>
 
-context domain_signature begin
-
-  definition "goal_pred \<equiv> Pred (safe_prefix pred_names + STR ''Goal'')"
-  definition "goal_pred_decl \<equiv> PredDecl goal_pred []"
-
-end
 
 context ast_classical_domain begin
 

@@ -1,7 +1,7 @@
 theory PDDL_Reachability_Locales
   imports Reachability_Analysis Grounded_PDDL.Grounded_PDDL
     Datalog_Certification.Datalog_Certificate
-    Grounding_Classical_Common.Numeric_Free
+    Grounding_Classical_Common.Numeric_Free Grounding_Reachability_Analysis.Reachability_Formula_Helpers
 begin
 
 text \<open>\<^theory>\<open>Stratified_Datalog.Datalog\<close>'s \<^typ>\<open>('x, 'c) id\<close> constructors would otherwise capture
@@ -76,45 +76,15 @@ lemma in_orga_organize_facts:
   using in_orga_update_facts[OF assms, of p args "\<lambda>_. []"] by simp
 
 
-text \<open>Formula / valuation helpers for the relaxation precondition argument (Kernel 2,
-  sub-part 2). \<open>un_and\<close> distributes over the map-formula semantics and over \<open>map_atom_fmla\<close>;
-  a positive predicate atom is entailed by \<open>valuation M\<close> iff it is in \<open>fst M\<close>; and a positive
-  non-predicate literal (an equality guard) is entailed model-independently.\<close>
 
-lemma un_and_map_semantics: "A \<Turnstile>\<^sub>m F \<Longrightarrow> \<forall>f \<in> set (un_and F). A \<Turnstile>\<^sub>m f"
-  by (induction F rule: un_and.induct) auto
 
 lemma un_and_map_atom_fmla: "un_and (map_atom_fmla \<sigma> F) = map (map_atom_fmla \<sigma>) (un_and F)"
   by (induction F rule: un_and.induct) auto
-
-lemma valuation_predAtm_iff:
-  "valuation M \<Turnstile>\<^sub>m Atom (predAtm p xs) \<longleftrightarrow> Atom (predAtm p xs) \<in> fst M"
-  by (simp add: valuation_def)
 
 lemma cond_lit_model_indep:
   assumes "is_pos_lit c" "\<not> is_predAtom c"
   shows "valuation M \<Turnstile>\<^sub>m map_atom_fmla \<sigma> c \<longleftrightarrow> valuation M' \<Turnstile>\<^sub>m map_atom_fmla \<sigma> c"
   using assms by (cases c rule: is_pos_lit.cases) (auto simp: valuation_def)
-
-lemma chosen_from_replicate:
-  "length xs = n \<Longrightarrow> (\<forall>x \<in> set xs. x \<in> set S) \<Longrightarrow> chosen_from (replicate n S) xs"
-  by (induction xs arbitrary: n) auto
-
-text \<open>Inverting \<open>chosen_from\<close> on a uniform domain: a tuple chosen from \<open>n\<close> copies of \<open>S\<close> has
-  length \<open>n\<close> and lives in \<open>S\<close>.\<close>
-lemma chosen_from_replicate_dest:
-  assumes "chosen_from (replicate n S) xs"
-  shows "length xs = n" and "\<forall>x \<in> set xs. x \<in> set S"
-proof -
-  have "length xs = n \<and> (\<forall>x \<in> set xs. x \<in> set S)" using assms
-  proof (induction n arbitrary: xs)
-    case 0 thus ?case by (cases xs) auto
-  next
-    case (Suc n) thus ?case by (cases xs) auto
-  qed
-  thus "length xs = n" "\<forall>x \<in> set xs. x \<in> set S" by simp_all
-qed
-
 
 subsection \<open>Locale A: admissible certificates for a relaxed problem\<close>
 

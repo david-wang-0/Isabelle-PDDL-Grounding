@@ -3,7 +3,7 @@ theory PDDL_Relaxation_Locales
     Grounding_Utils.Grounding_Utils
     Classical_Grounding_Utils.PDDL_Sema_Supplement
     Grounding_Common.Formula_Utils
-    Grounding_Classical_Common.Normalization_Definitions
+    Grounding_Classical_Common.Normalization_Definitions Grounding_PDDL_Relaxation.PDDL_Relaxation_Effect
 begin
 
 section \<open> Relaxation Definitions and Locales \<close>
@@ -15,8 +15,6 @@ text \<open>Delete relaxation drops the delete-effects of every action and repla
 
 subsection \<open> Relaxation Procedure \<close>
 
-fun relax_eff :: "'a ast_effect \<Rightarrow> 'a ast_effect" where
-  "relax_eff (Effect a b ne) = Effect a [] ne"
 
 fun relax_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema" where
   "relax_ac (SimpleActionSchema (ActionHead n params) (SimpleActionBody pre eff)) =
@@ -52,10 +50,6 @@ lemma (in ast_classical_domain) relax_ac_sel[simp]:
   "ac_eff (relax_ac ac) = relax_eff (ac_eff ac)"
   by (cases ac rule: ast_classical_action_schema_cases_unfold; simp)+
 
-lemma (in ast_classical_domain) relax_eff_sel[simp]:
-  "adds (relax_eff e) = adds e"
-  "dels (relax_eff e) = []"
-  by (cases e; simp)+
 
 lemma (in ast_classical_domain) relax_dom_sel[simp]:
   "types DX = types D"

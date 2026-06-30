@@ -1,0 +1,8 @@
+chapter AFP
+
+session Grounding_PDDL_Relaxation = Grounding_Common +
+  description \<open>Reusable, AST-agnostic core of delete-relaxation (\<open>relax_eff\<close>: drop delete-effects).
+    Mirrors the classical PDDL_Relaxation stage; Classical-free.\<close>
+  options [timeout = 600]
+  theories
+    PDDL_Relaxation_Effect

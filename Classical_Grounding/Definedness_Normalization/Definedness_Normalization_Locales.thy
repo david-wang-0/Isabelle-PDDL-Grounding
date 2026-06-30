@@ -1,7 +1,7 @@
 theory Definedness_Normalization_Locales
   imports "Classical_Planning.Classical_Abstract_Syntax"
     Grounding_Classical_Common.Normalization_Definitions
-    Classical_Grounding_Utils.PDDL_Sema_Supplement
+    Classical_Grounding_Utils.PDDL_Sema_Supplement Grounding_Definedness_Normalization.Definedness_Normalization_Explicate
 begin
 
 section \<open>Definedness Explication Definitions and Locales\<close>
@@ -18,13 +18,6 @@ text \<open>For every PNE \<open>p\<close> appearing in a formula \<open>f\<clos
 
 subsection \<open>Explication on formulas\<close>
 
-definition "definedness_atoms f \<equiv>
-  let pnes = formula_enumerate_primitive_numeric_expressions f;
-      pne_exprs = map FunctionExpr pnes
-  in map (\<lambda>e. numericEqAtm e e) pne_exprs"
-
-definition "explicate_def_fmla f \<equiv>
-  foldr (\<^bold>\<and>) (map Atom (definedness_atoms f)) f"
 
 subsection \<open>Explication on actions, domains, and problems\<close>
 
