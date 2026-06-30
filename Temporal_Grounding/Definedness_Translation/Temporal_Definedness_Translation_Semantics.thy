@@ -1,0 +1,5 @@
+theory Temporal_Definedness_Translation_Semantics
+  imports Temporal_Definedness_Translation
+begin
+
+end

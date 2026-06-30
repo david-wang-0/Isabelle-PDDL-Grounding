@@ -1,0 +1,12 @@
+chapter AFP
+
+session Temporal_Definedness_Normalization = Grounding_Temporal_Common +
+  description \<open>Explicate definedness: identify all numeric subexpressions in the preconditions
+    and goal, and prepend definedness constraints, so that evaluation is well-defined (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Definedness_Normalization"
+  theories
+    Temporal_Definedness_Normalization_Locales
+    Temporal_Definedness_Normalization
+    Temporal_Definedness_Normalization_Semantics

@@ -1,0 +1,13 @@
+chapter AFP
+
+session Temporal_Grounding_Utils = Grounding_Temporal_Base +
+  description \<open>Temporal-specific PDDL utility/supplement theories: the PDDL semantic supplement and
+    PDDL checker utilities, built on the temporal base. Pulls the AST-agnostic helpers from
+    Grounding_Common / Grounding_Utils.\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Common"
+    "Grounding_Utils"
+  theories
+    Temporal_PDDL_Sema_Supplement
+    Temporal_PDDL_Checker_Utils

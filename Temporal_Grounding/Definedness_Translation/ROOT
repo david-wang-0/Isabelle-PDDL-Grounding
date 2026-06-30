@@ -1,0 +1,12 @@
+chapter AFP
+
+session Temporal_Definedness_Translation = Grounding_Temporal_Common +
+  description \<open>Definedness translation: translate numeric definedness constraints into propositional variables,
+    mapping numeric-definedness checks to boolean flags (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Definedness_Translation"
+  theories
+    Temporal_Definedness_Translation_Locales
+    Temporal_Definedness_Translation
+    Temporal_Definedness_Translation_Semantics

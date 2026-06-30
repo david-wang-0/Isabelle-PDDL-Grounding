@@ -1,0 +1,20 @@
+chapter AFP
+
+session Temporal_Reachability_Analysis = Grounding_Temporal_Common +
+  description \<open>Reachability analysis for a normalized, relaxed PDDL problem: the shared
+    PDDL-to-datalog infrastructure and the datalog-certificate kernel (PDDL reachability as the
+    minimal model of the translated program) that feeds the grounder (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Datalog_Certification"
+    "Grounding_Reachability_Analysis"
+    "Temporal_Grounded_PDDL"
+    "Temporal_PDDL_Relaxation"
+  theories
+    Temporal_Reachability_Analysis
+    Temporal_PDDL_Reachability_Locales
+    Temporal_PDDL_Reachability_Analysis
+    Temporal_PDDL_Reachability_Certificate
+    Temporal_Certified_Grounding_Locales
+    Temporal_Certified_Grounding
+    Temporal_Certified_Grounding_Semantics

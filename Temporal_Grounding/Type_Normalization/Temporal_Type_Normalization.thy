@@ -1,0 +1,6 @@
+theory Temporal_Type_Normalization
+  imports Temporal_Type_Normalization_Locales
+    Grounding_Type_Normalization.Type_Normalization_Proofs
+begin
+
+end

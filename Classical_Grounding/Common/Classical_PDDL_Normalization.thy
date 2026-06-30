@@ -384,9 +384,6 @@ text \<open>
   But for completeness' sake, they are restricted to be empty in grounded PDDL.
 \<close>
 
-fun grounded_pred :: "predicate_decl \<Rightarrow> bool" where
-  "grounded_pred (PredDecl n args) \<longleftrightarrow> args = []"
-
 fun grounded_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
   "grounded_ac (SimpleActionSchema (ActionHead n params) (SimpleActionBody pre eff)) \<longleftrightarrow> params = []"
 

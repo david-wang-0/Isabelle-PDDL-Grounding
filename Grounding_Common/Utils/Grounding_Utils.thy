@@ -220,5 +220,15 @@ lemma (in -) set_image_minus_un:
 fun (in -) concat2 :: "('a list \<times> 'b list) list \<Rightarrow> ('a list \<times> 'b list)" where
   "concat2 xs = (concat (map fst xs), concat (map snd xs))"
 
+(* checker result helpers *)
+
+(* directly display the first error of a checker result, if applicable (AST-agnostic) *)
+fun reveal_error :: "(unit \<Rightarrow> char list \<Rightarrow> char list) + 'a \<Rightarrow> char list + 'a" where
+  "reveal_error (Inl e) = Inl (e () [])"
+| "reveal_error (Inr x) = Inr x"
+
+lemma reveal_no_error: "reveal_error x = Inr () \<longleftrightarrow> x = Inr ()"
+  by (cases x; simp)
+
 
 end

@@ -1,0 +1,5 @@
+theory Temporal_Precondition_Normalization_Semantics
+  imports Temporal_Precondition_Normalization
+begin
+
+end

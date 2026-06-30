@@ -1,0 +1,12 @@
+chapter AFP
+
+session Temporal_Goal_Normalization = Grounding_Temporal_Common +
+  description \<open>Goal normalization: rewrite the goal formula into a shape the
+    downstream grounder expects (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Goal_Normalization"
+  theories
+    Temporal_Goal_Normalization_Locales
+    Temporal_Goal_Normalization
+    Temporal_Goal_Normalization_Semantics

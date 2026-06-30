@@ -74,4 +74,15 @@ sublocale typeless_problem_signature \<subseteq> typeless_domain_signature
   using typeless_problem_signature typeless_problem_signature_def
   by unfold_locales simp
 
+text \<open> Grounded (nullary) declarations (AST-agnostic). A predicate or function declaration is
+  \<^emph>\<open>grounded\<close> when it takes no arguments. These leaf predicates range over the shared declaration
+  types, so the classical and temporal grounders both reuse them to state that a grounded domain has
+  only nullary predicates and (for the numeric target) nullary numeric fluents. \<close>
+
+fun grounded_pred :: "predicate_decl \<Rightarrow> bool" where
+  "grounded_pred (PredDecl n args) \<longleftrightarrow> args = []"
+
+fun grounded_func :: "function_decl \<Rightarrow> bool" where
+  "grounded_func (FuncDecl n args) \<longleftrightarrow> args = []"
+
 end

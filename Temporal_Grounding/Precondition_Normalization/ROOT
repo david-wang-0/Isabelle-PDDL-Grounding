@@ -1,0 +1,10 @@
+chapter AFP
+
+session Temporal_Precondition_Normalization = Grounding_Temporal_Common +
+  description \<open>Precondition normalization: split disjunctive preconditions to create multiple action schemas
+    each with a single conjunctive precondition, for the DNF-based grounder (temporal-AST variant).\<close>
+  options [timeout = 900]
+  theories
+    Temporal_Precondition_Normalization_Locales
+    Temporal_Precondition_Normalization
+    Temporal_Precondition_Normalization_Semantics

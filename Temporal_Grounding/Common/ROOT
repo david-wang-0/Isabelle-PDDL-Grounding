@@ -1,0 +1,11 @@
+chapter AFP
+
+session Grounding_Temporal_Common = Temporal_Grounding_Utils +
+  description \<open>Temporal PDDL normalization-property definitions (temporal-AST): the
+    type/precondition/relaxation/grounded normalization locales, built on the
+    temporal utils. Pulls AST-agnostic helpers from Grounding_Common.\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Common"
+  theories
+    Temporal_PDDL_Normalization

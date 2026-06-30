@@ -1,0 +1,5 @@
+theory Temporal_Certified_Grounding_Locales
+  imports Temporal_PDDL_Reachability_Certificate
+begin
+
+end

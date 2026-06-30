@@ -1,0 +1,7 @@
+theory Temporal_Definedness_Normalization_Locales
+  imports "Temporal_Planning.Temporal_Abstract_Syntax"
+    Grounding_Temporal_Common.Temporal_PDDL_Normalization
+    Grounding_Definedness_Normalization.Definedness_Normalization
+begin
+
+end

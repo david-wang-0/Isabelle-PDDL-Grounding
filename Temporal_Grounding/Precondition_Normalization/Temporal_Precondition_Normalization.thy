@@ -1,0 +1,5 @@
+theory Temporal_Precondition_Normalization
+  imports Temporal_Precondition_Normalization_Locales
+begin
+
+end

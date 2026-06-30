@@ -1,0 +1,17 @@
+chapter AFP
+
+session Temporal_Grounding = Grounding_Temporal_Common +
+  description \<open>A grounder for numeric temporal PDDL tasks.\<close>
+  options [timeout = 900]
+  sessions
+	"Datalog_Certification"
+	"Temporal_Type_Normalization"
+	"Temporal_Definedness_Normalization"
+	"Temporal_Goal_Normalization"
+	"Temporal_Precondition_Normalization"
+	"Temporal_Definedness_Translation"
+	"Temporal_PDDL_Relaxation"
+	"Temporal_Grounded_PDDL"
+	"Temporal_Reachability_Analysis"
+  theories
+	Temporal_Grounding_Pipeline_Numeric

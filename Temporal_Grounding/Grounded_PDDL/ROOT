@@ -1,0 +1,9 @@
+chapter AFP
+
+session Temporal_Grounded_PDDL = Grounding_Temporal_Common +
+  description \<open>Grounded PDDL: define grounded, typeless, propositional temporal PDDL problems (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_Grounded_PDDL"
+  theories
+    Temporal_Grounded_PDDL

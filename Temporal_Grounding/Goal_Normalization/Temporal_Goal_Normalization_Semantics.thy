@@ -1,0 +1,5 @@
+theory Temporal_Goal_Normalization_Semantics
+  imports Temporal_Goal_Normalization
+begin
+
+end

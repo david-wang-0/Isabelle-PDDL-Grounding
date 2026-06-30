@@ -1,0 +1,12 @@
+chapter AFP
+
+session Temporal_PDDL_Relaxation = Grounding_Temporal_Common +
+  description \<open>PDDL delete relaxation: define delete-relaxed temporal problems where delete effects
+    are ignored, used to analyze reachability (temporal-AST variant).\<close>
+  options [timeout = 900]
+  sessions
+    "Grounding_PDDL_Relaxation"
+  theories
+    Temporal_PDDL_Relaxation_Locales
+    Temporal_PDDL_Relaxation
+    Temporal_PDDL_Relaxation_Semantics
