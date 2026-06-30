@@ -1,11 +1,11 @@
 chapter AFP
 
-session Definedness_Translation = Grounding_Classical_Common +
+session Classical_Definedness_Translation = Grounding_Classical_Common +
   description \<open>Translate numeric definedness into propositional predicates.\<close>
   options [timeout = 900]
   sessions
     "Grounding_Definedness_Translation"
   theories
-    Definedness_Translation_Locales
-    Definedness_Translation
-    Definedness_Translation_Semantics
+    Classical_Definedness_Translation_Locales
+    Classical_Definedness_Translation
+    Classical_Definedness_Translation_Semantics

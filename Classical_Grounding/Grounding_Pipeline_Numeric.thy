@@ -1,12 +1,12 @@
 theory Grounding_Pipeline_Numeric
-  imports Type_Normalization.Type_Normalization_Semantics
-    Goal_Normalization.Goal_Normalization_Semantics
-    Definedness_Normalization.Definedness_Normalization_Semantics
-    Precondition_Normalization.Precondition_Normalization_Semantics
-    Definedness_Translation.Definedness_Translation_Semantics
-    PDDL_Relaxation.PDDL_Relaxation_Semantics
-    Reachability_Analysis.Certified_Grounding_Semantics
-    Grounded_PDDL.Grounded_PDDL
+  imports Classical_Type_Normalization.Classical_Type_Normalization_Semantics
+    Classical_Goal_Normalization.Classical_Goal_Normalization_Semantics
+    Classical_Definedness_Normalization.Classical_Definedness_Normalization_Semantics
+    Classical_Precondition_Normalization.Classical_Precondition_Normalization_Semantics
+    Classical_Definedness_Translation.Classical_Definedness_Translation_Semantics
+    Classical_PDDL_Relaxation.Classical_PDDL_Relaxation_Semantics
+    Classical_Reachability_Analysis.Classical_Certified_Grounding_Semantics
+    Classical_Grounded_PDDL.Classical_Grounded_PDDL
     Grounding_Classical_Common.Numeric_Free
 begin
 
@@ -307,9 +307,9 @@ lemma goal_norm_preserves_typeless_gen:
   "ast_classical_problem.typeless_classical_problem P' \<Longrightarrow> ast_classical_problem.typeless_classical_problem (ast_classical_problem.degoal_prob P')"
   unfolding ast_classical_problem.typeless_classical_problem_def ast_classical_domain.typeless_classical_domain_def
     domain_signature.typeless_domain_signature_def
-    Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel Goal_Normalization_Locales.ast_classical_problem.degoal_dom_sel
-  unfolding Goal_Normalization_Pred.domain_signature.goal_pred_decl_def
-    Goal_Normalization_Locales.ast_classical_domain.goal_ac_def by auto
+    Classical_Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel Classical_Goal_Normalization_Locales.ast_classical_problem.degoal_dom_sel
+  unfolding Goal_Normalization.domain_signature.goal_pred_decl_def
+    Classical_Goal_Normalization_Locales.ast_classical_domain.goal_ac_def by auto
 
 lemma explicate_def_preserves_typeless_gen:
   "ast_classical_problem.typeless_classical_problem P' \<Longrightarrow> ast_classical_problem.typeless_classical_problem (ast_classical_problem.explicate_def_prob P')"
@@ -331,7 +331,7 @@ lemma prec_norm_preserves_typeless_gen:
     domain_signature.typeless_domain_signature_def
     ast_classical_problem.split_prob_sel ast_classical_domain.split_dom_sel
   unfolding ast_classical_domain.split_acs_def
-  using Precondition_Normalization.ast_classical_domain.split_ac_sel(2)
+  using Classical_Precondition_Normalization.ast_classical_domain.split_ac_sel(2)
   by auto
 
 text \<open> type and precondition normalization preserve goal normalization \<close>
@@ -367,10 +367,10 @@ theorem normalization_normalizes:
   apply simp
   apply (simp add: ast_classical_problem.split_prob_sel(1) ast_classical_problem4.prec_normed_dom)
   apply (unfold ast_classical_problem.split_prob_sel(4)
-    Definedness_Normalization_Locales.ast_classical_problem.explicate_def_prob_sel(4)
-    Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel(4))
+    Classical_Definedness_Normalization_Locales.ast_classical_problem.explicate_def_prob_sel(4)
+    Classical_Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel(4))
   apply (unfold explicate_def_fmla_def)
-  apply (unfold Definedness_Normalization_Explicate.definedness_atoms_def)
+  apply (unfold Definedness_Normalization.definedness_atoms_def)
   by simp
   
 

@@ -1,6 +1,6 @@
 chapter AFP
 
-session Definedness_Normalization = Grounding_Classical_Common +
+session Classical_Definedness_Normalization = Grounding_Classical_Common +
   description \<open>Definedness explication normalization: for every PNE appearing
     in a formula, conjoin the reflexive numeric equality that holds iff the
     PNE is defined. Makes every DNF disjunct carry the full atom set of the
@@ -9,6 +9,6 @@ session Definedness_Normalization = Grounding_Classical_Common +
   sessions
     "Grounding_Definedness_Normalization"
   theories
-    Definedness_Normalization_Locales
-    Definedness_Normalization
-    Definedness_Normalization_Semantics
+    Classical_Definedness_Normalization_Locales
+    Classical_Definedness_Normalization
+    Classical_Definedness_Normalization_Semantics

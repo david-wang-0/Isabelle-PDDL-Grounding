@@ -9,5 +9,5 @@ session Classical_Grounding_Utils = Grounding_Classical_Base +
     "Grounding_Common"
     "Grounding_Utils"
   theories
-    PDDL_Sema_Supplement
+    Classical_PDDL_Sema_Supplement
     PDDL_Checker_Utils

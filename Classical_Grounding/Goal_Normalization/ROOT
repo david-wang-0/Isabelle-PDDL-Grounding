@@ -1,13 +1,13 @@
 chapter AFP
 
-session Goal_Normalization = Grounding_Classical_Common +
+session Classical_Goal_Normalization = Grounding_Classical_Common +
   description \<open>Goal normalization: rewrite the goal formula into a shape the
-    downstream grounder expects. Runs before \<open>Definedness_Normalization\<close> in
+    downstream grounder expects. Runs before \<open>Classical_Definedness_Normalization\<close> in
     the pipeline, so it carries no definedness invariant on its input.\<close>
   options [timeout = 900]
   sessions
     "Grounding_Goal_Normalization"
   theories
-    Goal_Normalization_Locales
-    Goal_Normalization
-    Goal_Normalization_Semantics
+    Classical_Goal_Normalization_Locales
+    Classical_Goal_Normalization
+    Classical_Goal_Normalization_Semantics

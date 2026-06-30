@@ -1,6 +1,6 @@
 theory PDDL_Checker_Utils
   imports "Classical_Planning.Classical_PDDL_Checker_Numeric"
-    PDDL_Sema_Supplement
+    Classical_PDDL_Sema_Supplement
 begin
 
 text \<open>This theory used to wrap the generic Formal-PDDL-Semantics executable checker

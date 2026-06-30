@@ -8,5 +8,5 @@ session Grounding_Classical_Common = Classical_Grounding_Utils +
   sessions
     "Grounding_Common"
   theories
-    Normalization_Definitions
+    Classical_PDDL_Normalization
     Numeric_Free

@@ -1,6 +1,6 @@
 chapter AFP
 
-session Type_Normalization = Grounding_Classical_Common +
+session Classical_Type_Normalization = Grounding_Classical_Common +
   description \<open>Type normalization: eliminate user-declared types by encoding
     type membership as unary predicates, so downstream steps can assume a
     typeless signature.\<close>
@@ -8,6 +8,6 @@ session Type_Normalization = Grounding_Classical_Common +
   sessions
     "Grounding_Type_Normalization"
   theories
-    Type_Normalization_Locales
-    Type_Normalization
-    Type_Normalization_Semantics
+    Classical_Type_Normalization_Locales
+    Classical_Type_Normalization
+    Classical_Type_Normalization_Semantics

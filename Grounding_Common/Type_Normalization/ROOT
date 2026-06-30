@@ -9,4 +9,5 @@ session Grounding_Type_Normalization = Grounding_Common +
   sessions
     "Grounding_Utils"
   theories
-    Type_Normalization_Signature
+    Type_Normalization
+    Type_Normalization_Proofs

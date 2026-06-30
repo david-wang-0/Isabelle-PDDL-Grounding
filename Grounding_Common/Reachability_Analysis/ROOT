@@ -2,9 +2,9 @@ chapter AFP
 
 session Grounding_Reachability_Analysis = Grounding_Common +
   description \<open>Reusable, AST-agnostic formula/valuation and combinatorial helpers from the relaxation
-    reachability argument. Mirrors the classical Reachability_Analysis stage; Classical-free.\<close>
+    reachability argument. Mirrors the classical Classical_Reachability_Analysis stage; Classical-free.\<close>
   options [timeout = 600]
   sessions
     "Grounding_Utils"
   theories
-    Reachability_Formula_Helpers
+    Reachability_Analysis

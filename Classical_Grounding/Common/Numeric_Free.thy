@@ -1,5 +1,5 @@
 theory Numeric_Free
-  imports Normalization_Definitions
+  imports Classical_PDDL_Normalization
 begin
 
 section \<open>Numeric-freeness (the propositional fragment)\<close>

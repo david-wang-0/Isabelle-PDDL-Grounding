@@ -1,10 +1,10 @@
  theory Classical_PDDL_to_STRIPS
   imports "Classical_Planning.Classical_Abstract_Syntax"
     "Classical_Planning.Classical_Happening_Semantics"
-    Classical_Grounding_Utils.PDDL_Sema_Supplement
+    Classical_Grounding_Utils.Classical_PDDL_Sema_Supplement
     STRIPS_Sema_Supplement
     "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
-    Grounding_Classical_Common.Normalization_Definitions
+    Grounding_Classical_Common.Classical_PDDL_Normalization
     Grounding_Classical_Common.Numeric_Free
     (* list linorder: *) "HOL-Library.List_Lexorder" "HOL-Library.Char_ord"  (* only used to minimize negative literals *)
 begin
@@ -724,7 +724,7 @@ lemma (in -) inst_effect_sel:
 text \<open>A problem whose (grounded, normalized, numeric-free) shape additionally has no
   empty-named predicate, so the positive/negative STRIPS variables never collide with the static
   truth markers. The emptiness exclusion is discharged from the grounder's construction (predicate
-  names are nonempty decimal strings); see the \<open>grounder\<close> locale in \<open>Grounded_PDDL\<close>.\<close>
+  names are nonempty decimal strings); see the \<open>grounder\<close> locale in \<open>Classical_Grounded_PDDL\<close>.\<close>
 locale strips_encodable_problem =
   grounded_normalized_numeric_free_problem +
   assumes nonempty_pred_names: "\<And>p. wf_pred p \<Longrightarrow> predicate.name p \<noteq> STR ''''"

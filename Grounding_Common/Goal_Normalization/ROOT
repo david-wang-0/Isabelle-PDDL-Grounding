@@ -2,9 +2,9 @@ chapter AFP
 
 session Grounding_Goal_Normalization = Grounding_Common +
   description \<open>Reusable, signature-level goal-normalization names (the fresh goal predicate). Mirrors
-    the classical Goal_Normalization stage; Classical-free.\<close>
+    the classical Classical_Goal_Normalization stage; Classical-free.\<close>
   options [timeout = 600]
   sessions
     "Grounding_Utils"
   theories
-    Goal_Normalization_Pred
+    Goal_Normalization

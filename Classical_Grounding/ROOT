@@ -6,14 +6,14 @@ session Classical_Grounding = Grounding_Classical_Common +
   sessions
 	"Grounding_Base_STRIPS"
 	"Datalog_Certification"
-	"Type_Normalization"
-	"Definedness_Normalization"
-	"Goal_Normalization"
-	"Precondition_Normalization"
-	"Definedness_Translation"
-	"PDDL_Relaxation"
-	"Grounded_PDDL"
-	"Reachability_Analysis"
+	"Classical_Type_Normalization"
+	"Classical_Definedness_Normalization"
+	"Classical_Goal_Normalization"
+	"Classical_Precondition_Normalization"
+	"Classical_Definedness_Translation"
+	"Classical_PDDL_Relaxation"
+	"Classical_Grounded_PDDL"
+	"Classical_Reachability_Analysis"
   directories
 	"PDDL_to_STRIPS"
   theories

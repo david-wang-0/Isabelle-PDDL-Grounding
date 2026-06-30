@@ -209,7 +209,7 @@ lemma mapof_distinct_zip_distinct:
 (* misc *)
 (* Set arithmetic lemma, useful for effect application.
   TODO check where this may be needed elsewhere in normalization.
-  Currently only employed in Grounded_PDDL *)
+  Currently only employed in Classical_Grounded_PDDL *)
 lemma (in -) set_image_minus_un:
   assumes "inj_on f (A \<union> B \<union> C \<union> D)"
   shows "A - B \<union> C = D \<longleftrightarrow> f ` (A - B \<union> C) = f ` D"
