@@ -32,7 +32,7 @@ definition (in ast_classical_problem) "relax_prob \<equiv>
   Problem
     relax_dom
     (objects P)
-    (init P)
+    (filter is_predAtom (init P))
     (relax_conj (goal P))"
 
 subsection \<open> Abbreviations and selectors \<close>
@@ -62,7 +62,7 @@ lemma (in ast_classical_domain) relax_dom_sel[simp]:
 lemma (in ast_classical_problem) relax_prob_sel[simp]:
   "domain PX = relax_dom"
   "objects PX = objects P"
-  "init PX = init P"
+  "init PX = filter is_predAtom (init P)"
   "goal PX = relax_conj (goal P)"
   using relax_prob_def by simp_all
 

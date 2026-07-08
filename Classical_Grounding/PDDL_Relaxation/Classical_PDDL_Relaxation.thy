@@ -69,8 +69,11 @@ lemma (in ast_classical_domain) relax_eff_wf:
   "wf_effect tyt eff \<Longrightarrow> wf_effect tyt (relax_eff eff)"
   by (cases eff) simp
 
-lemma (in ast_classical_problem_rx) rx_I: "px.I = I"
-  unfolding ast_classical_problem.I_def relax_prob_sel ..
+text \<open>Relaxation strips the numeric init assignments (\<open>relax_prob\<close> keeps only \<^const>\<open>is_predAtom\<close>
+  init facts), so the relaxed initial world model agrees with the original on the \<^emph>\<open>propositional\<close>
+  part \<open>fst\<close> only --- the numeric valuation \<open>snd\<close> is emptied. Reachability uses only \<open>fst\<close>.\<close>
+lemma (in ast_classical_problem_rx) rx_I: "fst px.I = fst I"
+  unfolding ast_classical_problem.I_def relax_prob_sel by (simp add: filter_filter)
 
 lemma (in ast_classical_domain) relax_ac_names:
   "map ac_name (actions D) = map ac_name (map relax_ac (actions D))"
@@ -108,8 +111,8 @@ theorem (in normalized_problem_rx) relax_wf:
   apply (intro conjI)
   using relax_dom_wf apply blast
   apply blast
-  apply blast
-  apply blast
+  apply (metis distinct_filter)
+  apply (metis (mono_tags, lifting) mem_Collect_eq set_filter)
   using relax_fmla_wf by blast
 
 sublocale normalized_domain_rx \<subseteq> dx: normalized_domain DX

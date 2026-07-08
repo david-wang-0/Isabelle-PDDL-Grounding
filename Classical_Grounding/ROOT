@@ -6,6 +6,7 @@ session Classical_Grounding = Grounding_Classical_Common +
   sessions
 	"Grounding_Base_STRIPS"
 	"Datalog_Certification"
+	"Datalog_Graph"
 	"Classical_Type_Normalization"
 	"Classical_Definedness_Normalization"
 	"Classical_Goal_Normalization"
@@ -20,11 +21,16 @@ session Classical_Grounding = Grounding_Classical_Common +
 	"PDDL_to_STRIPS/STRIPS_Sema_Supplement"
 	"PDDL_to_STRIPS/Classical_PDDL_to_STRIPS"
 	Grounding_Pipeline_Numeric
+	Numeric_Grounder
 	Grounding_Pipeline_STRIPS
 	Code_Setup
+	Grounding_Pipeline_Common_Executable
 	Grounding_Pipeline_STRIPS_Executable
+	Grounding_Pipeline_Numeric_Executable
 	Planner_STRIPS_Executable
 	Planner_STRIPS_Export
+	Planner_Export
 	Running_Example
+	Running_Example_Numeric
   export_files
-	"SMLCodebase/code/PDDL_SAT_Planner_Exported.sml"
+	"../SMLCodebase/code/PDDL_SAT_Planner_DFS_Exported.sml"

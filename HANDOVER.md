@@ -58,6 +58,20 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   out of the *reduction* (its certified mutex / `acts_non_intrf` stays positive) rather than supporting
   them there.
 
+- **Temporal equality-atom (`eqAtm`) elimination stage** — *companion to negation-elimination above;
+  do during or after grounding.* The temporal `positive_temporal_problem` / `is_pos_conj`
+  (`Grounding_Common/Common/Formula_Utils.thy`) deliberately accept `eqAtm a b` / `¬(eqAtm a b)` as
+  positive literals, but the downstream temporal **NTA reduction** (project
+  `temporal-planning-certification`) maps preconditions to propositions and handles **`predAtm` only**
+  — it cannot represent `eqAtm` literals. After grounding, every equality atom is ground
+  (`= c1 c2`), so it is decidable and should be **constant-folded / feasibility-pruned away**
+  (`True` ⇒ drop the conjunct, `False` ⇒ prune the action/goal) so grounded preconditions/goal are
+  `predAtm`-only. Until this stage exists, the NTA-reduction consumer carries an explicit project-side
+  "preconditions/goal are eqAtm-free (`predAtm`-only)" **side assumption** (see
+  `temporal-planning-certification` `Ground_PDDL_Problem_Defs` re-point, 2026-06-30); this stage is
+  what would let that assumption be **discharged** instead of assumed. Pairs with the
+  constant-fold/feasibility-prune stage already noted for the re-expansion `χ` (GROUNDING_PLAN §4/§6).
+
 ## Gotchas (hard-won; keep in mind)
 
 - **Code generation**: FPS shared-locale constants carry selector-pattern code equations from the

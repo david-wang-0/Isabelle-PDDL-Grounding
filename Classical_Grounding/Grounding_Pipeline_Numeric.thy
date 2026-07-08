@@ -526,7 +526,8 @@ proof -
   interpret rx: normalized_problem_rx P\<^sub>T using P_T_normalized_problem_rx[OF assms] .
   show ?thesis
     apply unfold_locales
-    using px_numfree nonempty cert grounding_cert numeric_free_problem.num_free_prob[OF px_numfree]
+    using px_numfree nonempty cert grounding_cert
+          numeric_free_problem.num_free_prob[OF px_numfree]
     by simp_all
 qed
 

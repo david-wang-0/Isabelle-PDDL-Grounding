@@ -55,7 +55,19 @@ definition cert_facts_of :: "fact list \<Rightarrow> facty list" where
 
 text \<open>The decidable grounding obligations, phrased to match the \<^locale>\<open>wf_grounder\<close> goals exactly.
   The semantic supersets (\<open>all_facts\<close>/\<open>all_ops\<close>) are \<^emph>\<open>not\<close> here --- they are proven from the
-  certificate, not re-checked.\<close>
+  certificate, not re-checked.
+
+  \<open>numeric_grounding_checks\<close> is the \<^emph>\<open>single\<close> obligation that the numeric-fluent-retaining grounder
+  needs --- every certified op is a well-formed plan action (\<^locale>\<open>wf_grounder_num\<close>'s only decidable
+  goal; the other three, \<open>wf_problem\<close>/\<open>ops_dist\<close>/\<open>all_ops\<close>, are proven from the problem and the
+  certificate, not re-checked). Because it retains numerics verbatim it must \<^emph>\<open>not\<close> demand
+  \<open>covered\<close>-coverage of preconditions/effects (\<open>covered\<close> rejects numeric atoms) --- that, the \<open>facts\<close>
+  well-formedness, and the two numeric-freeness obligations are what the purely propositional
+  \<open>grounding_checks\<close> adds for \<^locale>\<open>wf_grounder\<close>.\<close>
+definition numeric_grounding_checks :: "fact list \<Rightarrow> bool" where
+  "numeric_grounding_checks M \<equiv>
+     (\<forall>\<pi> \<in> set (cert_ops_of M). wf_classical_plan_action \<pi>)"
+
 definition grounding_checks :: "fact list \<Rightarrow> bool" where
   "grounding_checks M \<equiv>
      (\<forall>a \<in> set (cert_facts_of M). px.wf_fmla_atom px.objT a) \<and>
@@ -69,16 +81,16 @@ definition grounding_checks :: "fact list \<Rightarrow> bool" where
 
 end
 
-text \<open>The grounding-input locale: a relaxed-problem certificate \<open>M\<close>/\<open>dc\<close> accepted by the generic
-  checker, plus the (numeric-free, nonempty-universe) side conditions that make the
-  \<^locale>\<open>num_free_relaxed_problem\<close> reachability bridge available at \<open>PX\<close>, and the decidable
-  grounding re-check.\<close>
-locale certified_reachability = normalized_problem_rx +
+text \<open>The shared grounding-input base locale: a relaxed-problem certificate \<open>M\<close>/\<open>dc\<close> accepted by the
+  generic checker, plus the (numeric-free, nonempty-universe) side conditions that make the
+  \<^locale>\<open>num_free_relaxed_problem\<close> reachability bridge available at \<open>PX\<close>. This carries all the
+  certificate machinery (\<open>cert_facts'\<close>/\<open>cert_ops'\<close>, the semantic supersets) that is independent of
+  which grounding re-check is imposed; the two grounders extend it with their respective checks.\<close>
+locale certified_reachability_base = normalized_problem_rx +
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
   assumes px_numfree: "numeric_free_problem PX"
       and nonempty: "ast_classical_problem.const_names PX \<noteq> []"
       and cert: "dl_certified_model (set (dl_rules PX)) (set (ast_classical_problem.const_names PX)) M dc"
-      and grounding_cert: "grounding_checks M"
 begin
 
 text \<open>\<open>PX\<close> is numeric-free, delete-relaxed and has a nonempty object universe, so the full
@@ -102,6 +114,22 @@ definition cert_facts' :: "facty list" where
   "cert_facts' \<equiv> cert_facts_of M"
 
 end
+
+text \<open>The numeric-fluent-retaining grounding-input locale: the shared base plus the single ops
+  well-formedness re-check (\<open>numeric_grounding_checks\<close>). It grounds the un-relaxed problem \<open>P\<close>
+  \<^emph>\<open>retaining\<close> its numeric preconditions/effects, so it must \<^emph>\<open>not\<close> require the coverage /
+  facts-wf / numeric-freeness checks --- it interprets \<^locale>\<open>wf_grounder_num\<close>, not
+  \<^locale>\<open>wf_grounder\<close>.\<close>
+locale certified_reachability_num = certified_reachability_base +
+  assumes grounding_cert_num: "numeric_grounding_checks M"
+
+text \<open>The propositional grounding-input locale: the shared base plus the full \<open>grounding_checks\<close>
+  (the five coverage checks \<^emph>\<open>and\<close> the two numeric-freeness checks). It interprets the full
+  \<^locale>\<open>wf_grounder\<close>. Sibling of \<^locale>\<open>certified_reachability_num\<close> --- neither extends the other,
+  so no locale interprets both \<^locale>\<open>wf_grounder\<close> and \<^locale>\<open>wf_grounder_num\<close> at the same
+  parameters (which would deduplicate the shared \<open>grounder\<close> interpretation).\<close>
+locale certified_reachability = certified_reachability_base +
+  assumes grounding_cert: "grounding_checks M"
 
 end
 

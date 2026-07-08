@@ -206,11 +206,12 @@ value "ast_classical_problem.a_clauses my_P\<^sub>R"
 value "ast_classical_problem.init' my_P\<^sub>R"
 value "dl_program_of my_problem"
 
-text \<open>Codegen probe for the grounding half (dummy empty model + certificate): \<open>ground_via_cert\<close>
-  with a trivial oracle must reduce to \<^term>\<open>None\<close> (the empty certificate fails
-  \<^const>\<open>dl_certified_model_exec\<close> / \<^const>\<open>grounding_checks_exec\<close>, i.e.\ fails closed), and the
-  grounder/STRIPS conversion must itself be code-generable.\<close>
-value "ground_via_cert (\<lambda>_. ([], DLCert [])) my_problem"
+text \<open>Codegen probe for the grounding half (dummy empty model + certificate): the DFS-founded,
+  error-reporting \<^const>\<open>ground_via_cert_prop_dfs_e\<close> with a trivial oracle must reduce to
+  \<^const>\<open>Inl\<close> of a diagnostic (the empty certificate fails \<^const>\<open>dl_certified_model_dfs\<close> /
+  \<^const>\<open>grounding_checks_exec\<close>, i.e.\ fails closed), and the grounder must itself be
+  code-generable.\<close>
+value "ground_via_cert_prop_dfs_e (\<lambda>_. ([], DLCert [])) my_problem"
 
 subsection \<open>Grounding via a generated certificate\<close>
 
@@ -218,13 +219,13 @@ text \<open>An executable \<^emph>\<open>untrusted\<close> reference oracle (the
   naive datalog saturation of the relaxed problem's datalog program \<^term>\<open>dl_rules R\<close>, returning the
   generic \<open>(M, dc)\<close> pair --- the derived model \<open>M\<close> and a \<^typ>\<open>(predicate, object) dl_certificate\<close>
   recording, for each derived fact, the body facts that justify it. Nothing here is trusted ---
-  \<^const>\<open>ground_via_cert\<close> re-checks the result via \<^const>\<open>dl_certified_model_exec\<close> +
+  \<^const>\<open>ground_via_cert_prop_dfs_e\<close> re-checks the result via \<^const>\<open>dl_certified_model_dfs\<close> +
   \<^const>\<open>grounding_checks_exec\<close>. The construction makes the checks hold: each round fires every
   clause of \<^term>\<open>dl_rules R\<close> at every \<^const>\<open>cls_substs\<close> universe substitution whose ground body is
   already derived and whose guards hold, appending the new heads with their body facts; bodyless
   (init) clauses fire first, so every rule's body lies among strictly-earlier heads (foundedness),
   every node is an actual clause instance (rule validity), and saturating to a fixpoint gives
-  closure --- exactly the obligations of \<^const>\<open>dl_certified_model_exec\<close>.\<close>
+  closure --- exactly the obligations of \<^const>\<open>dl_certified_model_dfs\<close>.\<close>
 
 definition naive_round where
   "naive_round R ns \<equiv>
@@ -255,25 +256,28 @@ definition naive_cert where
 definition "my_cert \<equiv> naive_cert my_P\<^sub>R"
 
 value "my_cert"
-value "dl_certified_model_exec (dl_rules my_P\<^sub>R)
+value "dl_certified_model_dfs (dl_rules my_P\<^sub>R)
          (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
+value "dl_acyclic_dfs (snd my_cert)"
 value "grounding_checks_exec my_P\<^sub>T (fst my_cert)"
 
-text \<open>The fully grounded problem: first as nullary propositional PDDL, then as STRIPS via the
-  guarded end-to-end entry point (\<^const>\<open>None\<close> would mean the certificate failed the kernel
-  re-checks).\<close>
+text \<open>The fully grounded problem: first the raw nullary propositional PDDL (\<^const>\<open>ground_by_cert\<close>),
+  then via the guarded DFS-founded, error-monad entry point \<^const>\<open>ground_via_cert_prop_dfs_e\<close> --- an
+  \<^const>\<open>Inl\<close> diagnostic would mean the certificate failed the kernel re-checks, while \<^const>\<open>Inr\<close>
+  carries the grounded PDDL problem.\<close>
 value "ground_by_cert my_problem (fst my_cert)"
-value "ground_via_cert (\<lambda>_. my_cert) my_problem"
+value "ground_via_cert_prop_dfs_e (\<lambda>_. my_cert) my_problem"
 
 subsection \<open>The real (untrusted) oracle: Nemo via the SML driver\<close>
 
 text \<open>The \<open>naive_cert\<close> oracle above is an in-Isabelle reference saturation. In the deployed planner
   the model+certificate \<open>(M, dc)\<close> come instead from an external solver (Nemo) through
-  \<open>SMLCodebase/nemo_driver.sml\<close>, which emits the same generic
-  \<^typ>\<open>(predicate, object) dl_certificate\<close>; the verified \<^const>\<open>dl_certified_model_exec\<close> re-check
-  inside \<^const>\<open>ground_via_cert\<close> makes that path fail closed. The compiled
-  \<open>SMLCodebase/bin/pddl_sat_planner\<close> runs the whole chain (Nemo \<open>\<rightarrow>\<close> verified kernel \<open>\<rightarrow>\<close> grounder
-  \<open>\<rightarrow>\<close> SAT \<open>\<rightarrow>\<close> plan reconstruction); by \<open>plan_by_cert_sound\<close> any plan it prints is verified-valid.\<close>
+  \<open>nemo_driver.sml\<close> in the top-level \<open>SMLCodebase/\<close>, which emits the same generic
+  \<^typ>\<open>(predicate, object) dl_certificate\<close>; the verified \<^const>\<open>dl_certified_model_dfs\<close> re-check
+  inside \<^const>\<open>ground_via_cert_prop_dfs_e\<close> makes that path fail closed. The compiled
+  \<open>SMLCodebase/bin/pddl_ground_planner_dfs\<close> runs the whole chain (Nemo \<open>\<rightarrow>\<close> verified kernel \<open>\<rightarrow>\<close>
+  grounder \<open>\<rightarrow>\<close> SAT \<open>\<rightarrow>\<close> plan reconstruction) via its \<open>plan\<close> subcommand, and grounds a numeric task via
+  \<open>ground\<close>; by \<open>plan_by_cert_dfs_sound\<close> any plan it prints is verified-valid.\<close>
 
 end
 

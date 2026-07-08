@@ -153,26 +153,38 @@ text \<open>\<open>achievable\<close> ranges over \<^typ>\<open>fact\<close> (\<
 abbreviation (in grounder) fact_to_facty :: "fact \<Rightarrow> facty" where
   "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
 
-locale wf_grounder = grounder +
+text \<open>The \<^emph>\<open>minimal\<close> reachability/well-formedness assumptions the numeric-fluent-retaining grounder
+  needs: the input problem is well-formed, the reachable-op list \<open>ops\<close> is distinct, over-approximates
+  the applicable actions, and every op is a well-formed plan action. The numeric-fluent-retaining
+  grounder (theory \<open>Numeric_Grounder\<close>, downstream) is based on this weaker locale: it grounds the
+  un-relaxed problem \<open>P\<^sub>T\<close> keeping its numeric preconditions/effects and function assignments verbatim
+  (via a \<open>term.CONST\<close> lift, undone by instantiate-at-\<open>[]\<close>), so it never propositionalises an atom and
+  hence needs \<^emph>\<open>none\<close> of the coverage / \<open>facts\<close> assumptions --- those (and \<open>covered\<close>, which rejects
+  numeric atoms outright) are what the \<^emph>\<open>propositional\<close> grounder needs, and they move to
+  \<open>wf_grounder\<close> below.\<close>
+locale wf_grounder_num = grounder +
   assumes
     wf_problem: "wf_classical_problem" and
-    facts_dist: "distinct facts" and
-    all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
-    facts_wf: "\<forall>a \<in> set facts. wf_fmla_atom objT a" and (* If "set facts = {a. achievable a}", this follows. *)
     ops_dist: "distinct ops" and
     all_ops: "set ops \<supseteq> {\<pi>. applicable \<pi>}" and
     (* If "set ops = {\<pi>. applicable \<pi>}", this follows: *)
-    ops_wf: "\<forall>\<pi> \<in> set ops. wf_classical_plan_action \<pi>" and
-    (* So does this: *)
+    ops_wf: "\<forall>\<pi> \<in> set ops. wf_classical_plan_action \<pi>"
+
+text \<open>The full grounder locale for the \<^emph>\<open>propositional\<close> grounder. It additionally requires the
+  reachable \<open>facts\<close> list to be well-formed and to cover every op's precondition/effect atoms and the
+  goal (so the propositional \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing is faithful --- \<open>covered\<close> also
+  forces those formulas to be numeric-free), \<^emph>\<open>and\<close> that the input is numeric-free (the initial state
+  has no function assignments, and the applicable ops carry no numeric effects). These hold trivially
+  once numerics have been compiled away upstream.\<close>
+locale wf_grounder = wf_grounder_num +
+  assumes
+    facts_dist: "distinct facts" and
+    all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
+    facts_wf: "\<forall>a \<in> set facts. wf_fmla_atom objT a" and (* If "set facts = {a. achievable a}", this follows. *)
     effs_covered: "\<forall>\<pi> \<in> set ops. (let eff = effect (the (res_inst \<pi>)) in
       \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" and
-    (* This follows if, additionally, prec_normed_dom: *)
     pres_covered: "\<forall>\<pi> \<in> set ops. covered (precondition (the (res_inst \<pi>))) facts" and
     goal_covered: "covered (goal P) facts" and
-    (* The grounder targets purely propositional (post-relaxation) problems: the initial state
-       has no function assignments, and the applicable ops carry no numeric effects. These hold
-       trivially once numerics have been compiled away upstream, and are what makes the purely
-       propositional \<open>ground_fmla\<close> / \<open>ga_eff\<close> faithful. *)
     init_props: "\<forall>f \<in> set (init P). is_predAtom f" and
     ops_no_num: "\<forall>\<pi> \<in> set ops. numeric_effects (effect (the (res_inst \<pi>))) = []"
 
@@ -184,7 +196,7 @@ to \<open>facts\<close>. I don't need to implement this for my grounder, but you
 abbreviation (in grounder) "D\<^sub>G \<equiv> ground_dom"
 abbreviation (in grounder) "P\<^sub>G \<equiv> ground_prob"
 
-sublocale wf_grounder \<subseteq> wf_ast_classical_problem P
+sublocale wf_grounder_num \<subseteq> wf_ast_classical_problem P
   apply (unfold_locales)
   using wf_problem unfolding wf_classical_problem_def by simp
 
@@ -617,6 +629,43 @@ sublocale wf_grounder \<subseteq> dg: wf_ast_classical_domain D\<^sub>G
 sublocale wf_grounder \<subseteq> pg: grounded_problem P\<^sub>G
   using ground_prob_wf ground_prob_grounded by unfold_locales
 
+text \<open>Shared restore/reachability machinery, provable already in \<^locale>\<open>wf_grounder_num\<close> (it needs
+  only \<open>all_ops\<close> / \<open>ops_dist\<close> + the \<^locale>\<open>grounder\<close> name machinery \<open>op_map\<close>/\<open>op_map_inv\<close>, not the
+  numeric-freeness assumptions). Placed here so both the propositional grounder and the
+  numeric-fluent-retaining grounder inherit it.\<close>
+context wf_grounder_num begin
+
+lemma plan_in_ops:
+  assumes "valid_classical_plan_alt I \<pi>s M'"
+  shows "set \<pi>s \<subseteq> set ops"
+proof
+  fix \<pi> assume "\<pi> \<in> set \<pi>s"
+  with assms have "applicable \<pi>" unfolding applicable_def by blast
+  thus "\<pi> \<in> set ops" using all_ops by blast
+qed
+
+lemma restore_map_entry:
+  assumes "n \<in> set op_names"
+  obtains \<pi> where "op_map n = Some \<pi>" "\<pi> \<in> set ops" "op_map_inv \<pi> = Some n"
+proof -
+  from assms obtain i where i: "i < length op_names" "op_names ! i = n"
+    using in_set_conv_nth by meson
+  let ?\<pi> = "ops ! i"
+  have iops: "i < length ops" using i ops_len by simp
+  have zo: "(n, ?\<pi>) \<in> set (zip op_names ops)"
+    using i iops ops_len by (force simp: set_zip)
+  have zi: "(?\<pi>, n) \<in> set (zip ops op_names)"
+    using i iops ops_len by (force simp: set_zip)
+  have "op_map n = Some ?\<pi>"
+    unfolding op_map_def using zo op_names_dis ops_len by (simp add: map_of_is_SomeI map_fst_zip)
+  moreover have "op_map_inv ?\<pi> = Some n"
+    unfolding op_map_inv_def using zi ops_dist ops_len by (simp add: map_of_is_SomeI map_fst_zip)
+  moreover have "?\<pi> \<in> set ops" using iops nth_mem by blast
+  ultimately show thesis using that by blast
+qed
+
+end
+
 context wf_grounder begin
 
 lemma ground_action_map_entry:
@@ -820,15 +869,6 @@ next
   ultimately show ?case using ex by simp
 qed
 
-lemma plan_in_ops:
-  assumes "valid_classical_plan_alt I \<pi>s M'"
-  shows "set \<pi>s \<subseteq> set ops"
-proof
-  fix \<pi> assume "\<pi> \<in> set \<pi>s"
-  with assms have "applicable \<pi>" unfolding applicable_def by blast
-  thus "\<pi> \<in> set ops" using all_ops by blast
-qed
-
 lemma alt_covered:
   assumes "fst M \<subseteq> set facts" "set \<pi>s \<subseteq> set ops" "valid_classical_plan_alt M \<pi>s M'"
   shows "fst M' \<subseteq> set facts"
@@ -859,26 +899,6 @@ text \<open> Left direction: restore a grounded plan to the original problem. \<
 
 lemma op_names_eq: "set op_names = ac_name ` set (actions D\<^sub>G)"
   using ground_ac_names ground_dom_sel by (metis list.set_map)
-
-lemma restore_map_entry:
-  assumes "n \<in> set op_names"
-  obtains \<pi> where "op_map n = Some \<pi>" "\<pi> \<in> set ops" "op_map_inv \<pi> = Some n"
-proof -
-  from assms obtain i where i: "i < length op_names" "op_names ! i = n"
-    using in_set_conv_nth by meson
-  let ?\<pi> = "ops ! i"
-  have iops: "i < length ops" using i ops_len by simp
-  have zo: "(n, ?\<pi>) \<in> set (zip op_names ops)"
-    using i iops ops_len by (force simp: set_zip)
-  have zi: "(?\<pi>, n) \<in> set (zip ops op_names)"
-    using i iops ops_len by (force simp: set_zip)
-  have "op_map n = Some ?\<pi>"
-    unfolding op_map_def using zo op_names_dis ops_len by (simp add: map_of_is_SomeI map_fst_zip)
-  moreover have "op_map_inv ?\<pi> = Some n"
-    unfolding op_map_inv_def using zi ops_dist ops_len by (simp add: map_of_is_SomeI map_fst_zip)
-  moreover have "?\<pi> \<in> set ops" using iops nth_mem by blast
-  ultimately show thesis using that by blast
-qed
 
 lemma restore_wf_pa:
   assumes "pg.wf_classical_plan_action \<pi>'"

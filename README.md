@@ -40,10 +40,11 @@ Repository
 │   │                                   Definedness_Translation, PDDL_Relaxation, Reachability_Analysis, Grounded_PDDL)
 │   ├── PDDL_to_STRIPS/  - - - - - - - conversion of the grounded task to STRIPS + plan restoration
 │   ├── Grounding_Pipeline_{Numeric,STRIPS}.thy  pipeline wiring (with numerics / numeric-free to STRIPS)
-│   ├── Code_Setup.thy, *_Executable.thy, Planner_STRIPS_Export.thy  executable entry points + SML export
-│   ├── SMLCodebase/ - - - - - - - - - compiled planner binary + untrusted oracle drivers (Nemo, SAT solver),
-│   │                                  reusing the Formal-PDDL-Semantics parser
-│   └── Running_Example.thy  - - - - - a full project demonstration
+│   ├── Code_Setup.thy, *_Executable.thy, Planner_{STRIPS_,}Export.thy  executable entry points + SML export
+│   └── Running_Example{,_DFS,_Numeric}.thy  project demonstrations (STRIPS plan / DFS / numeric fluent)
+└── SMLCodebase/  - - - - - - - - - - - the single SML codebase (top level): verified exported kernel (code/),
+                                        untrusted oracle drivers (Nemo, SAT), the Formal-PDDL-Semantics parser
+                                        bridge + grounded-PDDL printer, and the pddl_ground_planner_dfs CLI
 ```
 
 ## Status
@@ -53,6 +54,13 @@ conversion, the pipeline wiring, and the executable planner soundness theorem
 (`plan_by_cert_sound`: any plan returned is a valid plan of the original task, regardless of
 the two untrusted oracles) are proven with `0 sorry`. The compiled binary plans the running
 example and its output is confirmed by an independent PDDL plan validator.
+
+A second, **numeric-fluent-retaining** grounding pipeline (`Numeric_Grounder.thy`) grounds a task
+while keeping its real numeric preconditions/effects and function assignments (e.g. `(>= (fuel ?c) 1)`
+and `(decrease (fuel ?c) 1)`) in the grounded PDDL, rather than compiling them away for STRIPS. Its
+well-formedness (`numeric_ground_prob_wf`) and plan-preservation (`numeric_valid_classical_plan_iff`)
+are proven `0 sorry`, and the binary's `ground` subcommand prints the fluent-retaining grounded PDDL.
+See [ARCHITECTURE_pipeline.md](ARCHITECTURE_pipeline.md#numeric-grounding-pipeline-fluent-retaining).
 
 The PDDL reachability-certificate development
 (`PDDL_Reachability_{Locales,Analysis,Certificate}.thy`) is also `0 sorry`: reachability is proven

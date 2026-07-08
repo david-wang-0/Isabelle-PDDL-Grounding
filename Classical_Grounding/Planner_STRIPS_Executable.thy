@@ -145,4 +145,58 @@ proof -
     unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
 qed
 
+subsection \<open>The DFS-founded planner\<close>
+
+text \<open>Twin of \<^const>\<open>plan_by_cert\<close> using the DFS-founded grounding gate \<^const>\<open>ground_via_cert'_dfs\<close>
+  (foundedness via the verified directed-cycle DFS). Same soundness, since
+  \<^const>\<open>dl_certified_model_dfs\<close> bridges to the same abstract \<^const>\<open>dl_certified_model\<close>.\<close>
+
+definition plan_by_cert_dfs where
+  [code]: "plan_by_cert_dfs f g t_max P \<equiv>
+     Option.bind (ground_via_cert'_dfs f P) (\<lambda>(Mdc, PS).
+       Option.bind (sat_solve_strips g t_max PS) (\<lambda>ops.
+         Some (reconstruct_plan_by_cert P (fst Mdc) ops)))"
+
+theorem plan_by_cert_dfs_sound:
+  assumes "plan_by_cert_dfs f g t_max P = Some \<pi>s"
+  shows "ast_classical_problem.valid_classical_plan2 P \<pi>s"
+proof -
+  from assms obtain Mdc PS ops where
+    g1: "ground_via_cert'_dfs f P = Some (Mdc, PS)" and
+    g2: "sat_solve_strips g t_max PS = Some ops" and
+    \<pi>s: "\<pi>s = reconstruct_plan_by_cert P (fst Mdc) ops"
+    unfolding plan_by_cert_dfs_def by (auto split: Option.bind_splits)
+  obtain M dc where Mdc: "Mdc = (M, dc)" by (cases Mdc)
+  from g1[unfolded Mdc] have
+        rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and pnfE: "ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    and certE: "dl_certified_model_dfs
+                  (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and PS: "PS = ast_classical_problem.as_strips (ground_by_cert P M)"
+    unfolding ground_via_cert'_dfs_def by (auto simp: Let_def split: if_splits prod.splits)
+  have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    by (rule numeric_free_problem_exec[OF pnfE])
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_dfs_imp[OF certE])
+  have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule grounding_checks_exec_P\<^sub>T[OF rp wf gc])
+  have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
+    using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
+  have valid: "is_valid_problem_strips PS"
+    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF pnf ne cert gc' rp wf])
+  have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
+    using sat_solve_strips_sound[OF valid g2] unfolding PS_cert .
+  have "ast_classical_problem.valid_classical_plan2 P
+          (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
+    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF pnf ne cert gc' rp wf serial])
+  thus ?thesis
+    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
+qed
+
 end

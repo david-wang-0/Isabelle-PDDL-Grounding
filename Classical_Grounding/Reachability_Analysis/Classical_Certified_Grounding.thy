@@ -4,7 +4,7 @@ begin
 
 section \<open>Certificate-to-grounder bridge: semantic supersets over the un-relaxed problem \<open>P\<close>\<close>
 
-context certified_reachability
+context certified_reachability_base
 begin
 
 text \<open>The certified reachable facts are \<^emph>\<open>exactly\<close> the relaxed problem's achievable facts

@@ -8,9 +8,15 @@
 CLAUDE.md
 gigante_benchmarks_conditions_effects.md
 
-# SMLCodebase/ planner harness: generated code, compiled binary, oracle temp dirs
-Classical_Grounding/SMLCodebase/code/
-Classical_Grounding/SMLCodebase/bin/
-Classical_Grounding/SMLCodebase/nemo_tmp/
-Classical_Grounding/SMLCodebase/sat_tmp/
-Classical_Grounding/SMLCodebase/examples/plan.txt
+# Local AI-assistant overrides (contain machine-specific ~/ paths — never commit)
+CLAUDE.local.md
+GEMINI.local.md
+# jEdit autosave/recovery files
+\#*#
+
+# SMLCodebase/ planner harness (top-level): generated code, compiled binary, oracle temp dirs, plan output
+SMLCodebase/code/
+SMLCodebase/bin/
+SMLCodebase/nemo_tmp/
+SMLCodebase/sat_tmp/
+SMLCodebase/**/plan.txt

@@ -1,0 +1,56 @@
+(* MLB for the DFS-founded planner + numeric grounder/printer. Reuses the shared driver
+   glue (now local; it
+   references `PDDL_SAT_Planner_Exported`, aliased to the DFS export by
+   planner_alias_dfs.sml). The PDDL parser + libraries come from the sibling
+   Formal-PDDL-Semantics checkout via the FPS_PLANNING mlb-path-var (set by the
+   Makefile; default ../../Formal-PDDL-Semantics/codeBase/planning). *)
+
+$(SML_LIB)/basis/basis.mlb
+
+$(FPS_PLANNING)/cmlib-2.0.0/cmlib.mlb
+
+basics.sml
+
+(* sat_solver must precede pddl_refactor.sml (its `open PDDL` shadows `int`/`not`). *)
+sat_solver.sml
+external_sat.sml
+
+local
+  $(FPS_PLANNING)/SMLParsecomb/src/parse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/parse.sml
+
+  $(FPS_PLANNING)/SMLParsecomb/src/charparse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/charparse.sml
+
+  $(FPS_PLANNING)/SMLParsecomb/src/tokparse.sig
+  $(FPS_PLANNING)/SMLParsecomb/src/tokparse.sml
+  $(FPS_PLANNING)/SMLParsecomb/src/langparse.sml
+
+in
+
+  signature PARSER_COMBINATORS
+  signature CHAR_PARSER
+  signature MINI_LANGUAGE_DEF
+  signature LANGUAGE_DEF
+  signature TOKEN_PARSER
+
+  structure ParserCombinators
+  structure CharParser
+  structure BasicParser
+
+  functor   TokenParser
+  functor   SimpleStyle
+  functor   JavaStyle
+  functor   MLStyle
+
+end
+
+json_parse.sml
+$(FPS_PLANNING)/pddlParser/util.sml
+code/PDDL_SAT_Planner_DFS_Exported.sml
+planner_alias_dfs.sml
+nemo_driver.sml
+$(FPS_PLANNING)/pddlParser/pddl_refactor.sml
+pddl_to_isabelle.sml
+pddl_printer.sml
+pddl_ground_planner_dfs.sml

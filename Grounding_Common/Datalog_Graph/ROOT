@@ -11,6 +11,8 @@ session Datalog_Graph = Datalog_Certification +
   options [timeout = 600]
   sessions
     "Directed_Set_Graphs"
+    "Directed_Cycle_DFS"
   theories
     Graph_Topological_Order
     Datalog_To_Graph
+    Datalog_Cycle_DFS
