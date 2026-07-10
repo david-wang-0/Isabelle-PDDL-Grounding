@@ -122,21 +122,81 @@ text \<open>The abstract checks quantify over the program \<open>P\<close> and u
 definition dl_positive_prog_exec :: "('p, 'x, 'c) clause list \<Rightarrow> bool" where
   "dl_positive_prog_exec Pl = list_all (\<lambda>cl. list_all is_pos_rh (the_rhs cl)) Pl"
 
+subsection \<open>Reading a substitution off a ground rule (assoc-list, no \<open>\<sigma>\<close> function)\<close>
+
+text \<open>For rule validity the substitution is fully determined by the ground rule: read it
+  positionally off \<open>the_lh cl # cls_body_atoms cl\<close> against \<open>gr_head r # gr_body r\<close> as an
+  association list, checking consistency (a repeated variable must agree). No \<open>('x \<Rightarrow> 'c)\<close>
+  function is built or applied in the executable path --- only \<^const>\<open>map_of\<close> look-ups.\<close>
+
+fun match_id_al :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id \<Rightarrow> 'c \<Rightarrow> ('x \<times> 'c) list option" where
+  "match_id_al al (id.Cst c) d = (if c = d then Some al else None)"
+| "match_id_al al (id.Var x) d =
+     (case map_of al x of Some c \<Rightarrow> (if c = d then Some al else None) | None \<Rightarrow> Some ((x, d) # al))"
+
+fun match_ids_al :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id list \<Rightarrow> 'c list \<Rightarrow> ('x \<times> 'c) list option" where
+  "match_ids_al al [] [] = Some al"
+| "match_ids_al al (i # is') (d # ds) =
+     (case match_id_al al i d of Some al' \<Rightarrow> match_ids_al al' is' ds | None \<Rightarrow> None)"
+| "match_ids_al al _ _ = None"
+
+definition match_atom_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p, 'c) dl_fact \<Rightarrow> ('x \<times> 'c) list option" where
+  "match_atom_al al a f = (if fst a = fst f then match_ids_al al (snd a) (snd f) else None)"
+
+fun match_atoms_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh list \<Rightarrow> ('p, 'c) dl_fact list \<Rightarrow> ('x \<times> 'c) list option" where
+  "match_atoms_al al [] [] = Some al"
+| "match_atoms_al al (a # as') (f # fs') =
+     (case match_atom_al al a f of Some al' \<Rightarrow> match_atoms_al al' as' fs' | None \<Rightarrow> None)"
+| "match_atoms_al al _ _ = None"
+
+fun subst_id_al :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id \<Rightarrow> 'c" where
+  "subst_id_al al (id.Cst c) = c"
+| "subst_id_al al (id.Var x) = the (map_of al x)"
+
+fun eval_guard_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) rh \<Rightarrow> bool" where
+  "eval_guard_al al (Eql a b) = (subst_id_al al a = subst_id_al al b)"
+| "eval_guard_al al (Neql a b) = (subst_id_al al a \<noteq> subst_id_al al b)"
+| "eval_guard_al al _ = True"
+
 definition dl_rule_valid_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_ground_rule \<Rightarrow> bool" where
   "dl_rule_valid_exec Pl Ul r =
-     list_ex (\<lambda>cl. list_ex (\<lambda>\<sigma>.
-        list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
-        \<and> gr_head r = subst_atom \<sigma> (the_lh cl)
-        \<and> set (gr_body r) = set (map (subst_atom \<sigma>) (cls_body_atoms cl)))
-        (cls_substs Ul cl)) Pl"
+     list_ex (\<lambda>cl.
+        case match_atoms_al [] (the_lh cl # cls_body_atoms cl) (gr_head r # gr_body r) of
+          None \<Rightarrow> False
+        | Some al \<Rightarrow>
+            list_all (\<lambda>x. case map_of al x of Some c \<Rightarrow> c \<in> set Ul | None \<Rightarrow> False) (cls_vars cl)
+            \<and> list_all (eval_guard_al al) (cls_guards cl))
+       Pl"
 
+definition match_facts_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p, 'c) dl_fact list \<Rightarrow> ('x \<times> 'c) list list" where
+  "match_facts_al al a facts = List.map_filter (match_atom_al al a) facts"
+
+fun body_join :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh list \<Rightarrow> ('p, 'c) dl_fact list \<Rightarrow> ('x \<times> 'c) list list" where
+  "body_join al [] facts = [al]"
+| "body_join al (a # as') facts = concat (map (\<lambda>al'. body_join al' as' facts) (match_facts_al al a facts))"
+
+definition clause_safe_exec :: "('p, 'x, 'c) clause \<Rightarrow> bool" where
+  "clause_safe_exec cl =
+     list_all (\<lambda>x. list_ex (\<lambda>a. x \<in> set (concat (map id_vars_list (snd a)))) (cls_body_atoms cl)) (cls_vars cl)"
+
+text \<open>Closure check: for a SAFE clause enumerate only the substitutions that map the body into the
+  certificate facts (a fact-driven join over the body atoms --- cost \<open>\<propto>\<close> matching tuples, not
+  \<open>|U|^k\<close>); fall back to the full \<open>cls_substs\<close> enumeration only for the (non-datalog) unsafe case, so
+  the soundness refinement stays unconditional.\<close>
 definition dl_closure_check_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_closure_check_exec Pl Ul c =
-     list_all (\<lambda>cl. list_all (\<lambda>\<sigma>.
-        (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
-         \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
-        \<longrightarrow> subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c))
-        (cls_substs Ul cl)) Pl"
+     list_all (\<lambda>cl.
+       if clause_safe_exec cl
+       then list_all (\<lambda>al.
+              list_all (eval_guard_al al) (cls_guards cl)
+              \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
+              (body_join [] (cls_body_atoms cl) (dl_cert_facts c))
+       else list_all (\<lambda>\<sigma>.
+              (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
+               \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
+              \<longrightarrow> subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c))
+              (cls_substs Ul cl))
+       Pl"
 
 definition dl_admissible_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_admissible_exec Pl Ul c =
@@ -201,21 +261,221 @@ text \<open>\<^bold>\<open>Positivity\<close> refines.\<close>
 lemma dl_positive_prog_exec_iff: "dl_positive_prog_exec Pl = dl_positive_prog (set Pl)"
   by (simp add: dl_positive_prog_exec_def dl_positive_prog_def list_all_iff)
 
-text \<open>\<^bold>\<open>Rule validity\<close> refines: an enumerated witness is a genuine \<open>U\<close>-valued one.\<close>
+text \<open>The assoc-list guard/subst evaluators coincide with the \<open>\<sigma>\<close>-function ones for
+  \<open>\<sigma> = \<lambda>x. the (map_of al x)\<close> --- the bridge used only inside the soundness proof.\<close>
+lemma subst_id_al_eq: "subst_id_al al i = subst_id (\<lambda>x. the (map_of al x)) i"
+  by (cases i) auto
+
+lemma eval_guard_al_eq: "eval_guard_al al g = eval_guard (\<lambda>x. the (map_of al x)) g"
+  by (cases g) (auto simp: subst_id_al_eq)
+
+text \<open>Matching only ever \<^emph>\<open>extends\<close> the bindings (\<open>map_of\<close>-monotone), and a matched id/atom is
+  reproduced by the resulting bindings.\<close>
+lemma match_id_al_mono:
+  "match_id_al al i d = Some al' \<Longrightarrow> map_of al \<subseteq>\<^sub>m map_of al'"
+  by (cases i) (auto simp: map_le_def split: option.splits if_splits)
+
+lemma match_id_al_correct:
+  "match_id_al al i d = Some al'
+     \<Longrightarrow> subst_id (\<lambda>x. the (map_of al' x)) i = d \<and> (\<forall>x. i = id.Var x \<longrightarrow> map_of al' x \<noteq> None)"
+  by (cases i) (auto split: option.splits if_splits)
+
+text \<open>The id-list match extends the bindings, binds every matched variable, and reproduces the
+  constant list under the resulting substitution.\<close>
+lemma match_ids_al_spec:
+  "match_ids_al al ids ds = Some al'
+     \<Longrightarrow> map_of al \<subseteq>\<^sub>m map_of al'
+       \<and> (\<forall>x \<in> set (concat (map id_vars_list ids)). map_of al' x \<noteq> None)
+       \<and> map (subst_id (\<lambda>x. the (map_of al' x))) ids = ds"
+proof (induction al ids ds arbitrary: al' rule: match_ids_al.induct)
+  case (2 al i is' d ds)
+  from "2.prems" obtain al2 where a2: "match_id_al al i d = Some al2"
+    and rest: "match_ids_al al2 is' ds = Some al'"
+    by (auto split: option.splits)
+  from "2.IH"[OF a2 rest]
+  have le2: "map_of al2 \<subseteq>\<^sub>m map_of al'"
+    and bndT: "\<forall>x \<in> set (concat (map id_vars_list is')). map_of al' x \<noteq> None"
+    and repT: "map (subst_id (\<lambda>x. the (map_of al' x))) is' = ds" by auto
+  from match_id_al_mono[OF a2] le2 have le: "map_of al \<subseteq>\<^sub>m map_of al'" by (rule map_le_trans)
+  from match_id_al_correct[OF a2]
+  have drep2: "subst_id (\<lambda>x. the (map_of al2 x)) i = d"
+    and bnd2: "\<forall>x. i = id.Var x \<longrightarrow> map_of al2 x \<noteq> None" by auto
+  have agree_i: "the (map_of al' x) = the (map_of al2 x)" if "x \<in> set (id_vars_list i)" for x
+    using that bnd2 le2 by (cases i) (auto simp: map_le_def dom_def)
+  have headbnd: "\<forall>x \<in> set (id_vars_list i). map_of al' x \<noteq> None"
+    using bnd2 le2 by (cases i) (auto simp: map_le_def dom_def)
+  have drep: "subst_id (\<lambda>x. the (map_of al' x)) i = d"
+    using drep2 agree_i by (cases i) auto
+  have bnd: "\<forall>x \<in> set (concat (map id_vars_list (i # is'))). map_of al' x \<noteq> None"
+    using headbnd bndT by auto
+  show ?case using le drep repT bnd by simp
+qed (auto simp: map_le_def)
+
+text \<open>The atom-level match reproduces the fact and binds the atom's variables.\<close>
+lemma match_atom_al_spec:
+  "match_atom_al al a f = Some al'
+     \<Longrightarrow> map_of al \<subseteq>\<^sub>m map_of al'
+       \<and> (\<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al' x \<noteq> None)
+       \<and> subst_atom (\<lambda>x. the (map_of al' x)) a = f"
+  using match_ids_al_spec[of al "snd a" "snd f"]
+  by (auto simp: match_atom_al_def subst_atom_def split: if_splits)
+
+text \<open>The atom-list match positionally reproduces the fact list under the resulting substitution.\<close>
+lemma match_atoms_al_spec:
+  "match_atoms_al al as fs = Some al'
+     \<Longrightarrow> map_of al \<subseteq>\<^sub>m map_of al' \<and> map (subst_atom (\<lambda>x. the (map_of al' x))) as = fs"
+proof (induction al as fs arbitrary: al' rule: match_atoms_al.induct)
+  case (2 al a as' f fs')
+  from "2.prems" obtain al2 where a2: "match_atom_al al a f = Some al2"
+    and rest: "match_atoms_al al2 as' fs' = Some al'"
+    by (auto split: option.splits)
+  from "2.IH"[OF a2 rest] have le2: "map_of al2 \<subseteq>\<^sub>m map_of al'"
+    and repT: "map (subst_atom (\<lambda>x. the (map_of al' x))) as' = fs'" by auto
+  from match_atom_al_spec[OF a2]
+  have le0: "map_of al \<subseteq>\<^sub>m map_of al2"
+    and bnd2: "\<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al2 x \<noteq> None"
+    and hrep2: "subst_atom (\<lambda>x. the (map_of al2 x)) a = f" by auto
+  have le: "map_of al \<subseteq>\<^sub>m map_of al'" using le0 le2 by (rule map_le_trans)
+  have "subst_atom (\<lambda>x. the (map_of al' x)) a = subst_atom (\<lambda>x. the (map_of al2 x)) a"
+  proof (intro subst_atom_agree ballI)
+    fix i x assume i: "i \<in> set (snd a)" and x: "x \<in> set (id_vars_list i)"
+    from i x have "x \<in> set (concat (map id_vars_list (snd a)))" by auto
+    with bnd2 have "map_of al2 x \<noteq> None" by blast
+    with le2 have "map_of al' x = map_of al2 x" by (auto simp: map_le_def dom_def)
+    thus "the (map_of al' x) = the (map_of al2 x)" by simp
+  qed
+  hence hrep: "subst_atom (\<lambda>x. the (map_of al' x)) a = f" using hrep2 by simp
+  show ?case using le hrep repT by simp
+qed (auto simp: map_le_def)
+
+text \<open>\<^bold>\<open>Rule validity\<close> refines: a matched clause yields a genuine \<open>U\<close>-valued substitution
+  \<open>\<sigma> = \<lambda>x. the (map_of al x)\<close> (built only here, as the existential witness).\<close>
 lemma dl_rule_valid_exec_imp:
   assumes "dl_rule_valid_exec Pl Ul r"
   shows "dl_rule_valid (set Pl) (set Ul) r"
 proof -
-  obtain cl \<sigma> where
+  from assms obtain cl al where
     cl: "cl \<in> set Pl" and
-    \<sigma>: "\<sigma> \<in> set (cls_substs Ul cl)" and
-    g: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g" and
-    hd: "gr_head r = subst_atom \<sigma> (the_lh cl)" and
-    bd: "set (gr_body r) = set (map (subst_atom \<sigma>) (cls_body_atoms cl))"
-    using assms unfolding dl_rule_valid_exec_def by (auto simp: list_ex_iff list_all_iff)
-  have "\<forall>x \<in> set (cls_vars cl). \<sigma> x \<in> set Ul"
-    using \<sigma> by (blast dest: cls_substs_rangeD)
-  then show ?thesis using cl g hd bd unfolding dl_rule_valid_def by blast
+    m: "match_atoms_al [] (the_lh cl # cls_body_atoms cl) (gr_head r # gr_body r) = Some al" and
+    U: "list_all (\<lambda>x. case map_of al x of Some c \<Rightarrow> c \<in> set Ul | None \<Rightarrow> False) (cls_vars cl)" and
+    G: "list_all (eval_guard_al al) (cls_guards cl)"
+    unfolding dl_rule_valid_exec_def by (auto simp: list_ex_iff split: option.splits)
+  define \<sigma> where "\<sigma> = (\<lambda>x. the (map_of al x))"
+  from match_atoms_al_spec[OF m]
+  have rep: "map (subst_atom \<sigma>) (the_lh cl # cls_body_atoms cl) = gr_head r # gr_body r"
+    by (simp add: \<sigma>_def)
+  from rep have hd: "gr_head r = subst_atom \<sigma> (the_lh cl)" by simp
+  from rep have "map (subst_atom \<sigma>) (cls_body_atoms cl) = gr_body r" by simp
+  hence bd: "set (gr_body r) = set (map (subst_atom \<sigma>) (cls_body_atoms cl))" by simp
+  have Uv: "\<forall>x \<in> set (cls_vars cl). \<sigma> x \<in> set Ul"
+    using U by (auto simp: list_all_iff \<sigma>_def split: option.splits)
+  have Gv: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g"
+    using G by (auto simp: list_all_iff eval_guard_al_eq \<sigma>_def)
+  from cl Uv Gv hd bd show ?thesis unfolding dl_rule_valid_def by blast
+qed
+
+text \<open>\<^bold>\<open>Join completeness\<close>: matching a whole rhs predicate against a fact (fixing all its
+  arguments at once) captures every substitution consistent with the current bindings; the
+  atom-list join then captures every \<open>\<sigma>\<close> that maps the body into the facts.\<close>
+lemma match_id_al_complete:
+  assumes "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d"
+  shows "\<exists>al'. match_id_al al i (subst_id \<sigma> i) = Some al'
+             \<and> (\<forall>x d. map_of al x = Some d \<longrightarrow> map_of al' x = Some d)
+             \<and> (\<forall>x d. map_of al' x = Some d \<longrightarrow> \<sigma> x = d)
+             \<and> (\<forall>x \<in> set (id_vars_list i). map_of al' x = Some (\<sigma> x))"
+proof (cases i)
+  case (Cst c)
+  then show ?thesis using assms by (intro exI[where x=al]) auto
+next
+  case (Var x)
+  show ?thesis
+  proof (cases "map_of al x")
+    case None
+    with Var show ?thesis using assms by (intro exI[where x="(x, \<sigma> x) # al"]) auto
+  next
+    case (Some d)
+    with assms have "\<sigma> x = d" by blast
+    with Var Some assms show ?thesis by (intro exI[where x=al]) auto
+  qed
+qed
+
+lemma match_ids_al_complete:
+  assumes "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d"
+  shows "\<exists>al'. match_ids_al al ids (map (subst_id \<sigma>) ids) = Some al'
+             \<and> (\<forall>x d. map_of al x = Some d \<longrightarrow> map_of al' x = Some d)
+             \<and> (\<forall>x d. map_of al' x = Some d \<longrightarrow> \<sigma> x = d)
+             \<and> (\<forall>x \<in> set (concat (map id_vars_list ids)). map_of al' x = Some (\<sigma> x))"
+  using assms
+proof (induction ids arbitrary: al)
+  case Nil then show ?case by auto
+next
+  case (Cons i ids)
+  from match_id_al_complete[OF Cons.prems, of i]
+  obtain al1 where m1: "match_id_al al i (subst_id \<sigma> i) = Some al1"
+    and ext1: "\<forall>x d. map_of al x = Some d \<longrightarrow> map_of al1 x = Some d"
+    and cons1: "\<forall>x d. map_of al1 x = Some d \<longrightarrow> \<sigma> x = d"
+    and bind1: "\<forall>x \<in> set (id_vars_list i). map_of al1 x = Some (\<sigma> x)" by blast
+  from Cons.IH[OF cons1] obtain al' where
+    m': "match_ids_al al1 ids (map (subst_id \<sigma>) ids) = Some al'"
+    and ext': "\<forall>x d. map_of al1 x = Some d \<longrightarrow> map_of al' x = Some d"
+    and cons': "\<forall>x d. map_of al' x = Some d \<longrightarrow> \<sigma> x = d"
+    and bind': "\<forall>x \<in> set (concat (map id_vars_list ids)). map_of al' x = Some (\<sigma> x)" by blast
+  have bindi: "\<forall>x \<in> set (id_vars_list i). map_of al' x = Some (\<sigma> x)" using bind1 ext' by blast
+  show ?case
+  proof (intro exI[where x=al'] conjI)
+    show "match_ids_al al (i # ids) (map (subst_id \<sigma>) (i # ids)) = Some al'" using m1 m' by simp
+    show "\<forall>x d. map_of al x = Some d \<longrightarrow> map_of al' x = Some d" using ext1 ext' by blast
+    show "\<forall>x d. map_of al' x = Some d \<longrightarrow> \<sigma> x = d" using cons' .
+    show "\<forall>x \<in> set (concat (map id_vars_list (i # ids))). map_of al' x = Some (\<sigma> x)"
+      using bindi bind' by auto
+  qed
+qed
+
+lemma match_atom_al_complete:
+  assumes "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d"
+  shows "\<exists>al'. match_atom_al al a (subst_atom \<sigma> a) = Some al'
+             \<and> (\<forall>x d. map_of al x = Some d \<longrightarrow> map_of al' x = Some d)
+             \<and> (\<forall>x d. map_of al' x = Some d \<longrightarrow> \<sigma> x = d)
+             \<and> (\<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al' x = Some (\<sigma> x))"
+  using match_ids_al_complete[OF assms, of "snd a"]
+  by (simp add: match_atom_al_def subst_atom_def)
+
+lemma body_join_complete:
+  assumes "\<forall>a \<in> set atoms. subst_atom \<sigma> a \<in> set facts"
+    and "\<forall>x d. map_of al0 x = Some d \<longrightarrow> \<sigma> x = d"
+  shows "\<exists>al \<in> set (body_join al0 atoms facts).
+           (\<forall>x d. map_of al0 x = Some d \<longrightarrow> map_of al x = Some d)
+           \<and> (\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d)
+           \<and> (\<forall>a \<in> set atoms. \<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x))"
+  using assms
+proof (induction atoms arbitrary: al0)
+  case Nil then show ?case by auto
+next
+  case (Cons a atoms)
+  have fa: "subst_atom \<sigma> a \<in> set facts" using Cons.prems(1) by simp
+  from match_atom_al_complete[OF Cons.prems(2), of a]
+  obtain al1 where m1: "match_atom_al al0 a (subst_atom \<sigma> a) = Some al1"
+    and ext1: "\<forall>x d. map_of al0 x = Some d \<longrightarrow> map_of al1 x = Some d"
+    and cons1: "\<forall>x d. map_of al1 x = Some d \<longrightarrow> \<sigma> x = d"
+    and bind1: "\<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al1 x = Some (\<sigma> x)" by blast
+  have al1in: "al1 \<in> set (match_facts_al al0 a facts)"
+    using m1 fa by (force simp: match_facts_al_def List.map_filter_def)
+  have rest_facts: "\<forall>a \<in> set atoms. subst_atom \<sigma> a \<in> set facts" using Cons.prems(1) by simp
+  from Cons.IH[OF rest_facts cons1] obtain al where
+    alin: "al \<in> set (body_join al1 atoms facts)"
+    and ext': "\<forall>x d. map_of al1 x = Some d \<longrightarrow> map_of al x = Some d"
+    and cons': "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d"
+    and bind': "\<forall>a \<in> set atoms. \<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x)" by blast
+  have binda: "\<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x)"
+    using bind1 ext' by blast
+  show ?case
+  proof (intro bexI[where x=al] conjI)
+    show "\<forall>x d. map_of al0 x = Some d \<longrightarrow> map_of al x = Some d" using ext1 ext' by blast
+    show "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d" using cons' .
+    show "\<forall>a' \<in> set (a # atoms). \<forall>x \<in> set (concat (map id_vars_list (snd a'))). map_of al x = Some (\<sigma> x)"
+      using binda bind' by auto
+    show "al \<in> set (body_join al0 (a # atoms) facts)" using alin al1in by auto
+  qed
 qed
 
 text \<open>\<^bold>\<open>Closure check\<close> refines: an arbitrary \<open>U\<close>-valued substitution is handled via its tabulated
@@ -230,17 +490,51 @@ proof (intro ballI allI impI)
     and rng: "\<forall>x \<in> set (cls_vars cl). \<sigma> x \<in> set Ul"
     and hyp: "(\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g)
               \<and> (\<forall>a \<in> set (cls_body_atoms cl). subst_atom \<sigma> a \<in> set (dl_cert_facts c))"
-  obtain \<sigma>' where \<sigma>': "\<sigma>' \<in> set (cls_substs Ul cl)"
-    and ag: "\<forall>x \<in> set (cls_vars cl). \<sigma>' x = \<sigma> x"
-    using cls_substs_tabulate[OF rng] by blast
-  have gd: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma>' g"
-    using hyp ag by (simp add: eval_guard_cls_cong)
-  have bd: "\<forall>a \<in> set (cls_body_atoms cl). subst_atom \<sigma>' a \<in> set (dl_cert_facts c)"
-    using hyp ag by (simp add: subst_atom_body_cong)
-  have "subst_atom \<sigma>' (the_lh cl) \<in> set (dl_cert_facts c)"
-    using assms cl \<sigma>' gd bd unfolding dl_closure_check_exec_def by (auto simp: list_all_iff)
-  then show "subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c)"
-    using subst_atom_head_cong[OF ag] by simp
+  from hyp have gsig: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g"
+    and bsig: "\<forall>a \<in> set (cls_body_atoms cl). subst_atom \<sigma> a \<in> set (dl_cert_facts c)" by simp_all
+  show "subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c)"
+  proof (cases "clause_safe_exec cl")
+    case False \<comment> \<open>unsafe: fall back to the full \<open>cls_substs\<close> enumeration (old argument)\<close>
+    obtain \<sigma>' where \<sigma>': "\<sigma>' \<in> set (cls_substs Ul cl)"
+      and ag: "\<forall>x \<in> set (cls_vars cl). \<sigma>' x = \<sigma> x"
+      using cls_substs_tabulate[OF rng] by blast
+    have gd: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma>' g"
+      using gsig ag by (simp add: eval_guard_cls_cong)
+    have bd: "\<forall>a \<in> set (cls_body_atoms cl). subst_atom \<sigma>' a \<in> set (dl_cert_facts c)"
+      using bsig ag by (simp add: subst_atom_body_cong)
+    have "subst_atom \<sigma>' (the_lh cl) \<in> set (dl_cert_facts c)"
+      using assms cl False \<sigma>' gd bd unfolding dl_closure_check_exec_def by (auto simp: list_all_iff)
+    then show ?thesis using subst_atom_head_cong[OF ag] by simp
+  next
+    case True \<comment> \<open>safe: the fact-driven join captures \<open>\<sigma>\<close> (agrees on all clause variables)\<close>
+    have empty_cons: "\<forall>x d. map_of [] x = Some d \<longrightarrow> \<sigma> x = d" by simp
+    obtain al where alin: "al \<in> set (body_join [] (cls_body_atoms cl) (dl_cert_facts c))"
+      and albind: "\<forall>a \<in> set (cls_body_atoms cl).
+                     \<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x)"
+      using body_join_complete[OF bsig empty_cons] by auto
+    have safe: "\<forall>x \<in> set (cls_vars cl). \<exists>a \<in> set (cls_body_atoms cl). x \<in> set (concat (map id_vars_list (snd a)))"
+      using True unfolding clause_safe_exec_def by (simp add: list_all_iff list_ex_iff)
+    have agall: "\<forall>x \<in> set (cls_vars cl). map_of al x = Some (\<sigma> x)"
+    proof
+      fix x assume x: "x \<in> set (cls_vars cl)"
+      then obtain a where a: "a \<in> set (cls_body_atoms cl)"
+        and xa: "x \<in> set (concat (map id_vars_list (snd a)))"
+        using safe by blast
+      show "map_of al x = Some (\<sigma> x)" using albind a xa by blast
+    qed
+    have ag: "\<forall>x \<in> set (cls_vars cl). (\<lambda>x. the (map_of al x)) x = \<sigma> x" using agall by simp
+    have gd: "list_all (eval_guard_al al) (cls_guards cl)"
+      unfolding list_all_iff
+    proof
+      fix g assume g: "g \<in> set (cls_guards cl)"
+      have "eval_guard_al al g = eval_guard \<sigma> g"
+        by (simp add: eval_guard_al_eq eval_guard_cls_cong[OF ag g])
+      then show "eval_guard_al al g" using gsig g by simp
+    qed
+    have "subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c)"
+      using assms cl True alin gd unfolding dl_closure_check_exec_def by (auto simp: list_all_iff)
+    then show ?thesis using subst_atom_head_cong[OF ag] by simp
+  qed
 qed
 
 text \<open>\<^bold>\<open>Admissibility\<close> and the \<^bold>\<open>model-checking entry point\<close> refine, assembling the four checks.\<close>
