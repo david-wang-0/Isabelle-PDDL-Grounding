@@ -33,6 +33,11 @@ text \<open>Phrased on the AFP program type \<^typ>\<open>('p, 'x, 'c) dl_progra
 definition dl_positive_prog :: "('p, 'x, 'c) dl_program \<Rightarrow> bool" where
   "dl_positive_prog P \<equiv> (\<forall>cl \<in> P. \<forall>rh \<in> set (the_rhs cl). is_pos_rh rh)"
 
+lemma dl_positive_progD:
+  assumes "dl_positive_prog P" and "cl \<in> P" and "rh \<in> set (the_rhs cl)"
+  shows "is_pos_rh rh"
+  using assms unfolding dl_positive_prog_def by blast
+
 subsection \<open>Relation to stratified datalog\<close>
 
 text \<open>A positive program is a stratified program, which is well-stratified
@@ -50,20 +55,21 @@ text \<open>At the trivial stratification the stratum ordering is plain pointwis
 lemma lte_zero_iff: "(\<rho> \<sqsubseteq>(\<lambda>_. 0)\<sqsubseteq> \<rho>') \<longleftrightarrow> (\<forall>p. \<rho> p \<subseteq> \<rho>' p)"
 proof
   assume "\<rho> \<sqsubseteq>(\<lambda>_. 0)\<sqsubseteq> \<rho>'"
-  then show "\<forall>p. \<rho> p \<subseteq> \<rho>' p"
+  thus "\<forall>p. \<rho> p \<subseteq> \<rho>' p"
     unfolding lte_def lt_def by auto
 next
   assume sub: "\<forall>p. \<rho> p \<subseteq> \<rho>' p"
   show "\<rho> \<sqsubseteq>(\<lambda>_. 0)\<sqsubseteq> \<rho>'"
   proof (cases "\<rho> = \<rho>'")
-    case True then show ?thesis unfolding lte_def by simp
+    case True
+    thus ?thesis unfolding lte_def by simp
   next
     case False
     then obtain p where "\<rho> p \<subset> \<rho>' p"
       using sub by (metis fun_eq_iff psubsetI)
-    then have "\<rho> \<sqsubset>(\<lambda>_. 0)\<sqsubset> \<rho>'"
+    hence "\<rho> \<sqsubset>(\<lambda>_. 0)\<sqsubset> \<rho>'"
       unfolding lt_def using sub by (auto intro!: exI[of _ p])
-    then show ?thesis unfolding lte_def by simp
+    thus ?thesis unfolding lte_def by simp
   qed
 qed
 
@@ -89,10 +95,10 @@ proof
   fix c assume c: "c \<in> P"
   obtain p ids rhs where ceq: "c = Cls p ids rhs" by (cases c)
   have "\<forall>rh \<in> set rhs. is_pos_rh rh"
-    using positive c unfolding dl_positive_prog_def ceq by auto
-  then have "\<forall>rh \<in> set rhs. rnk (\<lambda>_. 0) rh = 0"
+    using dl_positive_progD[OF positive c] unfolding ceq by auto
+  hence "\<forall>rh \<in> set rhs. rnk (\<lambda>_. 0) rh = 0"
     using rnk_pos_zero by blast
-  then show "strat_wf_cls (\<lambda>_. 0) c"
+  thus "strat_wf_cls (\<lambda>_. 0) c"
     unfolding ceq strat_wf_cls.simps by simp
 qed
 
@@ -188,10 +194,20 @@ definition dl_heads_covered :: "'c set \<Rightarrow> ('p, 'x, 'c) dl_program \<R
   "dl_heads_covered U P \<equiv>
      \<forall>cl \<in> P. \<forall>i \<in> set (snd (the_lh cl)). set (id_consts_list i) \<subseteq> U"
 
+lemma dl_heads_coveredD:
+  assumes "dl_heads_covered U P" and "cl \<in> P" and "i \<in> set (snd (the_lh cl))"
+  shows "set (id_consts_list i) \<subseteq> U"
+  using assms unfolding dl_heads_covered_def by blast
+
 definition dl_safe :: "('p, 'x, 'c) dl_program \<Rightarrow> bool" where
   "dl_safe P \<equiv>
      \<forall>cl \<in> P. \<forall>x \<in> set (cls_vars cl).
        \<exists>a \<in> set (cls_body_atoms cl). x \<in> set (concat (map id_vars_list (snd a)))"
+
+lemma dl_safeD:
+  assumes "dl_safe P" and "cl \<in> P" and "x \<in> set (cls_vars cl)"
+  shows "\<exists>a \<in> set (cls_body_atoms cl). x \<in> set (concat (map id_vars_list (snd a)))"
+  using assms unfolding dl_safe_def by blast
 
 text \<open>Bridging the checker's substitution application to the AFP evaluation functions.\<close>
 
@@ -231,7 +247,7 @@ lemma subst_atom_agree:
 proof -
   have "map (subst_id \<sigma>) (snd a) = map (subst_id \<sigma>') (snd a)"
     using assms by (intro map_cong[OF refl] subst_id_agree) auto
-  then show ?thesis unfolding subst_atom_def by simp
+  thus ?thesis unfolding subst_atom_def by simp
 qed
 
 lemma eval_guard_agree:
@@ -239,14 +255,14 @@ lemma eval_guard_agree:
   shows "eval_guard \<sigma> g = eval_guard \<sigma>' g"
 proof (cases g)
   case (Eql a b)
-  then have "subst_id \<sigma> a = subst_id \<sigma>' a" "subst_id \<sigma> b = subst_id \<sigma>' b"
+  hence "subst_id \<sigma> a = subst_id \<sigma>' a" "subst_id \<sigma> b = subst_id \<sigma>' b"
     using assms by (auto intro!: subst_id_agree)
-  with Eql show ?thesis by simp
+  thus ?thesis using Eql by simp
 next
   case (Neql a b)
-  then have "subst_id \<sigma> a = subst_id \<sigma>' a" "subst_id \<sigma> b = subst_id \<sigma>' b"
+  hence "subst_id \<sigma> a = subst_id \<sigma>' a" "subst_id \<sigma> b = subst_id \<sigma>' b"
     using assms by (auto intro!: subst_id_agree)
-  with Neql show ?thesis by simp
+  thus ?thesis using Neql by simp
 qed simp_all
 
 text \<open>Membership in \<^const>\<open>cls_substs\<close>: exactly the tabulated substitutions over \<open>U\<close>.\<close>
@@ -255,10 +271,10 @@ lemma chosen_from_replicate:
   "chosen_from (replicate n U) xs \<longleftrightarrow> length xs = n \<and> set xs \<subseteq> set U"
 proof (induction xs arbitrary: n)
   case Nil
-  then show ?case by (cases n) simp_all
+  thus ?case by (cases n) simp_all
 next
   case (Cons x xs)
-  then show ?case by (cases n) auto
+  thus ?case by (cases n) auto
 qed
 
 lemma cls_substs_iff:
@@ -277,7 +293,7 @@ lemma subst_of_in_set:
 proof -
   obtain c where "map_of (zip vs cs) x = Some c"
     using assms by (metis map_of_zip_is_Some)
-  then show ?thesis
+  thus ?thesis
     unfolding subst_of_def using map_of_SomeD set_zip_rightD by fastforce
 qed
 
@@ -340,16 +356,40 @@ proof (induction rule: derivable.induct)
   have "subst_id \<sigma> i \<in> U" if i: "i \<in> set (snd (the_lh cl))" for i
   proof (cases i)
     case (Var x)
-    then have "x \<in> set (cls_vars cl)"
+    hence "x \<in> set (cls_vars cl)"
       using i cls_vars_head_vars by fastforce
-    then have "\<sigma> x \<in> U" using derive.hyps(2) by blast
-    then show ?thesis using Var by simp
+    hence "\<sigma> x \<in> U" using derive.hyps(2) by blast
+    thus ?thesis using Var by simp
   next
     case (Cst c)
-    then show ?thesis
-      using covered derive.hyps(1) i unfolding dl_heads_covered_def by fastforce
+    thus ?thesis
+      using dl_heads_coveredD[OF covered derive.hyps(1) i] by fastforce
   qed
-  then show ?case unfolding subst_atom_def by auto
+  thus ?case unfolding subst_atom_def by auto
+qed
+
+text \<open>\<^bold>\<open>Safety pins variables to the universe\<close> (hoisted from \<open>derivable_solves\<close>): if every body
+  atom of a clause has a derivable instance under \<open>\<sigma>\<close>, then --- by safety and head coverage ---
+  \<open>\<sigma>\<close> maps every clause variable into \<open>U\<close>.\<close>
+lemma subst_cond_of_body_derivable:
+  assumes cl: "cl \<in> P"
+    and bd: "\<And>a. a \<in> set (cls_body_atoms cl) \<Longrightarrow> derivable (subst_atom \<sigma> a)"
+    and x: "x \<in> set (cls_vars cl)"
+  shows "\<sigma> x \<in> U"
+proof -
+  obtain a where a: "a \<in> set (cls_body_atoms cl)"
+    and xa: "x \<in> set (concat (map id_vars_list (snd a)))"
+    using dl_safeD[OF safe cl x] by blast
+  obtain i where i: "i \<in> set (snd a)" and xi: "x \<in> set (id_vars_list i)"
+    using xa by auto
+  have i_eq: "i = id.Var x" using xi by (cases i) auto
+  have "set (snd (subst_atom \<sigma> a)) \<subseteq> U"
+    using derivable_consts[OF bd[OF a]] by simp
+  moreover
+  have "\<sigma> x \<in> set (snd (subst_atom \<sigma> a))"
+    using i i_eq unfolding subst_atom_def by force
+  ultimately
+  show "\<sigma> x \<in> U" by blast
 qed
 
 text \<open>\<^bold>\<open>Completeness core\<close>: the derivable facts form an AFP solution of \<open>P\<close> (safety + coverage).\<close>
@@ -362,57 +402,36 @@ proof (intro ballI allI)
   obtain q ids rhs where cl_eq: "cl = Cls q ids rhs" by (cases cl)
   have main: "\<lbrakk>(q, ids)\<rbrakk>\<^sub>l\<^sub>h ?D \<sigma>" if body: "\<lbrakk>rhs\<rbrakk>\<^sub>r\<^sub>h\<^sub>s ?D \<sigma>"
   proof -
-    have body_der: "derivable (fst a, \<lbrakk>snd a\<rbrakk>\<^sub>i\<^sub>d\<^sub>s \<sigma>)"
-      if a: "a \<in> set (cls_body_atoms cl)" for a
+    have body_der: "derivable (subst_atom \<sigma> a)" if a: "a \<in> set (cls_body_atoms cl)" for a
     proof -
-      from a have "PosLit (fst a) (snd a) \<in> set rhs"
-        using cls_body_atoms_iff[of a cl] cl_eq by simp
-      then have "\<lbrakk>\<^bold>+ (fst a) (snd a)\<rbrakk>\<^sub>r\<^sub>h ?D \<sigma>" using body by fastforce
-      then show ?thesis by simp
+      have "PosLit (fst a) (snd a) \<in> set rhs"
+        using a cls_body_atoms_iff[of a cl] cl_eq by simp
+      hence "\<lbrakk>\<^bold>+ (fst a) (snd a)\<rbrakk>\<^sub>r\<^sub>h ?D \<sigma>" using body by fastforce
+      thus ?thesis by (simp add: subst_atom_def subst_id_eval_id)
     qed
-    text \<open>Safety pins each clause variable to a body atom, whose derivable instance has only
-      universe constants --- so \<open>\<sigma>\<close> already maps the clause variables into \<open>U\<close>.\<close>
+    have body': "\<forall>a \<in> set (cls_body_atoms cl). derivable (subst_atom \<sigma> a)"
+      using body_der by blast
     have subst_cond: "\<forall>x \<in> set (cls_vars cl). \<sigma> x \<in> U"
-    proof
-      fix x assume x: "x \<in> set (cls_vars cl)"
-      from safe cl x obtain a where a: "a \<in> set (cls_body_atoms cl)"
-        and xa: "x \<in> set (concat (map id_vars_list (snd a)))"
-        unfolding dl_safe_def by blast
-      from xa obtain i where i: "i \<in> set (snd a)" and xi: "x \<in> set (id_vars_list i)"
-        by auto
-      have i_eq: "i = id.Var x" using xi by (cases i) auto
-      have "set (\<lbrakk>snd a\<rbrakk>\<^sub>i\<^sub>d\<^sub>s \<sigma>) \<subseteq> U"
-        using derivable_consts[OF body_der[OF a]] by simp
-      moreover have "\<sigma> x \<in> set (\<lbrakk>snd a\<rbrakk>\<^sub>i\<^sub>d\<^sub>s \<sigma>)"
-        using i i_eq by force
-      ultimately show "\<sigma> x \<in> U" by blast
-    qed
+      using subst_cond_of_body_derivable[OF cl] body_der by blast
     have guards: "\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g"
     proof
       fix g assume g: "g \<in> set (cls_guards cl)"
-      then have g_rhs: "g \<in> set rhs" using cl_eq unfolding cls_guards_def by simp
+      hence g_rhs: "g \<in> set rhs" using cl_eq unfolding cls_guards_def by simp
       show "eval_guard \<sigma> g"
       proof (cases g)
         case (Eql a b)
-        then show ?thesis using body g_rhs by (fastforce simp: subst_id_eval_id)
+        thus ?thesis using body g_rhs by (fastforce simp: subst_id_eval_id)
       next
         case (Neql a b)
-        then show ?thesis using body g_rhs by (fastforce simp: subst_id_eval_id)
+        thus ?thesis using body g_rhs by (fastforce simp: subst_id_eval_id)
       qed simp_all
-    qed
-    have body': "\<forall>a \<in> set (cls_body_atoms cl). derivable (subst_atom \<sigma> a)"
-    proof
-      fix a assume a: "a \<in> set (cls_body_atoms cl)"
-      have "subst_atom \<sigma> a = (fst a, \<lbrakk>snd a\<rbrakk>\<^sub>i\<^sub>d\<^sub>s \<sigma>)"
-        unfolding subst_atom_def by (simp add: subst_id_eval_id)
-      then show "derivable (subst_atom \<sigma> a)" using body_der[OF a] by simp
     qed
     have "derivable (subst_atom \<sigma> (the_lh cl))"
       using derivable.derive[OF cl subst_cond guards body'] by blast
-    then show ?thesis
+    thus ?thesis
       using cl_eq by (simp add: subst_atom_def subst_id_eval_id)
   qed
-  then show "\<lbrakk>cl\<rbrakk>\<^sub>c\<^sub>l\<^sub>s ?D \<sigma>"
+  thus "\<lbrakk>cl\<rbrakk>\<^sub>c\<^sub>l\<^sub>s ?D \<sigma>"
     unfolding cl_eq meaning_cls.simps by blast
 qed
 
@@ -441,36 +460,36 @@ proof (induction rule: derivable.induct)
   have "\<lbrakk>rh\<rbrakk>\<^sub>r\<^sub>h \<rho> \<sigma>" if rh: "rh \<in> set rhs" for rh
   proof (cases rh)
     case (Eql a b)
-    then have "rh \<in> set (cls_guards cl)"
+    hence "rh \<in> set (cls_guards cl)"
       using rh cl_eq unfolding cls_guards_def by simp
-    then have "eval_guard \<sigma> rh" using derive.hyps(3) by blast
-    then show ?thesis using Eql by (simp add: subst_id_eval_id)
+    hence "eval_guard \<sigma> rh" using derive.hyps(3) by blast
+    thus ?thesis using Eql by (simp add: subst_id_eval_id)
   next
     case (Neql a b)
-    then have "rh \<in> set (cls_guards cl)"
+    hence "rh \<in> set (cls_guards cl)"
       using rh cl_eq unfolding cls_guards_def by simp
-    then have "eval_guard \<sigma> rh" using derive.hyps(3) by blast
-    then show ?thesis using Neql by (simp add: subst_id_eval_id)
+    hence "eval_guard \<sigma> rh" using derive.hyps(3) by blast
+    thus ?thesis using Neql by (simp add: subst_id_eval_id)
   next
     case (PosLit p' ids')
-    then have "(p', ids') \<in> set (cls_body_atoms cl)"
+    hence "(p', ids') \<in> set (cls_body_atoms cl)"
       using rh cl_eq cls_body_atoms_iff by fastforce
-    then have "snd (subst_atom \<sigma> (p', ids')) \<in> \<rho> (fst (subst_atom \<sigma> (p', ids')))"
+    hence "snd (subst_atom \<sigma> (p', ids')) \<in> \<rho> (fst (subst_atom \<sigma> (p', ids')))"
       using derive.IH by blast
-    then show ?thesis
+    thus ?thesis
       using PosLit by (simp add: subst_atom_def subst_id_eval_id)
   next
     case (NegLit p' ids')
-    then have False
-      using positive derive.hyps(1) rh cl_eq unfolding dl_positive_prog_def by fastforce
-    then show ?thesis ..
+    hence False
+      using dl_positive_progD[OF positive derive.hyps(1)] rh cl_eq by fastforce
+    thus ?thesis ..
   qed
-  then have rhs_sat: "\<lbrakk>rhs\<rbrakk>\<^sub>r\<^sub>h\<^sub>s \<rho> \<sigma>" by simp
+  hence rhs_sat: "\<lbrakk>rhs\<rbrakk>\<^sub>r\<^sub>h\<^sub>s \<rho> \<sigma>" by simp
   have "\<lbrakk>cl\<rbrakk>\<^sub>c\<^sub>l\<^sub>s \<rho> \<sigma>"
     using sol derive.hyps(1) unfolding solves_program_def solves_cls_def by blast
-  then have "\<lbrakk>(q, ids)\<rbrakk>\<^sub>l\<^sub>h \<rho> \<sigma>"
+  hence "\<lbrakk>(q, ids)\<rbrakk>\<^sub>l\<^sub>h \<rho> \<sigma>"
     using rhs_sat unfolding cl_eq meaning_cls.simps by blast
-  then show ?case using cl_eq by (simp add: subst_atom_def subst_id_eval_id)
+  thus ?case using cl_eq by (simp add: subst_atom_def subst_id_eval_id)
 qed
 
 text \<open>\<^bold>\<open>The equivalence\<close>: \<open>derivable\<close> coincides with the (rank-0) least solution of \<open>P\<close>.\<close>
@@ -479,19 +498,21 @@ lemma derivable_iff_least_solution:
   shows "derivable (p, r) \<longleftrightarrow> r \<in> \<rho> p"
 proof
   assume "derivable (p, r)"
-  moreover have "\<rho> \<Turnstile>\<^sub>d\<^sub>l P"
+  moreover
+  have "\<rho> \<Turnstile>\<^sub>d\<^sub>l P"
     using lst unfolding least_solution_def by blast
-  ultimately show "r \<in> \<rho> p"
+  ultimately
+  show "r \<in> \<rho> p"
     using derivable_in_solution by fastforce
 next
   assume r: "r \<in> \<rho> p"
   have D_sol: "(\<lambda>q. {r. derivable (q, r)}) \<Turnstile>\<^sub>d\<^sub>l P"
     using derivable_solves .
-  with lst have "lte \<rho> (\<lambda>_. 0) (\<lambda>q. {r. derivable (q, r)})"
-    unfolding least_solution_def by blast
-  then have "\<rho> p \<subseteq> {r. derivable (p, r)}"
+  hence "lte \<rho> (\<lambda>_. 0) (\<lambda>q. {r. derivable (q, r)})"
+    using lst unfolding least_solution_def by blast
+  hence "\<rho> p \<subseteq> {r. derivable (p, r)}"
     unfolding lte_def lt_def by auto
-  with r show "derivable (p, r)" by blast
+  thus "derivable (p, r)" using r by blast
 qed
 
 end
