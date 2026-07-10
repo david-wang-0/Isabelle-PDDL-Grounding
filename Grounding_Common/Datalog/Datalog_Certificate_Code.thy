@@ -22,7 +22,12 @@ text \<open>\<^bold>\<open>Executable foundedness\<close> (\<open>dl_founded_exe
   with the rank taken to be a rule's position in the list (a body fact, being an earlier head, has a
   strictly smaller first-occurrence index). The verified cycle-detecting DFS that reconstructs the
   rank from an \<^emph>\<open>unordered\<close> certificate is a further, independent refinement onto the same
-  \<^const>\<open>dl_founded\<close>.\<close>
+  \<^const>\<open>dl_founded\<close> --- now realised downstream as \<open>dl_acyclic_dfs\<close> / \<open>dl_certified_model_dfs\<close>
+  (session \<open>Datalog_Graph\<close>, theory \<open>Datalog_Cycle_DFS\<close>), which the deployed grounder
+  (\<open>plan_by_cert_dfs\<close> / \<open>ground_via_cert_prop_dfs_e\<close>) uses in place of this ordered scan. So
+  \<open>dl_founded_exec\<close> here and the \<open>dl_certified_model_exec\<close> entry point below are the fast path
+  retained for a certificate that already carries a trusted derivation order --- \<^emph>\<open>superseded in
+  the deployed (DFS) pipeline\<close> by that variant.\<close>
 
 fun dl_founded_scan :: "('p, 'c) dl_fact list \<Rightarrow> ('p, 'c) dl_ground_rule list \<Rightarrow> bool" where
   "dl_founded_scan acc [] = True"
