@@ -70,26 +70,66 @@ fun doPlan domFile probFile tMax outOpt =
         end
   end
 
+(* Opt-in phase-timing profiling. Set the GROUND_PROFILE env var to emit a
+   machine-greppable per-phase wall-clock breakdown (and coarse checkpoints) to
+   stderr; normal runs are silent. Phases are timed via `Prof` (basics.sml): the
+   driver brackets parse / nemo (oracle callback) / ground_total / render / write
+   here, and the internal check / gcheck / emit sub-phases are bracketed at their
+   call sites in the exported kernel when it is instrumented (0 otherwise).
+   enumerate = ground_total - nemo - check. *)
+val profOn = Option.isSome (OS.Process.getEnv "GROUND_PROFILE")
+val modelSize = ref 0
+fun profMark s = if profOn then eprintln ("CHECKPOINT " ^ s) else ()
+fun printProfile () =
+  if profOn then
+  let
+    val g = Prof.ms "ground_total"
+    val n = Prof.ms "nemo"
+    val c = Prof.ms "check"
+    val enumerate = Int.max (0, IntInf.toInt (g - n - c))
+    fun s l v = l ^ "=" ^ IntInf.toString v ^ "ms"
+  in
+    eprintln (String.concatWith " "
+      ["PROFILE", "model=" ^ Int.toString (!modelSize),
+       s "parse" (Prof.ms "parse"), s "nemo" n, s "check" c,
+       "enumerate=" ^ Int.toString enumerate ^ "ms",
+       s "buildprog" (Prof.ms "buildprog"), s "gcheck" (Prof.ms "gcheck"),
+       s "emit" (Prof.ms "emit"),
+       s "render" (Prof.ms "render"), s "write" (Prof.ms "write"),
+       s "ground_total" g])
+  end
+  else ()
+
 fun doGround domFile probFile outOpt =
   let
-    val isaProb = parseProb domFile probFile
+    val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
+    val timedCertify = (fn prog =>
+      Prof.time "nemo" (fn () =>
+        let val (m, dc) = NemoDriver.certify prog
+        in modelSize := length m;
+           profMark ("nemo-done model=" ^ Int.toString (length m));
+           (m, dc) end))
   in
     (* The verified error-monad grounder returns a specific diagnostic on the left
        (a failing well-formedness check or a rejected reachability certificate) and,
        on the right, exactly the certified grounding (`ground_via_cert_numeric_dfs_e_sound`). *)
-    case withNemo (fn () => E.ground_via_cert_numeric_dfs_e NemoDriver.certify isaProb) of
+    case Prof.time "ground_total"
+           (fn () => withNemo (fn () => E.ground_via_cert_numeric_dfs_e timedCertify isaProb)) of
       E.Inl msg =>
         (eprintln ("Grounding rejected by the verified kernel: " ^ msg);
+         printProfile ();
          OS.Process.exit OS.Process.failure)
     | E.Inr gp =>
-        let val pddl = GroundedPddlPrinter.problemToString gp
-        in case outOpt of
+        let val pddl = Prof.time "render" (fn () => GroundedPddlPrinter.problemToString gp)
+        in (case outOpt of
                NONE      => print pddl
              | SOME path =>
-                 let val out = TextIO.openOut path
-                 in TextIO.output (out, pddl); TextIO.closeOut out;
-                    eprintln ("Wrote grounded PDDL to " ^ path)
-                 end
+                 Prof.time "write" (fn () =>
+                   let val out = TextIO.openOut path
+                   in TextIO.output (out, pddl); TextIO.closeOut out;
+                      eprintln ("Wrote grounded PDDL to " ^ path)
+                   end));
+           printProfile ()
         end
   end
 

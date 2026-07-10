@@ -128,3 +128,29 @@ fun fold_map _ [] y = ([], y)
 end;
 
 open Basics;
+
+(* --- Phase-timing profiling utility (untrusted; outside the verified kernel) ---
+   Named accumulating wall-clock timers for localising where the grounder spends
+   its time (parse / nemo / certificate-check / enumerate / render / write). Wrap
+   a phase with `Prof.time "name" (fn () => ...)`; read totals with `Prof.ms
+   "name"`; `Prof.mark` emits a flushed stderr checkpoint. The CLI only surfaces
+   these when the GROUND_PROFILE env var is set (see pddl_ground_planner_dfs.sml),
+   so normal runs are unaffected. *)
+structure Prof =
+struct
+  val acc : (string * Time.time ref) list ref = ref []
+  fun slot name =
+    case List.find (fn (n, _) => n = name) (!acc) of
+      SOME (_, r) => r
+    | NONE => let val r = ref Time.zeroTime in acc := (name, r) :: !acc; r end
+  fun time name f =
+    let
+      val t0 = Time.now ()
+      val x = f ()
+      val r = slot name
+    in r := Time.+ (!r, Time.- (Time.now (), t0)); x end
+  fun ms name = Time.toMilliseconds (!(slot name))
+  fun mark s =
+    (TextIO.output (TextIO.stdErr, "CHECKPOINT " ^ s ^ "\n");
+     TextIO.flushOut TextIO.stdErr)
+end;
