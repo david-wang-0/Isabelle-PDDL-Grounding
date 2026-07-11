@@ -46,15 +46,10 @@ text \<open>The \<^const>\<open>normalized_problem_rx\<close>-side checks (\<^co
   under the locale predicate for the soundness link.\<close>
 
 definition cert_ops_of_exec where
-  [code]: "cert_ops_of_exec N M \<equiv> concat (map (\<lambda>c.
-      map (SimplePlanAction (cl_name c))
-        (all_combos (\<lambda>args.
-            (\<forall>a \<in> set (cl_pred_pre c).
-                map_atom_fmla (ac_tsubst (cl_params c) args) a \<in> set (map fact_to_facty M))
-            \<and> satisfies_conds (cl_params c) (cl_cond_pre c) args)
-          (replicate (length (cl_params c))
-             (ast_classical_problem.const_names (ast_classical_problem.relax_prob N)))))
-      (ast_classical_problem.a_clauses (ast_classical_problem.relax_prob N)))"
+  [code]: "cert_ops_of_exec N M \<equiv> concat (map
+       (cert_ops_for_clause (ast_classical_problem.const_names (ast_classical_problem.relax_prob N))
+                            (organize_facts (map fact_to_facty M)))
+       (ast_classical_problem.a_clauses (ast_classical_problem.relax_prob N)))"
 
 definition extra_eff_atoms_of_exec where
   [code]: "extra_eff_atoms_of_exec N M \<equiv>

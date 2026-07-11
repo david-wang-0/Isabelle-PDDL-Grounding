@@ -106,25 +106,15 @@ proof
     thus "a \<in> set px.const_names"
       unfolding px.objT_alt by (auto simp: dom_map_of_conv_image_fst)
   qed
-  have chosen: "chosen_from (replicate (length (cl_params c)) px.const_names) args"
-    by (rule chosen_from_replicate[OF len sub])
-  have args_mem: "args \<in> set (all_combos
-      (\<lambda>args. (\<forall>a \<in> set (cl_pred_pre c).
-                  map_atom_fmla (ac_tsubst (cl_params c) args) a \<in> set (map fact_to_facty M))
-              \<and> satisfies_conds (cl_params c) (cl_cond_pre c) args)
-      (replicate (length (cl_params c)) px.const_names))"
-    unfolding set_all_combos using chosen filt by simp
   have c_mem: "c \<in> set px.a_clauses"
     using ac_mem unfolding c_def px.a_clauses_def by auto
-  have "\<pi> \<in> set (map (SimplePlanAction (cl_name c))
-      (all_combos
-        (\<lambda>args. (\<forall>a \<in> set (cl_pred_pre c).
-                    map_atom_fmla (ac_tsubst (cl_params c) args) a \<in> set (map fact_to_facty M))
-                \<and> satisfies_conds (cl_params c) (cl_cond_pre c) args)
-        (replicate (length (cl_params c)) px.const_names)))"
-    using args_mem \<pi>_eq cl_name_c by force
-  thus "\<pi> \<in> set (cert_ops_of M)"
-    unfolding cert_ops_of_def using c_mem by auto
+  have sub': "set args \<subseteq> set px.const_names" using sub by blast
+  from filt have pos_all: "\<forall>a \<in> set (cl_pred_pre c).
+      map_atom_fmla (ac_tsubst (cl_params c) args) a \<in> set (map fact_to_facty M)"
+    and guards': "satisfies_conds (cl_params c) (cl_cond_pre c) args" by blast+
+  show "\<pi> \<in> set (cert_ops_of M)"
+    using cert_ops_of_complete[OF c_mem len sub' pos_all guards']
+    by (simp add: \<pi>_eq cl_name_c)
 qed
 
 lemma all_ops_super: "{\<pi>. applicable \<pi>} \<subseteq> set cert_ops'"
