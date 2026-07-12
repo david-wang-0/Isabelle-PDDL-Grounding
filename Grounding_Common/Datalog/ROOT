@@ -10,9 +10,11 @@ session Datalog_Certification = Grounding_Utils +
     conflicts with.\<close>
   options [timeout = 600]
   sessions
+    "HOL-Data_Structures"
     "Stratified_Datalog"
   theories
     Datalog_Sema_Supplement
     Datalog_Certificate
     Datalog_Certificate_Code
+    Fact_Index
     Datalog_Evaluation
