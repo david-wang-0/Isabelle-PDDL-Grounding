@@ -9,4 +9,5 @@ session Grounding_Classical_Common = Classical_Grounding_Utils +
     "Grounding_Common"
   theories
     Classical_PDDL_Normalization
+    PDDL_Orderings
     Numeric_Free
