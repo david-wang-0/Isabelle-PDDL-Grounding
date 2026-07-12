@@ -17,9 +17,13 @@
    `(:objects ...)` block collected from the grounded bodies; preconditions are
    flattened and the trivially-true `(not false)` (= `¬⊥`) conjuncts are dropped. *)
 structure GroundedPddlPrinter :> sig
-  val problemToString :
+  (* Stream the grounded PDDL straight to an outstream, so the (up to ~10^6-action)
+     output is never held as one string; object de-duplication is a hash set, not the
+     former O(n^2) list scan. Output is byte-identical to the former `problemToString`. *)
+  val problemToStream :
+    TextIO.outstream ->
     PDDL_SAT_Planner_Exported.ast_classical_action_schema
-      PDDL_SAT_Planner_Exported.ast_problem -> string
+      PDDL_SAT_Planner_Exported.ast_problem -> unit
 end = struct
   structure E = PDDL_SAT_Planner_Exported
 
@@ -169,13 +173,6 @@ end = struct
     | trmElem (E.VAR _)           = []
   fun actionObjs (E.SimpleActionSchema (_, E.SimpleActionBody (pre, eff))) =
         fmlaObjs trmElem pre @ effObjs trmElem eff
-  fun dedup xs =
-    let fun go ([], _, acc) = List.rev acc
-          | go (x :: rest, seen, acc) =
-              if List.exists (fn y => y = x) seen then go (rest, seen, acc)
-              else go (rest, x :: seen, x :: acc)
-    in go (xs, [], []) end
-
   fun actionStr (E.SimpleActionSchema
                    (E.ActionHead (name, params), E.SimpleActionBody (pre, eff))) =
     let val preLine =
@@ -191,36 +188,50 @@ end = struct
       ^ "     :effect " ^ effectStr eff ^ ")"
     end
 
-  fun domainStr (E.Domain (_, preds, funcs, _, actions)) =
-    let val reqs = ":strips :typing :negative-preconditions"
-                   ^ (case funcs of [] => "" | _ => " :numeric-fluents")
-    in
-      "(define (domain grounded)\n"
-      ^ "  (:requirements " ^ reqs ^ ")\n"
-      ^ "  (:predicates " ^ String.concatWith " " (map predDeclStr preds) ^ ")\n"
-      ^ (case funcs of
-             [] => ""
-           | _  => "  (:functions " ^ String.concatWith " " (map funcDeclStr funcs) ^ ")\n")
-      ^ "\n"
-      ^ String.concatWith "\n" (map actionStr actions) ^ "\n)\n"
-    end
+  (* Stream domain + problem straight to `out`. The domain's actions (the bulk of the
+     output) are written one at a time, so only a single action string is ever live;
+     object names are collected into a hash set as we go (first-occurrence order kept
+     in `ord`). The emitted bytes are identical to the former `domainStr`/`problemToString`
+     pair: actions separated by "\n" then "\n)\n"; objects in first-occurrence order
+     (init, goal, then action bodies). *)
+  fun problemToStream out (E.Problem (dom, _, init, goal)) =
+    let
+      val E.Domain (_, preds, funcs, _, actions) = dom
+      fun w s = TextIO.output (out, s)
 
-  fun problemToString (E.Problem (dom, _, init, goal)) =
-    let val E.Domain (_, _, _, _, actions) = dom
-        val objNames =
-          map pddlName (dedup (List.concat (map (fmlaObjs objElem) init)
-                               @ fmlaObjs objElem goal
-                               @ List.concat (map actionObjs actions)))
-        val objectsDecl =
-          case objNames of
-              [] => ""
-            | _  => "  (:objects " ^ String.concatWith " " objNames ^ " - object)\n"
+      (* distinct object names, first-occurrence order, via a hash set *)
+      val seen : unit StringHashTable.table = StringHashTable.table 4096
+      val ord  = ref ([] : string list)
+      fun addObj s =
+        if StringHashTable.member seen s then ()
+        else (StringHashTable.insert seen s (); ord := s :: !ord)
+      val _ = List.app addObj (List.concat (map (fmlaObjs objElem) init))
+      val _ = List.app addObj (fmlaObjs objElem goal)
+
+      val reqs = ":strips :typing :negative-preconditions"
+                 ^ (case funcs of [] => "" | _ => " :numeric-fluents")
+      val firstAction = ref true
     in
-      domainStr dom ^ "\n"
-      ^ "(define (problem grounded-inst)\n"
-      ^ "  (:domain grounded)\n"
-      ^ objectsDecl
-      ^ "  (:init " ^ String.concatWith " " (map (fmlaStr objName) init) ^ ")\n"
-      ^ "  (:goal " ^ fmlaStr objName goal ^ "))\n"
+      w "(define (domain grounded)\n";
+      w ("  (:requirements " ^ reqs ^ ")\n");
+      w ("  (:predicates " ^ String.concatWith " " (map predDeclStr preds) ^ ")\n");
+      (case funcs of
+           [] => ()
+         | _  => w ("  (:functions " ^ String.concatWith " " (map funcDeclStr funcs) ^ ")\n"));
+      w "\n";
+      (* actions joined by "\n" (concatWith semantics), accumulating their objects *)
+      List.app (fn a =>
+        ((if !firstAction then firstAction := false else w "\n");
+         w (actionStr a);
+         List.app addObj (actionObjs a))) actions;
+      w "\n)\n";
+
+      w "\n(define (problem grounded-inst)\n";
+      w "  (:domain grounded)\n";
+      (case List.rev (!ord) of
+           []    => ()
+         | names => w ("  (:objects " ^ String.concatWith " " (map pddlName names) ^ " - object)\n"));
+      w ("  (:init " ^ String.concatWith " " (map (fmlaStr objName) init) ^ ")\n");
+      w ("  (:goal " ^ fmlaStr objName goal ^ "))\n")
     end
 end

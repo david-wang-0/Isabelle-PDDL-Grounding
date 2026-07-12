@@ -120,17 +120,16 @@ fun doGround domFile probFile outOpt =
          printProfile ();
          OS.Process.exit OS.Process.failure)
     | E.Inr gp =>
-        let val pddl = Prof.time "render" (fn () => GroundedPddlPrinter.problemToString gp)
-        in (case outOpt of
-               NONE      => print pddl
+        (Prof.time "render" (fn () =>
+           case outOpt of
+               NONE      => GroundedPddlPrinter.problemToStream TextIO.stdOut gp
              | SOME path =>
-                 Prof.time "write" (fn () =>
-                   let val out = TextIO.openOut path
-                   in TextIO.output (out, pddl); TextIO.closeOut out;
-                      eprintln ("Wrote grounded PDDL to " ^ path)
-                   end));
-           printProfile ()
-        end
+                 let val out = TextIO.openOut path
+                 in GroundedPddlPrinter.problemToStream out gp;
+                    TextIO.closeOut out;
+                    eprintln ("Wrote grounded PDDL to " ^ path)
+                 end);
+         printProfile ())
   end
 
 fun help () =

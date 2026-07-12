@@ -42,10 +42,16 @@ $(BIN): $(SRCS)
 	mkdir -p bin
 	$(MLTON) -mlb-path-var 'FPS_PLANNING $(FPS_PLANNING)' -output $(BIN) pddl_ground_planner_dfs.mlb
 
-# Regenerates the exported SML into code/ (the graph library and this repo are
-# registered Isabelle components, so no -d flags -- adding -d double-registers).
+# Regenerates the exported SML into code/. Planner_Export.thy uses the old
+# `export_code ... file "../SMLCodebase/code/...sml"` form, which writes the file at
+# BUILD TIME (path relative to this CWD), NOT via `-e` -- `build -e` only copies
+# store-based `file_prefix` exports, so it is a no-op here. Isabelle keys rebuilds off
+# content SHA (not mtime), so a cached session won't re-run the exporter and the file
+# won't be regenerated if it's missing. `-c` cleans just this session first, forcing a
+# rebuild that re-runs `export_code` and (re)writes code/...sml. Runs from SMLCodebase/
+# so `../SMLCodebase/code/` resolves back into this repo.
 export:
-	$(ISABELLE) build -e Classical_Grounding
+	$(ISABELLE) build -c Classical_Grounding
 
 clean:
 	rm -rf bin nemo_tmp sat_tmp
