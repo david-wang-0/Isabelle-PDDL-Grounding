@@ -288,10 +288,209 @@ next
   show ?case using match_facts_idx_eq[of al a facts] Cons.hyps by auto
 qed
 
+
+subsection \<open>Permutation invariance of the body join (as a set of substitution maps)\<close>
+
+text \<open>Domain bookkeeping for the matcher: matching an id (resp. an id list, resp. a body atom)
+  adds bindings for exactly the variables it meets and no others.\<close>
+
+lemma match_id_al_dom:
+  "match_id_al al i d = Some al' \<Longrightarrow> dom (map_of al') = dom (map_of al) \<union> set (id_vars_list i)"
+  by (cases i) (auto split: option.splits if_splits)
+
+lemma match_ids_al_dom:
+  "match_ids_al al ids ds = Some al'
+     \<Longrightarrow> dom (map_of al') = dom (map_of al) \<union> set (concat (map id_vars_list ids))"
+proof (induct al ids ds arbitrary: al' rule: match_ids_al.induct)
+  case (2 al i is' d ds)
+  from "2.prems" obtain al2 where a2: "match_id_al al i d = Some al2"
+    and rest: "match_ids_al al2 is' ds = Some al'" by (auto split: option.splits)
+  from "2.hyps"[OF a2 rest] match_id_al_dom[OF a2] show ?case by auto
+qed (auto split: option.splits)
+
+lemma match_atom_al_dom:
+  "match_atom_al al a f = Some al'
+     \<Longrightarrow> dom (map_of al') = dom (map_of al) \<union> set (concat (map id_vars_list (snd a)))"
+  using match_ids_al_dom[of al "snd a" "snd f" al']
+  by (auto simp: match_atom_al_def split: if_splits)
+
+text \<open>Soundness companion to @{thm body_join_complete}: every assignment produced by the join
+  extends @{term al0}, has domain exactly @{term al0}'s domain together with the variables of all
+  the joined atoms, and grounds every joined atom into @{term facts}.\<close>
+lemma body_join_sound:
+  "al \<in> set (body_join al0 atoms facts) \<Longrightarrow>
+     map_of al0 \<subseteq>\<^sub>m map_of al
+     \<and> dom (map_of al) = dom (map_of al0) \<union> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))
+     \<and> (\<forall>a \<in> set atoms. subst_atom (\<lambda>x. the (map_of al x)) a \<in> set facts)"
+proof (induct atoms arbitrary: al0)
+  case Nil then show ?case by simp
+next
+  case (Cons a atoms)
+  from Cons.prems obtain al1 where al1: "al1 \<in> set (match_facts_al al0 a facts)"
+    and alin: "al \<in> set (body_join al1 atoms facts)" by auto
+  from al1 obtain f where f: "f \<in> set facts" and m1: "match_atom_al al0 a f = Some al1"
+    by (auto simp: match_facts_al_def List.map_filter_def split: if_splits)
+  from match_atom_al_spec[OF m1]
+  have le01: "map_of al0 \<subseteq>\<^sub>m map_of al1"
+    and rep1: "subst_atom (\<lambda>x. the (map_of al1 x)) a = f" by auto
+  have dom1: "dom (map_of al1) = dom (map_of al0) \<union> set (concat (map id_vars_list (snd a)))"
+    using match_atom_al_dom[OF m1] .
+  from Cons.hyps[OF alin]
+  have le1: "map_of al1 \<subseteq>\<^sub>m map_of al"
+    and dom: "dom (map_of al) = dom (map_of al1) \<union> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))"
+    and gr: "\<forall>a \<in> set atoms. subst_atom (\<lambda>x. the (map_of al x)) a \<in> set facts" by auto
+  have le: "map_of al0 \<subseteq>\<^sub>m map_of al" using le01 le1 by (rule map_le_trans)
+  \<comment> \<open>the head atom's instance is preserved under the extended assignment (agrees on its vars)\<close>
+  have repa: "subst_atom (\<lambda>x. the (map_of al x)) a = f"
+  proof (rule subst_atom_agree[THEN trans, OF _ rep1], intro ballI)
+    fix i x assume i: "i \<in> set (snd a)" and x: "x \<in> set (id_vars_list i)"
+    then have "x \<in> set (concat (map id_vars_list (snd a)))" by auto
+    then have "x \<in> dom (map_of al1)" using dom1 by blast
+    then have "map_of al x = map_of al1 x" using le1 by (auto simp: map_le_def dom_def)
+    thus "the (map_of al x) = the (map_of al1 x)" by simp
+  qed
+  have domC: "dom (map_of al) = dom (map_of al0) \<union> (\<Union>a\<in>set (a # atoms). set (concat (map id_vars_list (snd a))))"
+    using dom dom1 by auto
+  have grC: "\<forall>a' \<in> set (a # atoms). subst_atom (\<lambda>x. the (map_of al x)) a' \<in> set facts"
+    using repa f gr by auto
+  show ?case using le domC grC by blast
+qed
+
+text \<open>Order-independent characterisation of the join's substitution SET viewed through
+  @{const map_of}: the image is exactly the maps that extend @{term al0}, whose domain is
+  @{term al0}'s domain plus the variables of all atoms, and that ground every atom into
+  @{term facts}. Every conjunct on the right depends only on @{term "set atoms"}, so the
+  characterisation --- and hence the image --- is manifestly permutation invariant.\<close>
+lemma body_join_map_of_char:
+  "(\<lambda>al. map_of al) ` set (body_join al0 atoms facts) =
+     {m. map_of al0 \<subseteq>\<^sub>m m
+         \<and> dom m = dom (map_of al0) \<union> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))
+         \<and> (\<forall>a \<in> set atoms. subst_atom (\<lambda>x. the (m x)) a \<in> set facts)}"
+  (is "?L = ?R")
+proof (intro equalityI subsetI)
+  fix m assume "m \<in> ?L"
+  then obtain al where al: "al \<in> set (body_join al0 atoms facts)" and meq: "m = map_of al" by auto
+  show "m \<in> ?R" using body_join_sound[OF al] meq by simp
+next
+  fix m assume mR: "m \<in> ?R"
+  then have mle0: "map_of al0 \<subseteq>\<^sub>m m"
+    and dm: "dom m = dom (map_of al0) \<union> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))"
+    and gr: "\<forall>a \<in> set atoms. subst_atom (\<lambda>x. the (m x)) a \<in> set facts" by auto
+  define \<sigma> where "\<sigma> = (\<lambda>x. the (m x))"
+  have gr\<sigma>: "\<forall>a \<in> set atoms. subst_atom \<sigma> a \<in> set facts" using gr by (simp add: \<sigma>_def)
+  have cons0: "\<forall>x d. map_of al0 x = Some d \<longrightarrow> \<sigma> x = d"
+    using mle0 by (auto simp: map_le_def dom_def \<sigma>_def)
+  from body_join_complete[OF gr\<sigma> cons0] obtain al where
+    al: "al \<in> set (body_join al0 atoms facts)"
+    and ext_al: "\<forall>x d. map_of al0 x = Some d \<longrightarrow> map_of al x = Some d"
+    and cons_al: "\<forall>x d. map_of al x = Some d \<longrightarrow> \<sigma> x = d"
+    and bind_al: "\<forall>a \<in> set atoms. \<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x)"
+    by blast
+  from body_join_sound[OF al]
+  have le0: "map_of al0 \<subseteq>\<^sub>m map_of al"
+    and dom_al: "dom (map_of al) = dom (map_of al0) \<union> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))"
+    by auto
+  have "map_of al = m"
+  proof (rule ext)
+    fix x
+    show "map_of al x = m x"
+    proof (cases "x \<in> dom (map_of al0)")
+      case True
+      then obtain d where d: "map_of al0 x = Some d" by auto
+      have "map_of al x = Some d" using ext_al d by blast
+      moreover have "m x = Some d" using mle0 d by (auto simp: map_le_def dom_def)
+      ultimately show ?thesis by simp
+    next
+      case False
+      show ?thesis
+      proof (cases "x \<in> dom m")
+        case True
+        then have xv: "x \<in> (\<Union>a\<in>set atoms. set (concat (map id_vars_list (snd a))))"
+          using dm False by blast
+        then obtain a where "a \<in> set atoms" and "x \<in> set (concat (map id_vars_list (snd a)))" by blast
+        then have "map_of al x = Some (\<sigma> x)" using bind_al by blast
+        moreover have "m x = Some (\<sigma> x)" using True by (auto simp: \<sigma>_def)
+        ultimately show ?thesis by simp
+      next
+        case False
+        then have "x \<notin> dom (map_of al)" using dom_al dm by blast
+        then show ?thesis using False by (auto simp: dom_def)
+      qed
+    qed
+  qed
+  then show "m \<in> ?L" using al by (auto simp del: body_join.simps)
+qed
+
+text \<open>\<^bold>\<open>Permutation invariance of the body join\<close>: reordering the body atoms leaves the SET of
+  substitution maps produced by the join unchanged. Immediate from the order-independent
+  characterisation @{thm body_join_map_of_char}, since @{prop "mset atoms = mset atoms'"} forces
+  @{prop "set atoms = set atoms'"}.\<close>
+lemma body_join_map_of_perm:
+  assumes "mset atoms = mset atoms'"
+  shows "(\<lambda>al. map_of al) ` set (body_join al0 atoms facts)
+           = (\<lambda>al. map_of al) ` set (body_join al0 atoms' facts)"
+proof -
+  have "set atoms = set atoms'" using assms by (metis set_mset_mset)
+  then show ?thesis by (simp add: body_join_map_of_char)
+qed
+
+subsection \<open>Most-constrained-first reordering of the body atoms\<close>
+
+text \<open>Reorder a clause's body atoms so that atoms with fewer variable (unbound-at-seed) arguments
+  come first: a constant argument is determined at the seed @{term "al = []"}, a variable is not, so
+  sorting ascending by the number of variable arguments puts the most-constrained atoms first and
+  keeps a seed atom from fanning out before a constraining atom prunes it. As a @{const sort_key} this
+  is a permutation of the atoms, so by @{thm body_join_map_of_perm} the join enumerates the same SET
+  of substitution maps.\<close>
+
+definition reorder_atoms :: "('p, 'x, 'c) lh list \<Rightarrow> ('p, 'x, 'c) lh list" where
+  "reorder_atoms atoms = sort_key (\<lambda>a. length (filter is_Var (snd a))) atoms"
+
+lemma mset_reorder_atoms: "mset (reorder_atoms atoms) = mset atoms"
+  by (simp add: reorder_atoms_def)
+
+text \<open>The safe-branch per-assignment predicate depends on @{term al} only through @{term "map_of al"}:
+  @{const eval_guard_al} does (via @{const subst_id_al}, whose only use of @{term al} is
+  @{term "map_of al"}) and the head instance @{term "subst_atom (\<lambda>x. the (map_of al x)) lh"} does
+  manifestly. Hence the predicate is a congruence for equal @{const map_of} images.\<close>
+
+lemma subst_id_al_map_of_cong:
+  "map_of al = map_of al' \<Longrightarrow> subst_id_al al i = subst_id_al al' i"
+  by (cases i) simp_all
+
+lemma eval_guard_al_map_of_cong:
+  assumes "map_of al = map_of al'"
+  shows "eval_guard_al al g = eval_guard_al al' g"
+  using subst_id_al_map_of_cong[OF assms] by (cases g) simp_all
+
+text \<open>A @{const list_all} over a predicate that factors through @{const map_of} depends on the list
+  only through the @{const map_of}-image of its element set. Lets us transport the check between two
+  atom orderings once their join images agree.\<close>
+
+lemma list_all_map_of_cong:
+  assumes cong: "\<And>al al'. map_of al = map_of al' \<Longrightarrow> P al = P al'"
+    and img: "(\<lambda>al. map_of al) ` set xs = (\<lambda>al. map_of al) ` set ys"
+  shows "list_all P xs = list_all P ys"
+proof -
+  have "(\<forall>al\<in>set xs. P al) = (\<forall>al\<in>set ys. P al)"
+  proof (intro iffI ballI)
+    fix al assume "\<forall>al\<in>set xs. P al" and "al \<in> set ys"
+    then have "map_of al \<in> (\<lambda>al. map_of al) ` set xs" using img by auto
+    then obtain al' where "al' \<in> set xs" and "map_of al' = map_of al" by auto
+    then show "P al" using \<open>\<forall>al\<in>set xs. P al\<close> cong by metis
+  next
+    fix al assume "\<forall>al\<in>set ys. P al" and "al \<in> set xs"
+    then have "map_of al \<in> (\<lambda>al. map_of al) ` set ys" using img by auto
+    then obtain al' where "al' \<in> set ys" and "map_of al' = map_of al" by auto
+    then show "P al" using \<open>\<forall>al\<in>set ys. P al\<close> cong by metis
+  qed
+  then show ?thesis by (simp add: list_all_iff)
+qed
+
 text \<open>The fast closure check: identical to @{const dl_closure_check_exec} except that the safe branch
-  drives the join through the index. Only the executable term changes; the soundness bridge
-  @{thm dl_closure_check_exec_imp} mentions only the abstract @{const dl_closure_check_exec} and is
-  untouched.\<close>
+  reorders the body atoms most-constrained-first and drives the join through the index. Only the
+  executable term changes; the soundness bridge @{thm dl_closure_check_exec_imp} mentions only the
+  abstract @{const dl_closure_check_exec} and is untouched.\<close>
 
 definition dl_closure_check_exec_fast ::
     "('p::linorder, 'x, 'c::linorder) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
@@ -302,7 +501,7 @@ definition dl_closure_check_exec_fast ::
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
               \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
-              (body_join_idx [] (cls_body_atoms cl) idx)
+              (body_join_idx [] (reorder_atoms (cls_body_atoms cl)) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
@@ -310,10 +509,45 @@ definition dl_closure_check_exec_fast ::
               (cls_substs Ul cl))
        Pl)"
 
+text \<open>The safe-branch check is invariant under the most-constrained-first reindexing: the indexed join
+  over the reordered atoms visits the same SET of substitution maps as the abstract join over the
+  original atoms (@{thm body_join_idx_eq}, @{thm body_join_map_of_perm} via the permutation
+  @{thm mset_reorder_atoms}), and the per-assignment predicate factors through @{const map_of}
+  (@{thm eval_guard_al_map_of_cong}), so @{thm list_all_map_of_cong} carries the check across.\<close>
+lemma safe_branch_reorder_idx_eq:
+  "list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join_idx [] (reorder_atoms atoms) (build_findex facts))
+   = list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join [] atoms facts)"
+  (is "list_all ?P _ = _")
+proof -
+  have pcong: "?P al = ?P al'" if eq: "map_of al = map_of al'" for al al'
+  proof -
+    have "list_all (eval_guard_al al) gs = list_all (eval_guard_al al') gs"
+      by (rule list_all_cong[OF refl]) (simp add: eval_guard_al_map_of_cong[OF eq])
+    moreover have "subst_atom (\<lambda>x. the (map_of al x)) lh = subst_atom (\<lambda>x. the (map_of al' x)) lh"
+      using eq by simp
+    ultimately show ?thesis by simp
+  qed
+  have img: "(\<lambda>al. map_of al) ` set (body_join [] (reorder_atoms atoms) facts)
+             = (\<lambda>al. map_of al) ` set (body_join [] atoms facts)"
+    using body_join_map_of_perm[OF mset_reorder_atoms] .
+  have "list_all ?P (body_join_idx [] (reorder_atoms atoms) (build_findex facts))
+        = list_all ?P (body_join [] (reorder_atoms atoms) facts)"
+    by (simp add: list_all_iff body_join_idx_eq)
+  also have "\<dots> = list_all ?P (body_join [] atoms facts)"
+    using list_all_map_of_cong[OF pcong img] .
+  finally show ?thesis .
+qed
+
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
-  unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def
-  by (simp add: list_all_iff body_join_idx_eq Let_def)
+  unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def Let_def
+  by (simp add: safe_branch_reorder_idx_eq)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>
