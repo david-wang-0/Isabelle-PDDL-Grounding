@@ -118,4 +118,23 @@ lemma canon_distinct [simp]: "distinct (canon xs)"
 lemma canon_sorted: "sorted (canon xs)"
   by (simp add: canon_def)
 
+text \<open>Efficient code for \<^const>\<open>canon\<close>: the default \<^const>\<open>sorted_list_of_set\<close> code equation is
+  \<open>sort (remdups xs)\<close> with a quadratic \<^const>\<open>remdups\<close> --- the ground-action dedup bottleneck.
+  Since \<^const>\<open>canon\<close> sorts anyway, \<open>remdups_adj (sort xs)\<close> (adjacent dedup of the sorted list) is
+  the same list at O(n log n).\<close>
+
+lemma sorted_remdups_adj: "sorted xs \<Longrightarrow> sorted (remdups_adj xs)"
+  by (induction xs rule: remdups_adj.induct) auto
+
+lemma distinct_remdups_adj_if_sorted: "sorted xs \<Longrightarrow> distinct (remdups_adj xs)"
+  by (induction xs rule: remdups_adj.induct) auto
+
+lemma canon_code [code]: "canon xs = remdups_adj (sort xs)"
+proof -
+  have "sort (remdups xs) = remdups_adj (sort xs)"
+    by (rule List.sorted_distinct_set_unique)
+       (simp_all add: sorted_remdups_adj[OF sorted_sort] distinct_remdups_adj_if_sorted[OF sorted_sort])
+  thus ?thesis by (simp add: canon_def sorted_list_of_set_sort_remdups)
+qed
+
 end
