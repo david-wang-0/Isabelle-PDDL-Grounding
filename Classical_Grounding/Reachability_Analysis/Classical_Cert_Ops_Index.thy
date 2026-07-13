@@ -678,19 +678,19 @@ lemma ptuples_map_of_cong:
   "map_of b = map_of b' \<Longrightarrow> ptuples allobjs b vs = ptuples allobjs b' vs"
   by (induct vs) (auto split: option.splits)
 
-text \<open>Reorder a clause's precondition atoms most-constrained-first: an atom with fewer variable
-  arguments (more constant/bound positions) is more selective, so sorting ascending by the number of
-  variable positions puts the pruning atoms before the seed atoms. As a @{const sort_key} this is a
-  permutation, so by @{thm pjoin_map_of_perm} the join enumerates the same SET of bindings (through
-  \<^const>\<open>map_of\<close>), which is all that survives into \<^const>\<open>ptuples\<close>.\<close>
-definition reorder_pre :: "term atom formula list \<Rightarrow> term atom formula list" where
-  "reorder_pre atms =
+text \<open>Reorder a clause's precondition atoms most-constrained-first: an atom's seed candidate set
+  \<^term>\<open>cand_facts_t [] p ts idx\<close> is the index-narrowed set of facts it could match before any
+  variable is bound, so its \<^const>\<open>length\<close> is the atom's selectivity. Sorting ascending by that
+  candidate-set size puts the most-selective (smallest-bucket) atoms before the seed atoms. As a
+  @{const sort_key} this is a permutation, so by @{thm pjoin_map_of_perm} the join enumerates the
+  same SET of bindings (through \<^const>\<open>map_of\<close>), which is all that survives into \<^const>\<open>ptuples\<close>.\<close>
+definition reorder_pre :: "(predicate, object) findex \<Rightarrow> term atom formula list \<Rightarrow> term atom formula list" where
+  "reorder_pre idx atms =
      sort_key (\<lambda>a. case a of
-                     Atom (predAtm p ts) \<Rightarrow>
-                       length (filter (\<lambda>t. case t of term.VAR _ \<Rightarrow> True | _ \<Rightarrow> False) ts)
+                     Atom (predAtm p ts) \<Rightarrow> length (cand_facts_t [] p ts idx)
                    | _ \<Rightarrow> 0) atms"
 
-lemma mset_reorder_pre: "mset (reorder_pre atms) = mset atms"
+lemma mset_reorder_pre: "mset (reorder_pre idx atms) = mset atms"
   by (simp add: reorder_pre_def)
 
 text \<open>Reordering the precondition atoms does not change the multiset of ground tuples fed to the
@@ -698,19 +698,19 @@ text \<open>Reordering the precondition atoms does not change the multiset of gr
   (@{thm pjoin_map_of_perm}), and each surviving \<^const>\<open>ptuples\<close> set depends only on that lookup
   (@{thm ptuples_map_of_cong}).\<close>
 lemma pjoin_idx_ptuples_reorder:
-  "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre atms)). set (ptuples allobjs b vars))
+  "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre idx atms)). set (ptuples allobjs b vars))
      = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
 proof -
   let ?orga = "organize_facts (map fact_to_facty M)"
-  have img: "(\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre atms))
+  have img: "(\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre idx atms))
                = (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
-    using pjoin_map_of_perm[OF mset_reorder_pre] .
-  have "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre atms)). set (ptuples allobjs b vars))
-          = (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre atms)). set (ptuples allobjs b vars))"
+    using pjoin_map_of_perm[OF mset_reorder_pre[of idx]] .
+  have "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre idx atms)). set (ptuples allobjs b vars))
+          = (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre idx atms)). set (ptuples allobjs b vars))"
     by (simp add: pjoin_idx_eq)
   also have "\<dots> = (\<Union>b\<in>set (pjoin ?orga [] atms). set (ptuples allobjs b vars))"
   proof (rule equalityI, safe)
-    fix b x assume b: "b \<in> set (pjoin ?orga [] (reorder_pre atms))"
+    fix b x assume b: "b \<in> set (pjoin ?orga [] (reorder_pre idx atms))"
       and x: "x \<in> set (ptuples allobjs b vars)"
     have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
       using b img by auto
@@ -723,13 +723,13 @@ proof -
   next
     fix b x assume b: "b \<in> set (pjoin ?orga [] atms)"
       and x: "x \<in> set (ptuples allobjs b vars)"
-    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre atms))"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre idx atms))"
       using b img by auto
-    then obtain b' where b': "b' \<in> set (pjoin ?orga [] (reorder_pre atms))"
+    then obtain b' where b': "b' \<in> set (pjoin ?orga [] (reorder_pre idx atms))"
       and eq: "map_of b' = map_of b" by auto
     have "x \<in> set (ptuples allobjs b' vars)"
       using x ptuples_map_of_cong[OF eq] by simp
-    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre atms)). set (ptuples allobjs b vars))"
+    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre idx atms)). set (ptuples allobjs b vars))"
       using b' by blast
   qed
   also have "\<dots> = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
@@ -743,7 +743,7 @@ definition cert_ops_for_clause_fast ::
      map (SimplePlanAction (cl_name c))
        (filter (satisfies_conds (cl_params c) (cl_cond_pre c))
          (concat (map (\<lambda>b. ptuples allobjs b (map fst (cl_params c)))
-                      (pjoin_idx idx [] (reorder_pre (cl_pred_pre c))))))"
+                      (pjoin_idx idx [] (reorder_pre idx (cl_pred_pre c))))))"
 
 lemma cert_ops_for_clause_fast_eq:
   "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
@@ -753,12 +753,12 @@ proof -
   let ?P = "satisfies_conds (cl_params c) (cl_cond_pre c)"
   let ?vars = "map fst (cl_params c)"
   \<comment> \<open>candidate tuples: reorder+index (fast) and unordered abstract enumerate the same set\<close>
-  have tup: "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre (cl_pred_pre c))).
+  have tup: "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre (build_findex M) (cl_pred_pre c))).
                 set (ptuples allobjs b ?vars))
              = (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] (cl_pred_pre c)).
                 set (ptuples allobjs b ?vars))"
     using pjoin_idx_ptuples_reorder[where M = M and atms = "cl_pred_pre c"
-            and allobjs = allobjs and vars = ?vars]
+            and idx = "build_findex M" and allobjs = allobjs and vars = ?vars]
     by (simp add: pjoin_idx_eq)
   \<comment> \<open>@{const cert_ops_for_clause}(\_fast) as an image of a filtered big-union of tuples\<close>
   have set_form: "set (map ?g (filter ?P (concat (map (\<lambda>b. ptuples allobjs b ?vars) L))))
@@ -766,7 +766,7 @@ proof -
     by auto
   have "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
           = ?g ` {x \<in> (\<Union>b\<in>set (pjoin_idx (build_findex M) []
-                        (reorder_pre (cl_pred_pre c))). set (ptuples allobjs b ?vars)). ?P x}"
+                        (reorder_pre (build_findex M) (cl_pred_pre c))). set (ptuples allobjs b ?vars)). ?P x}"
     unfolding cert_ops_for_clause_fast_def using set_form .
   also have "\<dots> = ?g ` {x \<in> (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) []
                         (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"

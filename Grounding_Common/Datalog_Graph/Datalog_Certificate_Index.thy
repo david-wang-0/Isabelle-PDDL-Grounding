@@ -436,17 +436,19 @@ qed
 
 subsection \<open>Most-constrained-first reordering of the body atoms\<close>
 
-text \<open>Reorder a clause's body atoms so that atoms with fewer variable (unbound-at-seed) arguments
-  come first: a constant argument is determined at the seed @{term "al = []"}, a variable is not, so
-  sorting ascending by the number of variable arguments puts the most-constrained atoms first and
-  keeps a seed atom from fanning out before a constraining atom prunes it. As a @{const sort_key} this
-  is a permutation of the atoms, so by @{thm body_join_map_of_perm} the join enumerates the same SET
-  of substitution maps.\<close>
+text \<open>Reorder a clause's body atoms most-selective-first: sort ascending by the atom's seed
+  candidate-set size @{term "length (cand_facts [] a idx)"} --- how many indexed facts it would match
+  under the empty binding (a constant argument narrows to its bucket; an all-variable atom falls back to
+  the whole predicate bucket) --- so the most-constrained atoms drive the join first and a non-selective
+  atom cannot fan out before a constraining one prunes it. As a @{const sort_key} this is a permutation
+  of the atoms, so by @{thm body_join_map_of_perm} the join enumerates the same SET of substitution maps
+  regardless of the key.\<close>
 
-definition reorder_atoms :: "('p, 'x, 'c) lh list \<Rightarrow> ('p, 'x, 'c) lh list" where
-  "reorder_atoms atoms = sort_key (\<lambda>a. length (filter is_Var (snd a))) atoms"
+definition reorder_atoms ::
+    "('p::linorder, 'c::linorder) findex \<Rightarrow> ('p, 'x, 'c) lh list \<Rightarrow> ('p, 'x, 'c) lh list" where
+  "reorder_atoms idx atoms = sort_key (\<lambda>a. length (cand_facts [] a idx)) atoms"
 
-lemma mset_reorder_atoms: "mset (reorder_atoms atoms) = mset atoms"
+lemma mset_reorder_atoms: "mset (reorder_atoms idx atoms) = mset atoms"
   by (simp add: reorder_atoms_def)
 
 text \<open>The safe-branch per-assignment predicate depends on @{term al} only through @{term "map_of al"}:
@@ -501,7 +503,7 @@ definition dl_closure_check_exec_fast ::
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
               \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
-              (body_join_idx [] (reorder_atoms (cls_body_atoms cl)) idx)
+              (body_join_idx [] (reorder_atoms idx (cls_body_atoms cl)) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
@@ -518,7 +520,7 @@ lemma safe_branch_reorder_idx_eq:
   "list_all (\<lambda>al.
       list_all (eval_guard_al al) gs
       \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
-     (body_join_idx [] (reorder_atoms atoms) (build_findex facts))
+     (body_join_idx [] (reorder_atoms (build_findex facts) atoms) (build_findex facts))
    = list_all (\<lambda>al.
       list_all (eval_guard_al al) gs
       \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
@@ -533,11 +535,11 @@ proof -
       using eq by simp
     ultimately show ?thesis by simp
   qed
-  have img: "(\<lambda>al. map_of al) ` set (body_join [] (reorder_atoms atoms) facts)
+  have img: "(\<lambda>al. map_of al) ` set (body_join [] (reorder_atoms (build_findex facts) atoms) facts)
              = (\<lambda>al. map_of al) ` set (body_join [] atoms facts)"
     using body_join_map_of_perm[OF mset_reorder_atoms] .
-  have "list_all ?P (body_join_idx [] (reorder_atoms atoms) (build_findex facts))
-        = list_all ?P (body_join [] (reorder_atoms atoms) facts)"
+  have "list_all ?P (body_join_idx [] (reorder_atoms (build_findex facts) atoms) (build_findex facts))
+        = list_all ?P (body_join [] (reorder_atoms (build_findex facts) atoms) facts)"
     by (simp add: list_all_iff body_join_idx_eq)
   also have "\<dots> = list_all ?P (body_join [] atoms facts)"
     using list_all_map_of_cong[OF pcong img] .
