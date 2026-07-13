@@ -118,7 +118,7 @@ proof
 qed
 
 lemma all_ops_super: "{\<pi>. applicable \<pi>} \<subseteq> set cert_ops'"
-  using relax_applicables px_applicable_super unfolding cert_ops'_def set_remdups by blast
+  using relax_applicables px_applicable_super unfolding cert_ops'_def canon_set by blast
 
 end
 

@@ -533,11 +533,11 @@ qed
 
 definition "P\<^sub>G_cert \<equiv> grounder.ground_prob P\<^sub>T
   (normalized_problem_rx.cert_facts_of P\<^sub>T M)
-  (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
+  (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 definition "reconstruct_plan_ground_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
-    (grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
+    (grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
 lemma wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
@@ -591,7 +591,7 @@ lemma ground_cert_plan_reconstruct:
 proof -
   assume p: "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s"
   interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
-  let ?q = "grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  let ?q = "grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
     using p[unfolded P\<^sub>G_cert_def] cr.wfg.valid_classical_plan_left[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"

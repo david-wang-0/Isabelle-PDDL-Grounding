@@ -3,6 +3,7 @@ theory Grounding_Pipeline_Common_Executable
     Datalog_Certification.Datalog_Certificate_Code
     Datalog_Graph.Datalog_Certificate_Index
     Grounding_Classical_Common.PDDL_Orderings
+    Classical_Reachability_Analysis.Classical_Cert_Ops_Index
 begin
 
 text \<open>Importing the DFS check pulls in the graph library's red-black-tree constructors \<open>R\<close> / \<open>B\<close>
@@ -52,13 +53,23 @@ definition cert_ops_of_exec where
                             (organize_facts (map fact_to_facty M)))
        (ast_classical_problem.a_clauses (ast_classical_problem.relax_prob N)))"
 
+text \<open>Fast twin: the same enumeration driven through the RBT fact index
+  (\<^const>\<open>cert_ops_for_clause_fast\<close> / \<^const>\<open>build_findex\<close>), set-equal to \<^const>\<open>cert_ops_of_exec\<close>
+  (\<open>cert_ops_of_exec_fast_set\<close>). Only the enumeration order differs, so downstream it is used
+  through \<^const>\<open>canon\<close> (which depends only on the set) or in set-quantified checks.\<close>
+definition cert_ops_of_exec_fast where
+  [code]: "cert_ops_of_exec_fast N M \<equiv> concat (map
+       (cert_ops_for_clause_fast (ast_classical_problem.const_names (ast_classical_problem.relax_prob N))
+                                 (build_findex M))
+       (ast_classical_problem.a_clauses (ast_classical_problem.relax_prob N)))"
+
 definition extra_eff_atoms_of_exec where
   [code]: "extra_eff_atoms_of_exec N M \<equiv>
      remdups (concat (map (\<lambda>\<pi>.
         let eff = ground_action.effect (the (simple_action_instantiations.res_inst
                     (ast_classical_domain.resolve_classical_action_schema (domain N))
                     instantiate_classical_action_schema \<pi>))
-        in adds eff @ dels eff) (cert_ops_of_exec N M)))"
+        in adds eff @ dels eff) (canon (cert_ops_of_exec_fast N M))))"
 
 definition cert_facts_of_exec where
   [code]: "cert_facts_of_exec N M \<equiv> remdups (map fact_to_facty M @ extra_eff_atoms_of_exec N M)"
@@ -68,19 +79,19 @@ definition grounding_checks_exec where
      (\<forall>a \<in> set (cert_facts_of_exec N M).
         domain_signature.wf_fmla_atom (types (domain N)) (predicates (domain N))
           (problem_signature.objT (consts (domain N)) (objects N)) a)
-   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec N M). ast_classical_problem.wf_classical_plan_action N \<pi>)
-   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec N M).
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M). ast_classical_problem.wf_classical_plan_action N \<pi>)
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M).
         let eff = ground_action.effect (the (simple_action_instantiations.res_inst
                     (ast_classical_domain.resolve_classical_action_schema (domain N))
                     instantiate_classical_action_schema \<pi>))
         in \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> (cert_facts_of_exec N M))
-   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec N M).
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M).
         covered (ground_action.precondition (the (simple_action_instantiations.res_inst
                    (ast_classical_domain.resolve_classical_action_schema (domain N))
                    instantiate_classical_action_schema \<pi>))) (cert_facts_of_exec N M))
    \<and> covered (goal N) (cert_facts_of_exec N M)
    \<and> (\<forall>f \<in> set (init N). is_predAtom f)
-   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec N M).
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M).
         numeric_effects (ground_action.effect (the (simple_action_instantiations.res_inst
           (ast_classical_domain.resolve_classical_action_schema (domain N))
           instantiate_classical_action_schema \<pi>))) = [])"
@@ -92,7 +103,7 @@ text \<open>The \<^emph>\<open>numeric-fluent-retaining\<close> re-check: the si
   fluent grounder, so a task whose reachable ops still carry numeric effects can pass.\<close>
 definition numeric_grounding_checks_exec where
   [code]: "numeric_grounding_checks_exec N M \<equiv>
-     (\<forall>\<pi> \<in> set (cert_ops_of_exec N M). ast_classical_problem.wf_classical_plan_action N \<pi>)"
+     (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M). ast_classical_problem.wf_classical_plan_action N \<pi>)"
 
 subsection \<open>Grounding a problem against a certified fact list\<close>
 
@@ -104,7 +115,7 @@ definition ground_by_cert where
   [code]: "ground_by_cert P M \<equiv>
      grounder.ground_prob (ast_classical_problem.P\<^sub>T P)
        (cert_facts_of_exec (ast_classical_problem.P\<^sub>T P) M)
-       (remdups (cert_ops_of_exec (ast_classical_problem.P\<^sub>T P) M))"
+       (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))"
 
 subsection \<open>Shared code equations for plan reconstruction\<close>
 
@@ -131,7 +142,7 @@ definition reconstruct_plan_by_cert_numeric where
   [code]: "reconstruct_plan_by_cert_numeric P M \<pi>s \<equiv>
      ast_classical_problem.reconstruct_plan_norm P
        (restore_plan_def_translate
-          (grounder.restore_ground_plan (remdups (cert_ops_of_exec (ast_classical_problem.P\<^sub>T P) M)) \<pi>s))"
+          (grounder.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)) \<pi>s))"
 
 subsection \<open>Exec \<open>\<leftrightarrow>\<close> locale bridges\<close>
 
@@ -168,11 +179,27 @@ lemma cert_ops_of_exec_eq:
   unfolding cert_ops_of_exec_def normalized_problem_rx.cert_ops_of_def[OF assms]
   by (rule refl)
 
+text \<open>The RBT-indexed fast enumeration has the same op set as the linear one; hence the same
+  \<^const>\<open>canon\<close> (sort-dedup) form, which is what keeps the pipeline bridges strict equalities.\<close>
+lemma cert_ops_of_exec_fast_set: "set (cert_ops_of_exec_fast N M) = set (cert_ops_of_exec N M)"
+  unfolding cert_ops_of_exec_fast_def cert_ops_of_exec_def
+  by (simp add: cert_ops_for_clause_fast_eq)
+
+lemma cert_ops_of_exec_fast_set_abs:
+  assumes "normalized_problem_rx N"
+  shows "set (cert_ops_of_exec_fast N M) = set (normalized_problem_rx.cert_ops_of N M)"
+  by (simp add: cert_ops_of_exec_fast_set cert_ops_of_exec_eq[OF assms])
+
+lemma cert_ops_of_exec_fast_canon_eq:
+  assumes "normalized_problem_rx N"
+  shows "canon (cert_ops_of_exec_fast N M) = canon (normalized_problem_rx.cert_ops_of N M)"
+  using cert_ops_of_exec_fast_set_abs[OF assms] by (rule canon_cong)
+
 lemma extra_eff_atoms_of_exec_eq:
   assumes "normalized_problem_rx N"
   shows "extra_eff_atoms_of_exec N M = normalized_problem_rx.extra_eff_atoms_of N M"
   unfolding extra_eff_atoms_of_exec_def normalized_problem_rx.extra_eff_atoms_of_def[OF assms]
-            cert_ops_of_exec_eq[OF assms]
+            cert_ops_of_exec_fast_canon_eq[OF assms]
   by (rule refl)
 
 lemma cert_facts_of_exec_eq:
@@ -186,14 +213,14 @@ lemma grounding_checks_exec_eq:
   assumes "normalized_problem_rx N"
   shows "grounding_checks_exec N M = normalized_problem_rx.grounding_checks N M"
   unfolding grounding_checks_exec_def normalized_problem_rx.grounding_checks_def[OF assms]
-            cert_ops_of_exec_eq[OF assms] cert_facts_of_exec_eq[OF assms]
+            cert_ops_of_exec_fast_set_abs[OF assms] cert_facts_of_exec_eq[OF assms]
   by (rule refl)
 
 lemma numeric_grounding_checks_exec_eq:
   assumes "normalized_problem_rx N"
   shows "numeric_grounding_checks_exec N M = normalized_problem_rx.numeric_grounding_checks N M"
   unfolding numeric_grounding_checks_exec_def normalized_problem_rx.numeric_grounding_checks_def[OF assms]
-            cert_ops_of_exec_eq[OF assms] cert_facts_of_exec_eq[OF assms]
+            cert_ops_of_exec_fast_set_abs[OF assms] cert_facts_of_exec_eq[OF assms]
   by (rule refl)
 
 text \<open>The three side conditions of the certified-grounding context, discharged from executable
@@ -229,7 +256,7 @@ proof -
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding ground_by_cert_def ast_classical_problem.P\<^sub>G_cert_def[OF pnf ne cert gc']
-              cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_eq[OF rx]
+              cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 

@@ -34,7 +34,7 @@ text \<open>Unconditional executable twin of \<^const>\<open>ast_classical_probl
 definition numeric_ground_by_cert where
   [code]: "numeric_ground_by_cert P M \<equiv>
      grounder.numeric_ground_prob (ast_classical_problem.P\<^sub>T P)
-       (remdups (cert_ops_of_exec (ast_classical_problem.P\<^sub>T P) M))"
+       (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))"
 
 lemma numeric_ground_by_cert_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
@@ -52,7 +52,7 @@ proof -
     using gc unfolding numeric_grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding numeric_ground_by_cert_def ast_classical_problem.numeric_P\<^sub>G_cert_def[OF pnf ne cert gc']
-              cert_ops_of_exec_eq[OF rx]
+              cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 
@@ -193,7 +193,7 @@ proof -
   show ?thesis
     unfolding reconstruct_plan_by_cert_numeric_def
               ast_classical_problem.numeric_reconstruct_plan_ground_cert_def[OF pnf ne cert gc']
-              cert_ops_of_exec_eq[OF rx]
+              cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 

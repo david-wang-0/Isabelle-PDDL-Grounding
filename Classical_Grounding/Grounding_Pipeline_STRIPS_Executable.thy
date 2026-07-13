@@ -101,7 +101,7 @@ definition reconstruct_plan_by_cert where
   [code]: "reconstruct_plan_by_cert P M ops \<equiv>
      ast_classical_problem.reconstruct_plan_norm P
        (restore_plan_def_translate
-          (grounder.restore_ground_plan (remdups (cert_ops_of_exec (ast_classical_problem.P\<^sub>T P) M))
+          (grounder.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))
              (ast_classical_problem.restore_prefix (ground_by_cert P M)
                 (ast_classical_problem.I (ground_by_cert P M)) ops)))"
 
@@ -145,7 +145,7 @@ proof -
     unfolding reconstruct_plan_by_cert_def
               ast_classical_problem.reconstruct_pipeline_plan_cert_def[OF pnf ne cert gc']
               ast_classical_problem.reconstruct_plan_ground_cert_def[OF pnf ne cert gc']
-              ground_by_cert_eq[OF rp wf pnf ne cert gc] cert_ops_of_exec_eq[OF rx]
+              ground_by_cert_eq[OF rp wf pnf ne cert gc] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 
@@ -281,7 +281,7 @@ proof -
   show ?thesis
     unfolding reconstruct_plan_by_cert_numeric_def
               ast_classical_problem.reconstruct_plan_ground_cert_def[OF pnf ne cert gc']
-              cert_ops_of_exec_eq[OF rx]
+              cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 

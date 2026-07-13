@@ -106,13 +106,13 @@ text \<open>Canonical form of a list up to its element set: the sorted, duplicat
 definition canon :: "'a::linorder list \<Rightarrow> 'a list" where
   "canon xs = sorted_list_of_set (set xs)"
 
-lemma canon_set: "set (canon xs) = set xs"
+lemma canon_set [simp]: "set (canon xs) = set xs"
   by (simp add: canon_def)
 
 lemma canon_cong: "set xs = set ys \<Longrightarrow> canon xs = canon ys"
   by (simp add: canon_def)
 
-lemma canon_distinct: "distinct (canon xs)"
+lemma canon_distinct [simp]: "distinct (canon xs)"
   by (simp add: canon_def)
 
 lemma canon_sorted: "sorted (canon xs)"

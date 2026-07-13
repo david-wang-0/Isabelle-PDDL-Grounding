@@ -1,5 +1,6 @@
 theory Classical_Certified_Grounding_Locales
   imports Classical_PDDL_Reachability_Certificate "Classical_PDDL_Relaxation.Classical_PDDL_Relaxation_Semantics"
+    Grounding_Classical_Common.PDDL_Orderings
 begin
 
 section \<open>Certificate-to-grounder bridge: locale and definitions\<close>
@@ -372,7 +373,7 @@ text \<open>Augment the reachable facts with the add/delete atoms of the certifi
 definition extra_eff_atoms_of :: "fact list \<Rightarrow> facty list" where
   "extra_eff_atoms_of M \<equiv>
      remdups (concat (map (\<lambda>\<pi>. let eff = effect (the (res_inst \<pi>)) in adds eff @ dels eff)
-                          (cert_ops_of M)))"
+                          (canon (cert_ops_of M))))"
 
 definition cert_facts_of :: "fact list \<Rightarrow> facty list" where
   "cert_facts_of M \<equiv> remdups (map fact_to_facty M @ extra_eff_atoms_of M)"
@@ -432,7 +433,7 @@ proof -
 qed
 
 definition cert_ops' :: "ast_classical_plan_action list" where
-  "cert_ops' \<equiv> remdups (cert_ops_of M)"
+  "cert_ops' \<equiv> canon (cert_ops_of M)"
 
 definition cert_facts' :: "facty list" where
   "cert_facts' \<equiv> cert_facts_of M"

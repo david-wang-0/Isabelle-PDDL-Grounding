@@ -700,7 +700,7 @@ context
 begin
 
 definition "numeric_P\<^sub>G_cert \<equiv> grounder.numeric_ground_prob P\<^sub>T
-  (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
+  (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 lemma numeric_wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
@@ -732,7 +732,7 @@ qed
 
 definition "numeric_reconstruct_plan_ground_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
-    (grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
+    (grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
 text \<open>Plan restoration: a valid plan of the numeric grounded problem restores to a \<^emph>\<open>concrete\<close> valid
   plan of the original \<open>P\<close> (undo grounding \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization). Numeric twin of
@@ -746,7 +746,7 @@ proof -
   assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s"
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF px_numfree nonempty cert grounding_cert_num assms] .
-  let ?q = "grounder.restore_ground_plan (remdups (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  let ?q = "grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
     using p[unfolded numeric_P\<^sub>G_cert_def] cr.wfg_num.numeric_valid_plan_left[unfolded cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
