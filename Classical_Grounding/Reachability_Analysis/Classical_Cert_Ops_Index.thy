@@ -273,4 +273,18 @@ next
   show ?case using pmatch_atom_idx_eq[of M b a] Cons.hyps by auto
 qed
 
+definition cert_ops_for_clause_fast ::
+    "object list \<Rightarrow> (predicate, object) findex \<Rightarrow> action_clause \<Rightarrow> ast_classical_plan_action list" where
+  "cert_ops_for_clause_fast allobjs idx c =
+     map (SimplePlanAction (cl_name c))
+       (filter (satisfies_conds (cl_params c) (cl_cond_pre c))
+         (concat (map (\<lambda>b. ptuples allobjs b (map fst (cl_params c)))
+                      (pjoin_idx idx [] (cl_pred_pre c)))))"
+
+lemma cert_ops_for_clause_fast_eq:
+  "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
+     = set (cert_ops_for_clause allobjs (organize_facts (map fact_to_facty M)) c)"
+  unfolding cert_ops_for_clause_fast_def cert_ops_for_clause_def
+  by (simp add: pjoin_idx_eq)
+
 end
