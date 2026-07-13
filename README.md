@@ -65,7 +65,13 @@ See [ARCHITECTURE_pipeline.md](ARCHITECTURE_pipeline.md#numeric-grounding-pipeli
 The PDDL reachability-certificate development
 (`PDDL_Reachability_{Locales,Analysis,Certificate}.thy`) is also `0 sorry`: reachability is proven
 to be exactly the minimal model of the translated datalog program, and the `certified_pddl` locale
-exposes the reachable-fact set to the grounder. The retired untrusted reachability engine was
+exposes the reachable-fact set to the grounder. Following the action-predicate elimination of
+Corrêa et al., the datalog translation drops the auxiliary per-schema *action* predicate and
+projects each schema's rules directly onto their add-effect atoms (`dl_clauses_of_action_clause`),
+so the certified model is the set of reachable *facts* only — not reachable action instances. The
+applicable ground operators are therefore reconstructed downstream by a fact-driven join over that
+fact set (`cert_ops_of`, a proven-complete over-approximation), rather than read off the model. The
+retired untrusted reachability engine was
 deleted and replaced by the generic, verified `Datalog_Evaluation` evaluator (also `0 sorry`). The
 generic certificate kernel is fully executable (`Datalog/Datalog_Certificate_Code.thy`:
 `dl_certified_model_exec`), with `dl_founded` discharged by an ordered-cert linear scan.
