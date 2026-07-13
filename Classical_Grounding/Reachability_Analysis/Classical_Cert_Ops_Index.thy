@@ -30,13 +30,34 @@ fun first_bound_t :: "(variable \<times> object) list \<Rightarrow> term list \<
                         Some ob \<Rightarrow> Some (0, ob)
                       | None \<Rightarrow> map_option (\<lambda>(j, ob). (Suc j, ob)) (first_bound_t b ts)))"
 
+text \<open>All determined positions with their values (not just the leftmost): a constant is determined
+  at its own position, a variable is determined iff bound in \<open>b\<close>. Used to select the smallest
+  (most-selective) candidate bucket rather than always the leftmost one.\<close>
+fun determined_ids_t :: "(variable \<times> object) list \<Rightarrow> term list \<Rightarrow> (nat \<times> object) list" where
+  "determined_ids_t b [] = []"
+| "determined_ids_t b (t # ts) =
+     (case t of
+        term.CONST c \<Rightarrow> (0, c) # map (\<lambda>(j, v). (Suc j, v)) (determined_ids_t b ts)
+      | term.VAR x \<Rightarrow> (case map_of b x of
+                        Some ob \<Rightarrow> (0, ob) # map (\<lambda>(j, v). (Suc j, v)) (determined_ids_t b ts)
+                      | None \<Rightarrow> map (\<lambda>(j, v). (Suc j, v)) (determined_ids_t b ts)))"
+
+text \<open>Pick a shortest list from a nonempty list of lists; returns an element of its input.\<close>
+fun shortest :: "'a list list \<Rightarrow> 'a list" where
+  "shortest [] = []"
+| "shortest [xs] = xs"
+| "shortest (xs # ys # rest) = (let zs = shortest (ys # rest) in if length xs \<le> length zs then xs else zs)"
+
+lemma shortest_mem: "xss \<noteq> [] \<Longrightarrow> shortest xss \<in> set xss"
+  by (induct xss rule: shortest.induct) (auto simp: Let_def)
+
 definition cand_facts_t ::
     "(variable \<times> object) list \<Rightarrow> predicate \<Rightarrow> term list \<Rightarrow> (predicate, object) findex
        \<Rightarrow> (predicate, object) dl_fact list" where
   "cand_facts_t b p ts idx =
-     (case first_bound_t b ts of
-        Some (j, v) \<Rightarrow> alookup (fx_a idx) p j v
-      | None \<Rightarrow> plookup (fx_p idx) p)"
+     (case determined_ids_t b ts of
+        [] \<Rightarrow> plookup (fx_p idx) p
+      | dets \<Rightarrow> shortest (map (\<lambda>(j, v). alookup (fx_a idx) p j v) dets))"
 
 definition pmatch_atom_idx ::
     "(predicate, object) findex \<Rightarrow> (variable \<times> object) list \<Rightarrow> term atom formula
@@ -109,6 +130,110 @@ qed
 lemma first_bound_t_match:
   "first_bound_t b ts = Some (j, v) \<Longrightarrow> punify b ts os = Some r \<Longrightarrow> j < length os \<and> os ! j = v"
   using first_bound_t_match_gen[of b ts j v b os r] by simp
+
+text \<open>Every determined position \<^const>\<open>determined_ids_t\<close> reports is carried by any object tuple
+  \<^term>\<open>os\<close> that \<^const>\<open>punify\<close> accepts against \<open>ts\<close>. Mirrors @{thm first_bound_t_match} but ranges
+  over all determined positions, not just the leftmost. The recursion of \<^const>\<open>punify\<close> only extends
+  the binding \<open>b\<close> (either unchanged, or with one new \<open>(x, ob)\<close> pair), so a position determined under
+  \<open>b\<close> stays determined under the extended binding \<open>b'\<close> --- transported by the inner \<open>det_mono\<close>.\<close>
+lemma determined_ids_t_match:
+  "(j, v) \<in> set (determined_ids_t b ts) \<Longrightarrow> punify b ts os = Some r \<Longrightarrow> j < length os \<and> os ! j = v"
+proof (induct ts arbitrary: b os r j v)
+  case Nil then show ?case by simp
+next
+  case (Cons t ts)
+  from Cons.prems(2) obtain ob os' where os: "os = ob # os'" by (cases os) (auto split: term.splits)
+  \<comment> \<open>The recursive \<^const>\<open>punify\<close> call runs at a binding \<open>b'\<close> extending \<open>b\<close>.\<close>
+  have rec: "\<exists>b'. punify b' ts os' = Some r \<and>
+               (\<forall>z w. map_of b z = Some w \<longrightarrow> map_of b' z = Some w)"
+  proof (cases t)
+    case (CONST c)
+    with Cons.prems(2) os have "punify b ts os' = Some r" by (auto split: if_splits)
+    then show ?thesis by blast
+  next
+    case (VAR y)
+    show ?thesis
+    proof (cases "map_of b y")
+      case (Some ob2)
+      with Cons.prems(2) os VAR have "punify b ts os' = Some r" by (auto split: if_splits)
+      then show ?thesis by blast
+    next
+      case None
+      with Cons.prems(2) os VAR have step: "punify ((y, ob) # b) ts os' = Some r"
+        by (auto split: if_splits)
+      have "\<forall>z w. map_of b z = Some w \<longrightarrow> map_of ((y, ob) # b) z = Some w"
+        using None by fastforce
+      with step show ?thesis by blast
+    qed
+  qed
+  then obtain b' where step': "punify b' ts os' = Some r"
+    and ext': "\<forall>z w. map_of b z = Some w \<longrightarrow> map_of b' z = Some w" by blast
+  have IH: "\<And>j' v'. (j', v') \<in> set (determined_ids_t b' ts) \<Longrightarrow> j' < length os' \<and> os' ! j' = v'"
+    using Cons.hyps step' by blast
+  \<comment> \<open>Positions determined under \<open>b\<close> stay determined under the extended \<open>b'\<close>.\<close>
+  have det_mono: "set (determined_ids_t b ts) \<subseteq> set (determined_ids_t b' ts)"
+  proof (induct ts)
+    case Nil then show ?case by simp
+  next
+    case (Cons s ss)
+    show ?case
+    proof (cases s)
+      case (CONST c)
+      then show ?thesis using Cons.hyps by auto
+    next
+      case (VAR x)
+      show ?thesis
+      proof (cases "map_of b x")
+        case None
+        then show ?thesis using VAR Cons.hyps by (auto split: option.splits)
+      next
+        case (Some w)
+        then have "map_of b' x = Some w" using ext' by blast
+        then show ?thesis using VAR Some Cons.hyps by auto
+      qed
+    qed
+  qed
+  show ?case
+  proof (cases t)
+    case (CONST c)
+    show ?thesis
+    proof (cases "(j, v) = (0, c)")
+      case True
+      from Cons.prems(2) os CONST have "c = ob" by (auto split: if_splits)
+      with True os show ?thesis by simp
+    next
+      case False
+      with CONST Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+        and mem: "(j', v) \<in> set (determined_ids_t b ts)"
+        by (auto split: prod.splits)
+      from IH[OF subsetD[OF det_mono mem]] jv os show ?thesis by simp
+    qed
+  next
+    case (VAR x)
+    show ?thesis
+    proof (cases "map_of b x")
+      case (Some w)
+      show ?thesis
+      proof (cases "(j, v) = (0, w)")
+        case True
+        from Cons.prems(2) os VAR Some have "ob = w" by (auto split: if_splits)
+        with True os show ?thesis by simp
+      next
+        case False
+        with VAR Some Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+          and mem: "(j', v) \<in> set (determined_ids_t b ts)"
+          by (auto split: prod.splits)
+        from IH[OF subsetD[OF det_mono mem]] jv os show ?thesis by simp
+      qed
+    next
+      case None
+      with VAR Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+        and mem: "(j', v) \<in> set (determined_ids_t b ts)"
+        by (auto split: prod.splits)
+      from IH[OF subsetD[OF det_mono mem]] jv os show ?thesis by simp
+    qed
+  qed
+qed
 
 text \<open>Bridge: the function bucket \<^term>\<open>organize_facts (map fact_to_facty M) p\<close> is exactly the set of
   argument tuples of predicate \<open>p\<close> occurring in \<open>M\<close>.\<close>
@@ -203,10 +328,11 @@ next
   have smf: "set (List.map_filter g xs) = {y. \<exists>x \<in> set xs. g x = Some y}" for g :: "'x \<Rightarrow> 'y option" and xs
     by (induct xs) (auto simp: List.map_filter_def split: option.splits)
   let ?C = "cand_facts_t b p ts (build_findex M)"
+  let ?bkt = "\<lambda>(j, v). alookup (build_aidx M) p j v"
   \<comment> \<open>soundness: every candidate is a fact of predicate \<open>p\<close>\<close>
   have sub: "(p, snd f) \<in> set M" if f: "f \<in> set ?C" for f
-  proof (cases "first_bound_t b ts")
-    case None
+  proof (cases "determined_ids_t b ts")
+    case Nil
     then have "?C = plookup (build_pidx M) p"
       by (simp add: cand_facts_t_def build_findex_def)
     then have fp: "f \<in> set (plookup (build_pidx M) p)" using f by simp
@@ -214,35 +340,48 @@ next
     moreover have "fst f = p" using plookup_build_pred[OF fp] .
     ultimately show ?thesis by (metis prod.collapse)
   next
-    case (Some jv)
-    obtain j v where "jv = (j, v)" by (cases jv)
-    with Some have "?C = alookup (build_aidx M) p j v"
+    case (Cons d dets)
+    then have C: "?C = shortest (map ?bkt (d # dets))"
       by (simp add: cand_facts_t_def build_findex_def)
-    then have fa: "f \<in> set (alookup (build_aidx M) p j v)" using f by simp
+    have "?C \<in> set (map ?bkt (d # dets))"
+      using shortest_mem[of "map ?bkt (d # dets)"] C by simp
+    then obtain jv where Ceq: "?C = ?bkt jv" unfolding set_map by blast
+    obtain j v where jv: "jv = (j, v)" by (cases jv)
+    from Ceq jv have "f \<in> set (alookup (build_aidx M) p j v)" using f by simp
+    then have fa: "f \<in> set (alookup (build_aidx M) p j v)" .
     have "f \<in> set M" using alookup_build_sound fa by blast
     moreover have "fst f = p" using alookup_build_pred[OF fa] .
     ultimately show ?thesis by (metis prod.collapse)
   qed
   \<comment> \<open>completeness: any fact of predicate \<open>p\<close> that unifies is among the candidates\<close>
   have comp: "(p, os) \<in> set ?C" if os: "(p, os) \<in> set M" and u: "punify b ts os = Some r" for os r
-  proof (cases "first_bound_t b ts")
-    case None
+  proof (cases "determined_ids_t b ts")
+    case Nil
     then have "?C = plookup (build_pidx M) p"
       by (simp add: cand_facts_t_def build_findex_def)
     moreover have "(p, os) \<in> set (plookup (build_pidx M) (fst (p, os)))"
       using plookup_build_complete[OF os] .
     ultimately show ?thesis by simp
   next
-    case (Some jv)
-    obtain j v where jv: "jv = (j, v)" by (cases jv)
-    with Some have fb: "first_bound_t b ts = Some (j, v)" by simp
-    then have C: "?C = alookup (build_aidx M) p j v"
+    case (Cons d dets)
+    then have C: "?C = shortest (map ?bkt (d # dets))"
       by (simp add: cand_facts_t_def build_findex_def)
-    from first_bound_t_match[OF fb u] have jl: "j < length os" and vj: "os ! j = v"
-      by simp_all
-    have "(p, os) \<in> set (alookup (build_aidx M) (fst (p, os)) j (snd (p, os) ! j))"
-      using alookup_build_complete[OF os] jl by simp
-    then show ?thesis using C vj by simp
+    \<comment> \<open>a matching fact carries every determined value, so it lies in \<^emph>\<open>every\<close> determined bucket\<close>
+    have inbkt: "(p, os) \<in> set (?bkt jv)" if "jv \<in> set (d # dets)" for jv
+    proof -
+      obtain j v where jv: "jv = (j, v)" by (cases jv)
+      with that Cons have "(j, v) \<in> set (determined_ids_t b ts)" by simp
+      from determined_ids_t_match[OF this u] have jl: "j < length os" and vj: "os ! j = v"
+        by simp_all
+      have "(p, os) \<in> set (alookup (build_aidx M) (fst (p, os)) j (snd (p, os) ! j))"
+        using alookup_build_complete[OF os] jl by simp
+      then show ?thesis using vj jv by simp
+    qed
+    have "?C \<in> set (map ?bkt (d # dets))"
+      using shortest_mem[of "map ?bkt (d # dets)"] C by simp
+    then obtain jv where mem: "jv \<in> set (d # dets)" and sh: "?C = ?bkt jv"
+      unfolding set_map by blast
+    show ?thesis using sh inbkt[OF mem] by simp
   qed
   have "set (pmatch_atom_idx (build_findex M) b a)
           = {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}"

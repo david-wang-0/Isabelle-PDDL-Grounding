@@ -33,13 +33,34 @@ fun first_bound :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id list \<Right
                       Some v \<Rightarrow> Some (0, v)
                     | None \<Rightarrow> map_option (\<lambda>(j, v). (Suc j, v)) (first_bound al is')))"
 
+text \<open>All determined positions with their values (not just the leftmost): a constant is determined
+  at its own position, a variable is determined iff bound in @{term al}. Used to select the
+  smallest (most-selective) candidate bucket rather than always the leftmost one.\<close>
+fun determined_ids :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id list \<Rightarrow> (nat \<times> 'c) list" where
+  "determined_ids al [] = []"
+| "determined_ids al (i # is') =
+     (case i of
+        id.Cst c \<Rightarrow> (0, c) # map (\<lambda>(j, v). (Suc j, v)) (determined_ids al is')
+      | id.Var x \<Rightarrow> (case map_of al x of
+                       Some v \<Rightarrow> (0, v) # map (\<lambda>(j, v). (Suc j, v)) (determined_ids al is')
+                     | None \<Rightarrow> map (\<lambda>(j, v). (Suc j, v)) (determined_ids al is')))"
+
+text \<open>Pick a shortest list from a nonempty list of lists; returns an element of its input.\<close>
+fun shortest :: "'a list list \<Rightarrow> 'a list" where
+  "shortest [] = []"
+| "shortest [xs] = xs"
+| "shortest (xs # ys # rest) = (let zs = shortest (ys # rest) in if length xs \<le> length zs then xs else zs)"
+
+lemma shortest_mem: "xss \<noteq> [] \<Longrightarrow> shortest xss \<in> set xss"
+  by (induct xss rule: shortest.induct) (auto simp: Let_def)
+
 definition cand_facts ::
     "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p::linorder, 'c::linorder) findex \<Rightarrow> ('p, 'c) dl_fact list"
   where
   "cand_facts al a idx =
-     (case first_bound al (snd a) of
-        Some (j, v) \<Rightarrow> alookup (fx_a idx) (fst a) j v
-      | None \<Rightarrow> plookup (fx_p idx) (fst a))"
+     (case determined_ids al (snd a) of
+        [] \<Rightarrow> plookup (fx_p idx) (fst a)
+      | dets \<Rightarrow> shortest (map (\<lambda>(j, v). alookup (fx_a idx) (fst a) j v) dets))"
 
 definition match_facts_idx ::
     "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p::linorder, 'c::linorder) findex \<Rightarrow> ('x \<times> 'c) list list"
@@ -104,48 +125,143 @@ lemma first_bound_match:
   "first_bound al ids = Some (j, v) \<Longrightarrow> match_ids_al al ids ds = Some r \<Longrightarrow> j < length ds \<and> ds ! j = v"
   using first_bound_match_gen[of al ids j v al ds r] by simp
 
+text \<open>Generalised forcing lemma for @{const determined_ids}: every determined position it reports
+  is carried by any fact whose arguments match at @{term al}. Mirrors @{thm first_bound_match_gen}
+  but ranges over all determined positions, not just the leftmost.\<close>
+lemma determined_ids_match:
+  "(j, v) \<in> set (determined_ids al ids) \<Longrightarrow> match_ids_al al ids ds = Some r \<Longrightarrow> j < length ds \<and> ds ! j = v"
+proof (induct ids arbitrary: al ds r j v)
+  case Nil then show ?case by simp
+next
+  case (Cons i ids)
+  from Cons.prems(2) obtain d ds' where ds: "ds = d # ds'" by (cases ds) auto
+  from Cons.prems(2) ds obtain al' where mi: "match_id_al al i d = Some al'"
+    and rec: "match_ids_al al' ids ds' = Some r" by (auto split: option.splits)
+  have IH: "\<And>j' v'. (j', v') \<in> set (determined_ids al' ids) \<Longrightarrow> j' < length ds' \<and> ds' ! j' = v'"
+    using Cons.hyps rec by blast
+  \<comment> \<open>The recursive determined positions of @{term ids} depend on @{term al}, but every position
+     bound under @{term al} stays bound under the extended @{term al'}; so we can transport them.\<close>
+  have det_mono: "set (determined_ids al ids) \<subseteq> set (determined_ids al' ids)"
+  proof (induct ids)
+    case Nil then show ?case by simp
+  next
+    case (Cons k ks)
+    show ?case
+    proof (cases k)
+      case (Cst c)
+      then show ?thesis using Cons.hyps by auto
+    next
+      case (Var y)
+      show ?thesis
+      proof (cases "map_of al y")
+        case None
+        then show ?thesis using Var Cons.hyps by (auto split: option.splits)
+      next
+        case (Some w)
+        then have "map_of al' y = Some w" using match_id_al_mono[OF mi] by blast
+        then show ?thesis using Var Some Cons.hyps by auto
+      qed
+    qed
+  qed
+  show ?case
+  proof (cases i)
+    case (Cst c)
+    show ?thesis
+    proof (cases "(j, v) = (0, c)")
+      case True
+      from mi Cst have "d = c" by (auto split: if_splits)
+      with True ds show ?thesis by simp
+    next
+      case False
+      with Cst Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+        and mem: "(j', v) \<in> set (determined_ids al ids)"
+        by (auto split: prod.splits)
+      from IH[OF subsetD[OF det_mono mem]] jv ds show ?thesis by simp
+    qed
+  next
+    case (Var x)
+    show ?thesis
+    proof (cases "map_of al x")
+      case (Some w)
+      show ?thesis
+      proof (cases "(j, v) = (0, w)")
+        case True
+        have "map_of al x = Some w" using Some by simp
+        with mi Var have "d = w" by (auto split: if_splits option.splits)
+        with True ds show ?thesis by simp
+      next
+        case False
+        with Var Some Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+          and mem: "(j', v) \<in> set (determined_ids al ids)"
+          by (auto split: prod.splits)
+        from IH[OF subsetD[OF det_mono mem]] jv ds show ?thesis by simp
+      qed
+    next
+      case None
+      with Var Cons.prems(1) obtain j' where jv: "(j, v) = (Suc j', v)"
+        and mem: "(j', v) \<in> set (determined_ids al ids)"
+        by (auto split: prod.splits)
+      from IH[OF subsetD[OF det_mono mem]] jv ds show ?thesis by simp
+    qed
+  qed
+qed
+
 text \<open>\<^bold>\<open>Lemma A\<close>: filtering the index-selected candidates yields exactly the matches of the
   full fact scan. The reorder/index refinement of the body join rests entirely on this.\<close>
 lemma match_facts_idx_eq:
   "set (match_facts_idx al a (build_findex facts)) = set (match_facts_al al a facts)"
 proof -
   let ?C = "cand_facts al a (build_findex facts)"
+  let ?bkt = "\<lambda>(j, v). alookup (build_aidx facts) (fst a) j v"
   have sub: "set ?C \<subseteq> set facts"
-  proof (cases "first_bound al (snd a)")
-    case None
+  proof (cases "determined_ids al (snd a)")
+    case Nil
     then show ?thesis by (simp add: cand_facts_def build_findex_def plookup_build_sound)
   next
-    case (Some jv)
-    obtain j v where "jv = (j, v)" by (cases jv)
-    with Some show ?thesis by (simp add: cand_facts_def build_findex_def alookup_build_sound)
+    case (Cons d dets)
+    then have C: "?C = shortest (map ?bkt (d # dets))"
+      by (simp add: cand_facts_def build_findex_def)
+    have "?C \<in> set (map ?bkt (d # dets))"
+      using shortest_mem[of "map ?bkt (d # dets)"] C by simp
+    then obtain jv where jv: "jv \<in> set (d # dets)" and Ceq: "?C = ?bkt jv"
+      unfolding set_map by blast
+    show ?thesis using Ceq by (cases jv) (simp add: alookup_build_sound)
   qed
   have comp: "f \<in> set ?C" if f: "f \<in> set facts" and m: "match_atom_al al a f = Some y" for f y
   proof -
     from m have pa: "fst a = fst f" and mi: "match_ids_al al (snd a) (snd f) = Some y"
       by (auto simp: match_atom_al_def split: if_splits)
     show "f \<in> set ?C"
-    proof (cases "first_bound al (snd a)")
-      case None
+    proof (cases "determined_ids al (snd a)")
+      case Nil
       then have "?C = plookup (build_pidx facts) (fst a)"
         by (simp add: cand_facts_def build_findex_def)
       moreover have "f \<in> set (plookup (build_pidx facts) (fst f))"
         using plookup_build_complete[OF f] .
       ultimately show ?thesis using pa by simp
     next
-      case (Some jv)
-      obtain j v where jv: "jv = (j, v)" by (cases jv)
-      with Some have fb: "first_bound al (snd a) = Some (j, v)" by simp
-      then have C: "?C = alookup (build_aidx facts) (fst a) j v"
+      case (Cons d dets)
+      then have C: "?C = shortest (map ?bkt (d # dets))"
         by (simp add: cand_facts_def build_findex_def)
-      from first_bound_match[OF fb mi] have jl: "j < length (snd f)" and vj: "snd f ! j = v"
-        by simp_all
-      have "f \<in> set (alookup (build_aidx facts) (fst f) j (snd f ! j))"
-        using alookup_build_complete[OF f jl] .
-      then show ?thesis using C pa vj by simp
+      have inbkt: "f \<in> set (?bkt jv)" if "jv \<in> set (d # dets)" for jv
+      proof -
+        obtain j v where jv: "jv = (j, v)" by (cases jv)
+        with that Cons have "(j, v) \<in> set (determined_ids al (snd a))" by simp
+        from determined_ids_match[OF this mi] have jl: "j < length (snd f)" and vj: "snd f ! j = v"
+          by simp_all
+        have "f \<in> set (alookup (build_aidx facts) (fst f) j (snd f ! j))"
+          using alookup_build_complete[OF f jl] .
+        then show ?thesis using pa vj jv by simp
+      qed
+      have "?C \<in> set (map ?bkt (d # dets))"
+        using shortest_mem[of "map ?bkt (d # dets)"] C by simp
+      then obtain jv where mem: "jv \<in> set (d # dets)" and sh: "?C = ?bkt jv"
+        unfolding set_map by blast
+      show ?thesis using sh inbkt[OF mem] by simp
     qed
   qed
   show ?thesis
-    unfolding match_facts_idx_def match_facts_al_def set_map_filter_eq    using sub comp by blast
+    unfolding match_facts_idx_def match_facts_al_def set_map_filter_eq using sub comp by blast
 qed
 
 
