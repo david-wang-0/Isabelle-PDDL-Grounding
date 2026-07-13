@@ -412,18 +412,368 @@ next
   show ?case using pmatch_atom_idx_eq[of M b a] Cons.hyps by auto
 qed
 
+subsection \<open>Most-constrained-first reordering of the precondition atoms\<close>
+
+text \<open>Variable set of a term list / precondition atom (total, so no \<open>is_predAtom\<close> side-condition
+  leaks into the domain bookkeeping below).\<close>
+definition tvars :: "term list \<Rightarrow> variable set" where
+  "tvars ts = {v. term.VAR v \<in> set ts}"
+
+definition atom_vars :: "term atom formula \<Rightarrow> variable set" where
+  "atom_vars a = (case a of Atom (predAtm p ts) \<Rightarrow> tvars ts | _ \<Rightarrow> {})"
+
+text \<open>Soundness companion to @{thm punify_complete}: a successful \<^const>\<open>punify\<close> extends the binding
+  by exactly the variables it meets, and grounds \<open>ts\<close> to the matched objects \<open>os\<close>.\<close>
+lemma punify_sound:
+  "punify b ts os = Some b' \<Longrightarrow>
+     map_of b \<subseteq>\<^sub>m map_of b'
+   \<and> dom (map_of b') = dom (map_of b) \<union> tvars ts
+   \<and> map (subst_term (\<lambda>x. the (map_of b' x))) ts = os"
+proof (induction b ts os arbitrary: b' rule: punify.induct)
+  case (1 b v ts ob os)
+  show ?case
+  proof (cases "map_of b v")
+    case (Some ob2)
+    with "1.prems" have eq: "ob2 = ob" and rec: "punify b ts os = Some b'"
+      by (auto split: if_splits)
+    from "1.IH"(2)[OF Some eq rec]
+    have le: "map_of b \<subseteq>\<^sub>m map_of b'"
+      and dm: "dom (map_of b') = dom (map_of b) \<union> tvars ts"
+      and gr: "map (subst_term (\<lambda>x. the (map_of b' x))) ts = os" by auto
+    have vin: "v \<in> dom (map_of b)" using Some by (auto simp: dom_def)
+    have "map_of b' v = Some ob" using le Some eq by (auto simp: map_le_def dom_def)
+    hence hd: "subst_term (\<lambda>x. the (map_of b' x)) (term.VAR v) = ob" by simp
+    have dm': "dom (map_of b') = dom (map_of b) \<union> tvars (term.VAR v # ts)"
+      using dm vin by (auto simp: tvars_def)
+    show ?thesis using le dm' gr hd by simp
+  next
+    case None
+    with "1.prems" have rec: "punify ((v, ob) # b) ts os = Some b'" by simp
+    note IH = "1.IH"(1)[OF None rec]
+    have le: "map_of ((v, ob) # b) \<subseteq>\<^sub>m map_of b'" using conjunct1[OF IH] .
+    have dm: "dom (map_of b') = dom (map_of ((v, ob) # b)) \<union> tvars ts"
+      using conjunct1[OF conjunct2[OF IH]] .
+    have gr: "map (subst_term (\<lambda>x. the (map_of b' x))) ts = os"
+      using conjunct2[OF conjunct2[OF IH]] .
+    have le0: "map_of b \<subseteq>\<^sub>m map_of b'"
+      using le None by (auto simp: map_le_def dom_def)
+    have "map_of ((v, ob) # b) v = Some ob" by simp
+    hence "map_of b' v = Some ob" using le by (auto simp: map_le_def dom_def)
+    hence hd: "subst_term (\<lambda>x. the (map_of b' x)) (term.VAR v) = ob" by simp
+    have dm': "dom (map_of b') = dom (map_of b) \<union> tvars (term.VAR v # ts)"
+      using dm by (auto simp: tvars_def)
+    show ?thesis using le0 dm' gr hd by simp
+  qed
+next
+  case (2 b c ts ob os)
+  with "2.prems" have ceq: "c = ob" and rec: "punify b ts os = Some b'"
+    by (auto split: if_splits)
+  from "2.IH"[OF _ rec] ceq
+  have le: "map_of b \<subseteq>\<^sub>m map_of b'"
+    and dm: "dom (map_of b') = dom (map_of b) \<union> tvars ts"
+    and gr: "map (subst_term (\<lambda>x. the (map_of b' x))) ts = os" by (auto split: if_splits)
+  have dm': "dom (map_of b') = dom (map_of b) \<union> tvars (term.CONST c # ts)"
+    using dm by (auto simp: tvars_def)
+  show ?case using le dm' gr ceq by simp
+next
+  case (3 b)
+  then show ?case by (simp add: tvars_def)
+qed auto
+
+text \<open>A non-predicate atom in the list makes \<^const>\<open>pmatch_atom\<close> --- and hence the whole join ---
+  empty, so the join enumerates nothing.\<close>
+lemma pjoin_nonpred_empty:
+  "\<exists>a\<in>set atms. \<not> is_predAtom a \<Longrightarrow> pjoin orga b0 atms = []"
+proof (induction atms arbitrary: b0)
+  case (Cons a atms)
+  show ?case
+  proof (cases "is_predAtom a")
+    case False
+    then have "pmatch_atom orga b0 a = []"
+      by (cases a rule: is_predAtom.cases) (auto simp: pmatch_atom_def)
+    then show ?thesis by simp
+  next
+    case True
+    with Cons.prems have "\<exists>a\<in>set atms. \<not> is_predAtom a" by auto
+    then have "\<forall>b'. pjoin orga b' atms = []" using Cons.IH by blast
+    then show ?thesis by (simp add: map_replicate_const)
+  qed
+qed simp
+
+text \<open>Soundness companion to @{thm pjoin_complete}: every binding produced by the join extends
+  @{term b0}, has domain exactly @{term b0}'s domain together with the variables of all joined
+  atoms, and grounds every joined predicate atom into its bucket \<^term>\<open>orga p\<close>. No \<open>is_predAtom\<close>
+  hypothesis is needed: a non-predicate atom makes @{term "set (pjoin orga b0 atms)"} empty, so the
+  membership premise is vacuous there.\<close>
+lemma pjoin_sound:
+  "b \<in> set (pjoin orga b0 atms) \<Longrightarrow>
+     map_of b0 \<subseteq>\<^sub>m map_of b
+   \<and> dom (map_of b) = dom (map_of b0) \<union> (\<Union>a\<in>set atms. atom_vars a)
+   \<and> (\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+        \<longrightarrow> map (subst_term (\<lambda>x. the (map_of b x))) ts \<in> set (orga p))"
+proof (induction atms arbitrary: b0)
+  case Nil then show ?case by simp
+next
+  case (Cons a atms)
+  from Cons.prems obtain b1 where b1: "b1 \<in> set (pmatch_atom orga b0 a)"
+    and bin: "b \<in> set (pjoin orga b1 atms)" by auto
+  \<comment> \<open>the head atom must be a predicate atom (else \<^const>\<open>pmatch_atom\<close> is empty)\<close>
+  from b1 obtain p ts where a: "a = Atom (predAtm p ts)"
+    by (cases a rule: is_predAtom.cases) (auto simp: pmatch_atom_def)
+  from b1 a obtain os where os: "os \<in> set (orga p)" and pu: "punify b0 ts os = Some b1"
+    by (auto simp: pmatch_atom_def List.map_filter_def split: if_splits)
+  from punify_sound[OF pu]
+  have le01: "map_of b0 \<subseteq>\<^sub>m map_of b1"
+    and dom1: "dom (map_of b1) = dom (map_of b0) \<union> tvars ts"
+    and rep1: "map (subst_term (\<lambda>x. the (map_of b1 x))) ts = os" by auto
+  from Cons.IH[OF bin]
+  have le1: "map_of b1 \<subseteq>\<^sub>m map_of b"
+    and dom: "dom (map_of b) = dom (map_of b1) \<union> (\<Union>a\<in>set atms. atom_vars a)"
+    and gr: "\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+               \<longrightarrow> map (subst_term (\<lambda>x. the (map_of b x))) ts \<in> set (orga p)" by auto
+  have le: "map_of b0 \<subseteq>\<^sub>m map_of b" using le01 le1 by (rule map_le_trans)
+  \<comment> \<open>the head atom's instance is preserved under the extended binding (agrees on its vars)\<close>
+  have repa: "map (subst_term (\<lambda>x. the (map_of b x))) ts = os"
+  proof -
+    have "subst_term (\<lambda>x. the (map_of b x)) t = subst_term (\<lambda>x. the (map_of b1 x)) t"
+      if t: "t \<in> set ts" for t
+    proof (cases t)
+      case (VAR y)
+      with t have "y \<in> tvars ts" by (auto simp: tvars_def)
+      then have "y \<in> dom (map_of b1)" using dom1 by blast
+      then have "map_of b y = map_of b1 y" using le1 by (auto simp: map_le_def dom_def)
+      then show ?thesis using VAR by simp
+    qed simp
+    then have "map (subst_term (\<lambda>x. the (map_of b x))) ts
+                 = map (subst_term (\<lambda>x. the (map_of b1 x))) ts" by simp
+    also have "\<dots> = os" using rep1 .
+    finally show ?thesis .
+  qed
+  have av: "atom_vars a = tvars ts" using a by (simp add: atom_vars_def)
+  have domC: "dom (map_of b) = dom (map_of b0) \<union> (\<Union>a\<in>set (a # atoms). atom_vars a)"
+    if "atoms = atms" for atoms
+    using dom dom1 av that by auto
+  have grC: "\<forall>p' ts'. Atom (predAtm p' ts') \<in> set (a # atms)
+               \<longrightarrow> map (subst_term (\<lambda>x. the (map_of b x))) ts' \<in> set (orga p')"
+    using gr repa os a by auto
+  show ?case using le domC[OF refl] grC by blast
+qed
+
+text \<open>Order-independent characterisation of the join's binding SET viewed through \<^const>\<open>map_of\<close>:
+  the image is exactly the maps that extend @{term b0}, whose domain is @{term b0}'s domain plus the
+  variables of all atoms, and that ground every atom into its bucket. Every conjunct on the right
+  depends only on @{term "set atms"}, so the image is manifestly permutation invariant.\<close>
+lemma pjoin_map_of_char:
+  assumes "\<forall>a\<in>set atms. is_predAtom a"
+  shows "(\<lambda>b. map_of b) ` set (pjoin orga b0 atms) =
+     {m. map_of b0 \<subseteq>\<^sub>m m
+         \<and> dom m = dom (map_of b0) \<union> (\<Union>a\<in>set atms. atom_vars a)
+         \<and> (\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+              \<longrightarrow> map (subst_term (\<lambda>x. the (m x))) ts \<in> set (orga p))}"
+  (is "?L = ?R")
+proof (intro equalityI subsetI)
+  fix m assume "m \<in> ?L"
+  then obtain b where b: "b \<in> set (pjoin orga b0 atms)" and meq: "m = map_of b" by auto
+  show "m \<in> ?R" using pjoin_sound[OF b] meq by simp
+next
+  fix m assume mR: "m \<in> ?R"
+  then have mle0: "map_of b0 \<subseteq>\<^sub>m m"
+    and dm: "dom m = dom (map_of b0) \<union> (\<Union>a\<in>set atms. atom_vars a)"
+    and gr: "\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+               \<longrightarrow> map (subst_term (\<lambda>x. the (m x))) ts \<in> set (orga p)" by auto
+  define \<rho> where "\<rho> = (\<lambda>x. the (m x))"
+  have gr\<rho>: "\<forall>p ts. Atom (predAtm p ts) \<in> set atms \<longrightarrow> map (subst_term \<rho>) ts \<in> set (orga p)"
+    using gr by (simp add: \<rho>_def)
+  have cons0: "\<forall>x d. map_of b0 x = Some d \<longrightarrow> \<rho> x = d"
+    using mle0 by (auto simp: map_le_def dom_def \<rho>_def)
+  from pjoin_complete[OF gr\<rho> assms cons0] obtain b where
+    b: "b \<in> set (pjoin orga b0 atms)"
+    and ext_b: "\<forall>x d. map_of b0 x = Some d \<longrightarrow> map_of b x = Some d"
+    and bind_b: "\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+                   \<longrightarrow> (\<forall>v. term.VAR v \<in> set ts \<longrightarrow> map_of b v = Some (\<rho> v))" by blast
+  from pjoin_sound[OF b]
+  have le0: "map_of b0 \<subseteq>\<^sub>m map_of b"
+    and dom_b: "dom (map_of b) = dom (map_of b0) \<union> (\<Union>a\<in>set atms. atom_vars a)" by auto
+  \<comment> \<open>the fresh atom-variables of @{term b} are bound to @{term \<rho>} (read off @{thm pjoin_complete})\<close>
+  have bindx: "map_of b x = Some (\<rho> x)"
+    if "x \<in> (\<Union>a\<in>set atms. atom_vars a)" for x
+  proof -
+    from that obtain a where ain: "a \<in> set atms" and xa: "x \<in> atom_vars a" by blast
+    from ain assms have "is_predAtom a" by blast
+    then obtain p ts where a: "a = Atom (predAtm p ts)"
+      by (cases a rule: is_predAtom.cases) auto
+    from xa a have "term.VAR x \<in> set ts" by (auto simp: atom_vars_def tvars_def)
+    with ain a bind_b show ?thesis by blast
+  qed
+  have "map_of b = m"
+  proof (rule ext)
+    fix x
+    show "map_of b x = m x"
+    proof (cases "x \<in> dom (map_of b0)")
+      case True
+      then obtain d where d: "map_of b0 x = Some d" by auto
+      have "map_of b x = Some d" using ext_b d by blast
+      moreover have "m x = Some d" using mle0 d by (auto simp: map_le_def dom_def)
+      ultimately show ?thesis by simp
+    next
+      case False
+      show ?thesis
+      proof (cases "x \<in> dom m")
+        case True
+        then have xv: "x \<in> (\<Union>a\<in>set atms. atom_vars a)"
+          using dm False by blast
+        then have "map_of b x = Some (\<rho> x)" using bindx by blast
+        moreover have "m x = Some (\<rho> x)" using True by (auto simp: \<rho>_def)
+        ultimately show ?thesis by simp
+      next
+        case False
+        then have "x \<notin> dom (map_of b)" using dom_b dm by blast
+        then show ?thesis using False by (auto simp: dom_def)
+      qed
+    qed
+  qed
+  then show "m \<in> ?L" using b by (auto simp del: pjoin.simps)
+qed
+
+text \<open>\<^bold>\<open>Permutation invariance of the precondition join\<close>: reordering the atoms leaves the SET of
+  bindings produced by the join (viewed through \<^const>\<open>map_of\<close>) unchanged. For all-predicate lists
+  this is immediate from @{thm pjoin_map_of_char}; if some atom is not a predicate then --- by
+  set-equality --- both lists contain one and both joins are empty.\<close>
+lemma pjoin_map_of_perm:
+  assumes "mset atms = mset atms'"
+  shows "(\<lambda>b. map_of b) ` set (pjoin orga b0 atms)
+           = (\<lambda>b. map_of b) ` set (pjoin orga b0 atms')"
+proof -
+  have seq: "set atms = set atms'" using assms by (metis set_mset_mset)
+  show ?thesis
+  proof (cases "\<forall>a\<in>set atms. is_predAtom a")
+    case True
+    then have True': "\<forall>a\<in>set atms'. is_predAtom a" using seq by simp
+    have "(\<lambda>b. map_of b) ` set (pjoin orga b0 atms) =
+      {m. map_of b0 \<subseteq>\<^sub>m m
+          \<and> dom m = dom (map_of b0) \<union> (\<Union>a\<in>set atms. atom_vars a)
+          \<and> (\<forall>p ts. Atom (predAtm p ts) \<in> set atms
+               \<longrightarrow> map (subst_term (\<lambda>x. the (m x))) ts \<in> set (orga p))}"
+      using pjoin_map_of_char[OF True] .
+    also have "\<dots> =
+      {m. map_of b0 \<subseteq>\<^sub>m m
+          \<and> dom m = dom (map_of b0) \<union> (\<Union>a\<in>set atms'. atom_vars a)
+          \<and> (\<forall>p ts. Atom (predAtm p ts) \<in> set atms'
+               \<longrightarrow> map (subst_term (\<lambda>x. the (m x))) ts \<in> set (orga p))}"
+      using seq by simp
+    also have "\<dots> = (\<lambda>b. map_of b) ` set (pjoin orga b0 atms')"
+      using pjoin_map_of_char[OF True'] by simp
+    finally show ?thesis .
+  next
+    case False
+    then have "\<exists>a\<in>set atms. \<not> is_predAtom a" by blast
+    moreover from this seq have "\<exists>a\<in>set atms'. \<not> is_predAtom a" by blast
+    ultimately show ?thesis by (simp add: pjoin_nonpred_empty)
+  qed
+qed
+
+text \<open>\<^const>\<open>ptuples\<close> reads the binding @{term b} only through \<^term>\<open>map_of b\<close>, so two bindings
+  with equal lookups enumerate the same tuples.\<close>
+lemma ptuples_map_of_cong:
+  "map_of b = map_of b' \<Longrightarrow> ptuples allobjs b vs = ptuples allobjs b' vs"
+  by (induct vs) (auto split: option.splits)
+
+text \<open>Reorder a clause's precondition atoms most-constrained-first: an atom with fewer variable
+  arguments (more constant/bound positions) is more selective, so sorting ascending by the number of
+  variable positions puts the pruning atoms before the seed atoms. As a @{const sort_key} this is a
+  permutation, so by @{thm pjoin_map_of_perm} the join enumerates the same SET of bindings (through
+  \<^const>\<open>map_of\<close>), which is all that survives into \<^const>\<open>ptuples\<close>.\<close>
+definition reorder_pre :: "term atom formula list \<Rightarrow> term atom formula list" where
+  "reorder_pre atms =
+     sort_key (\<lambda>a. case a of
+                     Atom (predAtm p ts) \<Rightarrow>
+                       length (filter (\<lambda>t. case t of term.VAR _ \<Rightarrow> True | _ \<Rightarrow> False) ts)
+                   | _ \<Rightarrow> 0) atms"
+
+lemma mset_reorder_pre: "mset (reorder_pre atms) = mset atms"
+  by (simp add: reorder_pre_def)
+
+text \<open>Reordering the precondition atoms does not change the multiset of ground tuples fed to the
+  final guard filter: the fast join enumerates the same bindings through \<^const>\<open>map_of\<close>
+  (@{thm pjoin_map_of_perm}), and each surviving \<^const>\<open>ptuples\<close> set depends only on that lookup
+  (@{thm ptuples_map_of_cong}).\<close>
+lemma pjoin_idx_ptuples_reorder:
+  "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre atms)). set (ptuples allobjs b vars))
+     = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
+proof -
+  let ?orga = "organize_facts (map fact_to_facty M)"
+  have img: "(\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre atms))
+               = (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
+    using pjoin_map_of_perm[OF mset_reorder_pre] .
+  have "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre atms)). set (ptuples allobjs b vars))
+          = (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre atms)). set (ptuples allobjs b vars))"
+    by (simp add: pjoin_idx_eq)
+  also have "\<dots> = (\<Union>b\<in>set (pjoin ?orga [] atms). set (ptuples allobjs b vars))"
+  proof (rule equalityI, safe)
+    fix b x assume b: "b \<in> set (pjoin ?orga [] (reorder_pre atms))"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin ?orga [] atms)" and eq: "map_of b' = map_of b"
+      by auto
+    have "x \<in> set (ptuples allobjs b' vars)"
+      using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] atms). set (ptuples allobjs b vars))"
+      using b' by blast
+  next
+    fix b x assume b: "b \<in> set (pjoin ?orga [] atms)"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_pre atms))"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin ?orga [] (reorder_pre atms))"
+      and eq: "map_of b' = map_of b" by auto
+    have "x \<in> set (ptuples allobjs b' vars)"
+      using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] (reorder_pre atms)). set (ptuples allobjs b vars))"
+      using b' by blast
+  qed
+  also have "\<dots> = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
+    by (simp add: pjoin_idx_eq)
+  finally show ?thesis .
+qed
+
 definition cert_ops_for_clause_fast ::
     "object list \<Rightarrow> (predicate, object) findex \<Rightarrow> action_clause \<Rightarrow> ast_classical_plan_action list" where
   "cert_ops_for_clause_fast allobjs idx c =
      map (SimplePlanAction (cl_name c))
        (filter (satisfies_conds (cl_params c) (cl_cond_pre c))
          (concat (map (\<lambda>b. ptuples allobjs b (map fst (cl_params c)))
-                      (pjoin_idx idx [] (cl_pred_pre c)))))"
+                      (pjoin_idx idx [] (reorder_pre (cl_pred_pre c))))))"
 
 lemma cert_ops_for_clause_fast_eq:
   "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
      = set (cert_ops_for_clause allobjs (organize_facts (map fact_to_facty M)) c)"
-  unfolding cert_ops_for_clause_fast_def cert_ops_for_clause_def
-  by (simp add: pjoin_idx_eq)
+proof -
+  let ?g = "SimplePlanAction (cl_name c)"
+  let ?P = "satisfies_conds (cl_params c) (cl_cond_pre c)"
+  let ?vars = "map fst (cl_params c)"
+  \<comment> \<open>candidate tuples: reorder+index (fast) and unordered abstract enumerate the same set\<close>
+  have tup: "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre (cl_pred_pre c))).
+                set (ptuples allobjs b ?vars))
+             = (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] (cl_pred_pre c)).
+                set (ptuples allobjs b ?vars))"
+    using pjoin_idx_ptuples_reorder[where M = M and atms = "cl_pred_pre c"
+            and allobjs = allobjs and vars = ?vars]
+    by (simp add: pjoin_idx_eq)
+  \<comment> \<open>@{const cert_ops_for_clause}(\_fast) as an image of a filtered big-union of tuples\<close>
+  have set_form: "set (map ?g (filter ?P (concat (map (\<lambda>b. ptuples allobjs b ?vars) L))))
+                    = ?g ` {x \<in> (\<Union>b\<in>set L. set (ptuples allobjs b ?vars)). ?P x}" for L
+    by auto
+  have "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
+          = ?g ` {x \<in> (\<Union>b\<in>set (pjoin_idx (build_findex M) []
+                        (reorder_pre (cl_pred_pre c))). set (ptuples allobjs b ?vars)). ?P x}"
+    unfolding cert_ops_for_clause_fast_def using set_form .
+  also have "\<dots> = ?g ` {x \<in> (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) []
+                        (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"
+    using tup by simp
+  also have "\<dots> = set (cert_ops_for_clause allobjs (organize_facts (map fact_to_facty M)) c)"
+    unfolding cert_ops_for_clause_def using set_form[symmetric] .
+  finally show ?thesis .
+qed
 
 end
