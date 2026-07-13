@@ -62,10 +62,20 @@ definition cand_facts ::
         [] \<Rightarrow> plookup (fx_p idx) (fst a)
       | dets \<Rightarrow> shortest (map (\<lambda>(j, v). alookup (fx_a idx) (fst a) j v) dets))"
 
+text \<open>A body atom is fully determined under @{term al} when every variable argument is already
+  bound: matching it then only filters (never extends @{term al}), so it can be evaluated as a
+  single index membership test rather than a @{const List.map_filter} scan.\<close>
+definition all_bound :: "('x \<times> 'c) list \<Rightarrow> ('x, 'c) id list \<Rightarrow> bool" where
+  "all_bound al ids = list_all (\<lambda>i. case i of id.Var x \<Rightarrow> map_of al x \<noteq> None | _ \<Rightarrow> True) ids"
+
 definition match_facts_idx ::
     "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p::linorder, 'c::linorder) findex \<Rightarrow> ('x \<times> 'c) list list"
   where
-  "match_facts_idx al a idx = List.map_filter (match_atom_al al a) (cand_facts al a idx)"
+  "match_facts_idx al a idx =
+     (if all_bound al (snd a)
+      then (if list_ex (\<lambda>f. fst f = fst a \<and> snd f = map (subst_id_al al) (snd a)) (cand_facts al a idx)
+            then [al] else [])
+      else List.map_filter (match_atom_al al a) (cand_facts al a idx))"
 
 text \<open>Matching-layer facts (proof obligations for the equivalence below).\<close>
 
@@ -206,6 +216,50 @@ next
   qed
 qed
 
+text \<open>If every variable of @{term ids} is already bound under @{term al} (@{const all_bound}),
+  then @{const match_ids_al} never extends @{term al}: it succeeds exactly on the ground tuple
+  @{term "map (subst_id_al al) ids"} and returns @{term al} unchanged. This is the tuple-pinning
+  fact behind the fully-bound fast path in @{const match_facts_idx}.\<close>
+lemma match_ids_al_all_bound:
+  "all_bound al ids \<Longrightarrow>
+     (match_ids_al al ids ds = Some r \<longleftrightarrow> ds = map (subst_id_al al) ids \<and> r = al)"
+proof (induct ids arbitrary: ds)
+  case Nil
+  then show ?case by (cases ds) auto
+next
+  case (Cons i ids)
+  show ?case
+  proof (cases ds)
+    case Nil then show ?thesis by simp
+  next
+    case (Cons d ds')
+    have ab: "all_bound al ids" using Cons.prems by (simp add: all_bound_def)
+    \<comment> \<open>match_id_al on the head never extends al; write its value out as @{term "subst_id_al al i"}\<close>
+    have mi: "match_id_al al i d = (if subst_id_al al i = d then Some al else None)"
+    proof (cases i)
+      case (Cst c) then show ?thesis by simp
+    next
+      case (Var x)
+      from Cons.prems Var have "map_of al x \<noteq> None" by (simp add: all_bound_def)
+      then obtain c where "map_of al x = Some c" by auto
+      then show ?thesis using Var by simp
+    qed
+    show ?thesis
+    proof (cases "subst_id_al al i = d")
+      case True
+      have "(match_ids_al al (i # ids) ds = Some r) = (match_ids_al al ids ds' = Some r)"
+        using mi True \<open>ds = d # ds'\<close> by simp
+      also have "\<dots> = (ds' = map (subst_id_al al) ids \<and> r = al)" using Cons.hyps[OF ab] by simp
+      also have "\<dots> = (ds = map (subst_id_al al) (i # ids) \<and> r = al)"
+        using True \<open>ds = d # ds'\<close> by simp
+      finally show ?thesis .
+    next
+      case False
+      then show ?thesis using mi \<open>ds = d # ds'\<close> by simp
+    qed
+  qed
+qed
+
 text \<open>\<^bold>\<open>Lemma A\<close>: filtering the index-selected candidates yields exactly the matches of the
   full fact scan. The reorder/index refinement of the body join rests entirely on this.\<close>
 lemma match_facts_idx_eq:
@@ -260,8 +314,41 @@ proof -
       show ?thesis using sh inbkt[OF mem] by simp
     qed
   qed
+  have RHS: "set (match_facts_al al a facts) = {y. \<exists>f\<in>set facts. match_atom_al al a f = Some y}"
+    unfolding match_facts_al_def by (simp add: set_map_filter_eq)
   show ?thesis
-    unfolding match_facts_idx_def match_facts_al_def set_map_filter_eq using sub comp by blast
+  proof (cases "all_bound al (snd a)")
+    case False
+    have "set (match_facts_idx al a (build_findex facts)) = {y. \<exists>f\<in>set ?C. match_atom_al al a f = Some y}"
+      unfolding match_facts_idx_def using False by (simp add: set_map_filter_eq)
+    also have "\<dots> = {y. \<exists>f\<in>set facts. match_atom_al al a f = Some y}" using sub comp by blast
+    finally show ?thesis using RHS by simp
+  next
+    case True
+    let ?gt = "map (subst_id_al al) (snd a)"
+    have amatch: "(match_atom_al al a f = Some y) \<longleftrightarrow> (fst f = fst a \<and> snd f = ?gt \<and> y = al)" for f y
+      by (auto simp: match_atom_al_def match_ids_al_all_bound[OF True] split: if_splits)
+    have lex: "list_ex (\<lambda>f. fst f = fst a \<and> snd f = ?gt) ?C
+                 \<longleftrightarrow> (\<exists>f\<in>set facts. fst f = fst a \<and> snd f = ?gt)"
+    proof
+      assume "list_ex (\<lambda>f. fst f = fst a \<and> snd f = ?gt) ?C"
+      then obtain f where fC: "f \<in> set ?C" and pf: "fst f = fst a \<and> snd f = ?gt"
+        by (auto simp: list_ex_iff)
+      from fC sub pf show "\<exists>f\<in>set facts. fst f = fst a \<and> snd f = ?gt" by blast
+    next
+      assume "\<exists>f\<in>set facts. fst f = fst a \<and> snd f = ?gt"
+      then obtain f where ff: "f \<in> set facts" and pf: "fst f = fst a \<and> snd f = ?gt" by blast
+      have "match_atom_al al a f = Some al" using amatch pf by simp
+      from comp[OF ff this] pf show "list_ex (\<lambda>f. fst f = fst a \<and> snd f = ?gt) ?C"
+        by (auto simp: list_ex_iff)
+    qed
+    have "set (match_facts_idx al a (build_findex facts))
+            = (if list_ex (\<lambda>f. fst f = fst a \<and> snd f = ?gt) ?C then {al} else {})"
+      unfolding match_facts_idx_def using True by simp
+    also have "\<dots> = (if (\<exists>f\<in>set facts. fst f = fst a \<and> snd f = ?gt) then {al} else {})" using lex by simp
+    also have "\<dots> = {y. \<exists>f\<in>set facts. match_atom_al al a f = Some y}" using amatch by auto
+    finally show ?thesis using RHS by simp
+  qed
 qed
 
 
