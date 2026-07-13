@@ -189,7 +189,7 @@ Then `pjoin_idx_eq` (induction on atoms) and `cert_ops_for_clause_fast_eq` (set-
 
 **Impact.** The headline win: the ~400 s `cert_ops` join is gone. Measured end-to-end, logistics98-prob01
 grounds in ~33 s (vs the prior binary's 59 s). The residual cost is now the enumeration itself, not the
-per-atom scan (see the pipesworld note for why complex-schema domains still blow up).
+per-atom scan (see the pipesworld note for the join-order blow-up that still bites large instances).
 
 **Key definitions.**
 
@@ -422,12 +422,17 @@ join (see below).
 
 - Nemo (the untrusted reachability oracle) and the datalog **certificate check** are no longer the
   bottleneck. The `cert_ops` **enumeration** is.
-- On complex-schema domains (`pipesworld-tankage`, `organic-synthesis`) the enumeration still times out —
-  and it is a conjunctive-query / join-order problem, not a data-size one (a 12-parameter schema times out
-  over a 183-fact model). See
-  the `pipesworld-tankage-grounding-blowup.md` note (in the grounding-benchmarks repo).
-- The static reorder (changes 10–12) cannot fix that; the next levers are a **tree-decomposed join**
-  (Helmert / Corrêa), evaluated as a set-preserving refinement so the certificate is unchanged, and
-  **rigid-predicate elimination**. These are ranked in
-  the `verified-grounder-optimizations.md` reference (in the grounding-benchmarks repo)
-  (Speed 11).
+- On the current binary most domains ground fast, and `pipesworld-tankage` p01 grounds in ~12 s. (An
+  earlier version of this note said pipesworld "times out" — that was a **stale binary**, built one minute
+  before the exported SML was last regenerated; the current code grounds it fine.) The `cert_ops`
+  enumeration blow-up is real for **several** domains though — `blocksworld-large-simple` (100 blocks),
+  and small-but-many-parameter instances like `genome-edit-distance` and `grid` — each hits the 240 s cap,
+  while most domains ground in <1 s. It is a conjunctive-query / join-order problem (schema arity ×
+  selectivity × size), not a data-size one — a 12-parameter join over a 183-fact model is expensive
+  because of the join, not the data. See the
+  `pipesworld-tankage-grounding-blowup.md` note and the `grounding-benchmark-sweep-2026-07-13.md` table
+  (12/22 ground OK, 10/22 time out at 240 s) — both in the grounding-benchmarks repo.
+- The static reorder (changes 10–12) tames p01 but not the large instances; the next levers are a
+  **tree-decomposed join** (Helmert / Corrêa), evaluated as a set-preserving refinement so the
+  certificate is unchanged, and **rigid-predicate elimination**. These are ranked in the
+  `verified-grounder-optimizations.md` reference (in the grounding-benchmarks repo) (Speed 11).
