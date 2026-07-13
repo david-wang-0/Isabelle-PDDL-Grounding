@@ -17,5 +17,6 @@ session Classical_Reachability_Analysis = Grounding_Classical_Common +
     Classical_PDDL_Reachability_Analysis
     Classical_PDDL_Reachability_Certificate
     Classical_Certified_Grounding_Locales
+    Classical_Cert_Ops_Index
     Classical_Certified_Grounding
     Classical_Certified_Grounding_Semantics
