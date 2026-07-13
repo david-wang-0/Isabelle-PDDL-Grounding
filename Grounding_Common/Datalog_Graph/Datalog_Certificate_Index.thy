@@ -375,6 +375,48 @@ next
   show ?case using match_facts_idx_eq[of al a facts] Cons.hyps by auto
 qed
 
+text \<open>Dynamic (per-step) most-constrained-first body join: instead of reordering the atoms once up
+  front (as \<open>reorder_atoms\<close> does further below), at each step pick the remaining body atom with the
+  fewest index candidates under the CURRENT partial assignment, match it, and recurse on the rest.
+  This adapts the join order to the bindings accumulated so far. Proven set-preserving against the
+  abstract @{const body_join} (viewed through @{const map_of}) in \<open>body_join_dyn_img_eq\<close> below, so
+  it drives the same closure check.\<close>
+
+function body_join_dyn ::
+    "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh list \<Rightarrow> ('p::linorder, 'c::linorder) findex \<Rightarrow> ('x \<times> 'c) list list"
+  where
+  "body_join_dyn al [] idx = [al]"
+| "body_join_dyn al (a0 # atms0) idx =
+     (let a = arg_min_list (\<lambda>a. length (cand_facts al a idx)) (a0 # atms0);
+          rest = remove1 a (a0 # atms0)
+      in concat (map (\<lambda>al'. body_join_dyn al' rest idx) (match_facts_idx al a idx)))"
+  by pat_completeness auto
+lemma length_remove1_less_if_mem:
+  "x \<in> set xs \<Longrightarrow> length (remove1 x xs) < length xs"
+  by (metis diff_less length_pos_if_in_set length_remove1 zero_less_one)
+
+lemma length_remove1_arg_min_less:
+  "length (remove1 (arg_min_list (\<lambda>a. length (cand_facts al a idx)) (a0 # atms0)) (a0 # atms0))
+     < length (a0 # atms0)"
+proof (rule length_remove1_less_if_mem)
+  show "arg_min_list (\<lambda>a. length (cand_facts al a idx)) (a0 # atms0) \<in> set (a0 # atms0)"
+    by (rule arg_min_list_in) simp
+qed
+
+termination
+proof (relation "Wellfounded.measure (\<lambda>(al, atms, idx). length atms)", goal_cases)
+  case 1
+  show ?case by simp
+next
+  case (2 al a0 atms0 idx x xa xb)
+  have "length (remove1 (arg_min_list (\<lambda>a. length (cand_facts al a idx)) (a0 # atms0)) (a0 # atms0))
+          < length (a0 # atms0)"
+    by (rule length_remove1_arg_min_less)
+  then show ?case using 2 by simp
+qed
+
+declare body_join_dyn.simps [code]
+
 
 subsection \<open>Permutation invariance of the body join (as a set of substitution maps)\<close>
 
@@ -521,6 +563,53 @@ proof -
   then show ?thesis by (simp add: body_join_map_of_char)
 qed
 
+text \<open>\<^bold>\<open>The dynamic body join enumerates the same substitution SET as the abstract join\<close> (viewed
+  through @{const map_of}). Strong induction on @{term "length atms"}: at each step we peel the
+  argmin atom @{term a}, apply the IH on the strictly shorter @{term "remove1 a atms"}, swap the
+  indexed one-step for the abstract one-step via @{thm match_facts_idx_eq}, recognise the abstract
+  @{term "body_join al0 (a # rest) facts"}, and reorder @{term "a # rest"} back to @{term atms} using
+  the permutation invariance @{thm body_join_map_of_perm}. This is the dynamic-join analogue of
+  @{thm body_join_idx_eq} that survives the per-step reordering.\<close>
+lemma body_join_dyn_img_eq:
+  "(\<lambda>al. map_of al) ` set (body_join_dyn al0 atms (build_findex facts))
+     = (\<lambda>al. map_of al) ` set (body_join al0 atms facts)"
+proof (induction atms arbitrary: al0 rule: measure_induct_rule[where f = length])
+  case (less atms al0)
+  show ?case
+  proof (cases atms)
+    case Nil
+    then show ?thesis by simp
+  next
+    case (Cons a0 atms0)
+    define a where "a = arg_min_list (\<lambda>a. length (cand_facts al0 a (build_findex facts))) atms"
+    define rest where "rest = remove1 a atms"
+    have ne: "atms \<noteq> []" using Cons by simp
+    have amem: "a \<in> set atms" unfolding a_def using arg_min_list_in[OF ne] .
+    have mseteq: "mset (a # rest) = mset atms" unfolding rest_def using amem by simp
+    have lrest: "length rest < length atms"
+      unfolding rest_def using amem by (auto simp: length_remove1 dest: length_pos_if_in_set)
+    have step: "body_join_dyn al0 atms (build_findex facts)
+                  = concat (map (\<lambda>al'. body_join_dyn al' rest (build_findex facts))
+                                (match_facts_idx al0 a (build_findex facts)))"
+      using Cons unfolding a_def rest_def by (simp add: Let_def)
+    have "(\<lambda>al. map_of al) ` set (body_join_dyn al0 atms (build_findex facts))
+            = (\<Union>al'\<in>set (match_facts_idx al0 a (build_findex facts)).
+                 (\<lambda>al. map_of al) ` set (body_join_dyn al' rest (build_findex facts)))"
+      by (simp add: step image_UN)
+    also have "\<dots> = (\<Union>al'\<in>set (match_facts_idx al0 a (build_findex facts)).
+                 (\<lambda>al. map_of al) ` set (body_join al' rest facts))"
+      using less.IH[OF lrest] by simp
+    also have "\<dots> = (\<Union>al'\<in>set (match_facts_al al0 a facts).
+                 (\<lambda>al. map_of al) ` set (body_join al' rest facts))"
+      by (simp add: match_facts_idx_eq)
+    also have "\<dots> = (\<lambda>al. map_of al) ` set (body_join al0 (a # rest) facts)"
+      by (simp add: image_UN)
+    also have "\<dots> = (\<lambda>al. map_of al) ` set (body_join al0 atms facts)"
+      using body_join_map_of_perm[OF mseteq] .
+    finally show ?thesis .
+  qed
+qed
+
 subsection \<open>Most-constrained-first reordering of the body atoms\<close>
 
 text \<open>Reorder a clause's body atoms most-selective-first: sort ascending by the atom's seed
@@ -590,7 +679,7 @@ definition dl_closure_check_exec_fast ::
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
               \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
-              (body_join_idx [] (reorder_atoms idx (cls_body_atoms cl)) idx)
+              (body_join_dyn [] (cls_body_atoms cl) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
@@ -633,10 +722,40 @@ proof -
   finally show ?thesis .
 qed
 
+text \<open>Safe-branch check invariance for the \<^emph>\<open>dynamic\<close> join: the per-step most-constrained-first
+  join over the original atoms visits the same SET of substitution maps (through @{const map_of}) as
+  the abstract join (@{thm body_join_dyn_img_eq}), and the per-assignment predicate factors through
+  @{const map_of} (@{thm eval_guard_al_map_of_cong}), so @{thm list_all_map_of_cong} carries the
+  strict \<open>=\<close> across. Dynamic-join analogue of @{thm safe_branch_reorder_idx_eq}.\<close>
+lemma safe_branch_dyn_idx_eq:
+  "list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join_dyn [] atoms (build_findex facts))
+   = list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join [] atoms facts)"
+  (is "list_all ?P _ = _")
+proof -
+  have pcong: "?P al = ?P al'" if eq: "map_of al = map_of al'" for al al'
+  proof -
+    have "list_all (eval_guard_al al) gs = list_all (eval_guard_al al') gs"
+      by (rule list_all_cong[OF refl]) (simp add: eval_guard_al_map_of_cong[OF eq])
+    moreover have "subst_atom (\<lambda>x. the (map_of al x)) lh = subst_atom (\<lambda>x. the (map_of al' x)) lh"
+      using eq by simp
+    ultimately show ?thesis by simp
+  qed
+  have img: "(\<lambda>al. map_of al) ` set (body_join_dyn [] atoms (build_findex facts))
+             = (\<lambda>al. map_of al) ` set (body_join [] atoms facts)"
+    using body_join_dyn_img_eq .
+  show ?thesis using list_all_map_of_cong[OF pcong img] .
+qed
+
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
   unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def Let_def
-  by (simp add: safe_branch_reorder_idx_eq)
+  by (simp add: safe_branch_dyn_idx_eq)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>
