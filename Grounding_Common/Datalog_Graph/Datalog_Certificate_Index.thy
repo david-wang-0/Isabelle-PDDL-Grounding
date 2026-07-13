@@ -180,23 +180,24 @@ text \<open>The fast closure check: identical to @{const dl_closure_check_exec} 
 definition dl_closure_check_exec_fast ::
     "('p::linorder, 'x, 'c::linorder) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_closure_check_exec_fast Pl Ul c =
-     list_all (\<lambda>cl.
+     (let idx = build_findex (dl_cert_facts c) in
+      list_all (\<lambda>cl.
        if clause_safe_exec cl
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
               \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
-              (body_join_idx [] (cls_body_atoms cl) (build_findex (dl_cert_facts c)))
+              (body_join_idx [] (cls_body_atoms cl) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
               \<longrightarrow> subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c))
               (cls_substs Ul cl))
-       Pl"
+       Pl)"
 
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
   unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def
-  by (simp add: list_all_iff body_join_idx_eq)
+  by (simp add: list_all_iff body_join_idx_eq Let_def)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>
