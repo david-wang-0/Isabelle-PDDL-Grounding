@@ -82,6 +82,30 @@ fun pjoin_idx ::
 | "pjoin_idx idx b (a # as) =
      concat (map (\<lambda>b'. pjoin_idx idx b' as) (pmatch_atom_idx idx b a))"
 
+subsection \<open>Dynamic per-step join: pick the most-constrained remaining atom each step\<close>
+
+definition sel :: "(predicate, object) findex \<Rightarrow> (variable \<times> object) list \<Rightarrow> term atom formula \<Rightarrow> nat" where
+  "sel idx b a = (case a of Atom (predAtm p ts) \<Rightarrow> length (cand_facts_t b p ts idx) | _ \<Rightarrow> 0)"
+
+function pjoin_dyn ::
+    "(predicate, object) findex \<Rightarrow> (variable \<times> object) list \<Rightarrow> term atom formula list
+       \<Rightarrow> (variable \<times> object) list list" where
+  "pjoin_dyn idx b [] = [b]"
+| "pjoin_dyn idx b (a0 # atms0) =
+     (let a = arg_min_list (\<lambda>a. sel idx b a) (a0 # atms0);
+          rest = remove1 a (a0 # atms0)
+      in concat (map (\<lambda>b'. pjoin_dyn idx b' rest) (pmatch_atom_idx idx b a)))"
+  by pat_completeness auto
+termination
+  apply (relation "Wellfounded.measure (\<lambda>(idx, b, atms). length atms)")
+   apply simp
+  subgoal for idx b a0 atms0
+    using arg_min_list_in[of "a0 # atms0" "sel idx b"]
+    by (auto simp: length_remove1 dest: length_pos_if_in_set)
+  done
+
+declare pjoin_dyn.simps [code]
+
 subsection \<open>Equivalence to the unindexed join\<close>
 
 text \<open>Forcing lemma: if \<^const>\<open>first_bound_t\<close> reports position \<open>j\<close> determined to \<open>v\<close>, then any object
@@ -778,6 +802,85 @@ lemma ptuples_map_of_cong:
   "map_of b = map_of b' \<Longrightarrow> ptuples allobjs b vs = ptuples allobjs b' vs"
   by (induct vs) (auto split: option.splits)
 
+text \<open>The dynamic per-step join enumerates the same SET of bindings (through \<^const>\<open>map_of\<close>) as the
+  abstract join on the same atom list. Strong induction on \<^term>\<open>length atms\<close>: peel the \<^const>\<open>arg_min_list\<close>
+  atom \<open>a\<close>, apply the IH to the strictly-shorter \<^term>\<open>remove1 a atms\<close>, swap the indexed one-step for the
+  abstract one via @{thm pmatch_atom_idx_eq}, recognise \<^term>\<open>pjoin orga b0 (a # rest)\<close>, then reorder
+  \<^term>\<open>a # rest\<close> back to \<^term>\<open>atms\<close> via @{thm pjoin_map_of_perm}.\<close>
+lemma pjoin_dyn_img_eq:
+  "(\<lambda>b. map_of b) ` set (pjoin_dyn (build_findex M) b0 atms)
+     = (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) b0 atms)"
+proof (induction atms arbitrary: b0 rule: measure_induct_rule[where f = length])
+  case (less atms b0)
+  show ?case
+  proof (cases atms)
+    case Nil
+    then show ?thesis by simp
+  next
+    case (Cons a0 atms0)
+    define a where "a = arg_min_list (\<lambda>a. sel (build_findex M) b0 a) atms"
+    define rest where "rest = remove1 a atms"
+    have ne: "atms \<noteq> []" using Cons by simp
+    have amem: "a \<in> set atms" unfolding a_def using arg_min_list_in[OF ne] .
+    have mseteq: "mset (a # rest) = mset atms" unfolding rest_def using amem by simp
+    have lrest: "length rest < length atms" unfolding rest_def using amem
+      by (auto simp: length_remove1 dest: length_pos_if_in_set)
+    have step: "pjoin_dyn (build_findex M) b0 atms
+                  = concat (map (\<lambda>b'. pjoin_dyn (build_findex M) b' rest)
+                                (pmatch_atom_idx (build_findex M) b0 a))"
+      using Cons unfolding a_def rest_def by (simp add: Let_def)
+    have "(\<lambda>b. map_of b) ` set (pjoin_dyn (build_findex M) b0 atms)
+            = (\<Union>b'\<in>set (pmatch_atom_idx (build_findex M) b0 a).
+                 (\<lambda>b. map_of b) ` set (pjoin_dyn (build_findex M) b' rest))"
+      by (simp add: step image_UN)
+    also have "\<dots> = (\<Union>b'\<in>set (pmatch_atom_idx (build_findex M) b0 a).
+                 (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) b' rest))"
+      using less.IH[OF lrest] by simp
+    also have "\<dots> = (\<Union>b'\<in>set (pmatch_atom (organize_facts (map fact_to_facty M)) b0 a).
+                 (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) b' rest))"
+      by (simp add: pmatch_atom_idx_eq)
+    also have "\<dots> = (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) b0 (a # rest))"
+      by (simp add: image_UN)
+    also have "\<dots> = (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) b0 atms)"
+      using pjoin_map_of_perm[OF mseteq] .
+    finally show ?thesis .
+  qed
+qed
+
+text \<open>The dynamic join and the abstract join feed the same multiset of ground tuples to the final
+  guard filter: they enumerate the same bindings through \<^const>\<open>map_of\<close> (@{thm pjoin_dyn_img_eq}), and
+  each surviving \<^const>\<open>ptuples\<close> set depends only on that lookup (@{thm ptuples_map_of_cong}).\<close>
+lemma pjoin_dyn_ptuples_eq:
+  "(\<Union>b\<in>set (pjoin_dyn (build_findex M) [] atms). set (ptuples allobjs b vars))
+     = (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] atms). set (ptuples allobjs b vars))"
+proof -
+  have img: "(\<lambda>b. map_of b) ` set (pjoin_dyn (build_findex M) [] atms)
+               = (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) [] atms)"
+    using pjoin_dyn_img_eq .
+  show ?thesis
+  proof (rule equalityI, safe)
+    fix b x assume b: "b \<in> set (pjoin_dyn (build_findex M) [] atms)"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin (organize_facts (map fact_to_facty M)) [] atms)"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin (organize_facts (map fact_to_facty M)) [] atms)"
+      and eq: "map_of b' = map_of b" by auto
+    have "x \<in> set (ptuples allobjs b' vars)" using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] atms). set (ptuples allobjs b vars))"
+      using b' by blast
+  next
+    fix b x assume b: "b \<in> set (pjoin (organize_facts (map fact_to_facty M)) [] atms)"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin_dyn (build_findex M) [] atms)"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin_dyn (build_findex M) [] atms)"
+      and eq: "map_of b' = map_of b" by auto
+    have "x \<in> set (ptuples allobjs b' vars)" using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin_dyn (build_findex M) [] atms). set (ptuples allobjs b vars))"
+      using b' by blast
+  qed
+qed
+
 text \<open>Reorder a clause's precondition atoms most-constrained-first: an atom's seed candidate set
   \<^term>\<open>cand_facts_t [] p ts idx\<close> is the index-narrowed set of facts it could match before any
   variable is bound, so its \<^const>\<open>length\<close> is the atom's selectivity. Sorting ascending by that
@@ -843,7 +946,7 @@ definition cert_ops_for_clause_fast ::
      map (SimplePlanAction (cl_name c))
        (filter (satisfies_conds (cl_params c) (cl_cond_pre c))
          (concat (map (\<lambda>b. ptuples allobjs b (map fst (cl_params c)))
-                      (pjoin_idx idx [] (reorder_pre idx (cl_pred_pre c))))))"
+                      (pjoin_dyn idx [] (cl_pred_pre c)))))"
 
 lemma cert_ops_for_clause_fast_eq:
   "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
@@ -852,21 +955,20 @@ proof -
   let ?g = "SimplePlanAction (cl_name c)"
   let ?P = "satisfies_conds (cl_params c) (cl_cond_pre c)"
   let ?vars = "map fst (cl_params c)"
-  \<comment> \<open>candidate tuples: reorder+index (fast) and unordered abstract enumerate the same set\<close>
-  have tup: "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_pre (build_findex M) (cl_pred_pre c))).
+  \<comment> \<open>candidate tuples: dynamic index join (fast) and unordered abstract enumerate the same set\<close>
+  have tup: "(\<Union>b\<in>set (pjoin_dyn (build_findex M) [] (cl_pred_pre c)).
                 set (ptuples allobjs b ?vars))
              = (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] (cl_pred_pre c)).
                 set (ptuples allobjs b ?vars))"
-    using pjoin_idx_ptuples_reorder[where M = M and atms = "cl_pred_pre c"
-            and idx = "build_findex M" and allobjs = allobjs and vars = ?vars]
-    by (simp add: pjoin_idx_eq)
+    using pjoin_dyn_ptuples_eq[where M = M and atms = "cl_pred_pre c"
+            and allobjs = allobjs and vars = ?vars] .
   \<comment> \<open>@{const cert_ops_for_clause}(\_fast) as an image of a filtered big-union of tuples\<close>
   have set_form: "set (map ?g (filter ?P (concat (map (\<lambda>b. ptuples allobjs b ?vars) L))))
                     = ?g ` {x \<in> (\<Union>b\<in>set L. set (ptuples allobjs b ?vars)). ?P x}" for L
     by auto
   have "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
-          = ?g ` {x \<in> (\<Union>b\<in>set (pjoin_idx (build_findex M) []
-                        (reorder_pre (build_findex M) (cl_pred_pre c))). set (ptuples allobjs b ?vars)). ?P x}"
+          = ?g ` {x \<in> (\<Union>b\<in>set (pjoin_dyn (build_findex M) []
+                        (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"
     unfolding cert_ops_for_clause_fast_def using set_form .
   also have "\<dots> = ?g ` {x \<in> (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) []
                         (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"
