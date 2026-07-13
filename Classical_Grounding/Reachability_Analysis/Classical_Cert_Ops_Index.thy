@@ -59,12 +59,20 @@ definition cand_facts_t ::
         [] \<Rightarrow> plookup (fx_p idx) p
       | dets \<Rightarrow> shortest (map (\<lambda>(j, v). alookup (fx_a idx) p j v) dets))"
 
+definition all_bound_t :: "(variable \<times> object) list \<Rightarrow> term list \<Rightarrow> bool" where
+  "all_bound_t b ts = list_all (\<lambda>t. case t of term.VAR v \<Rightarrow> map_of b v \<noteq> None | _ \<Rightarrow> True) ts"
+
+definition ground_tuple :: "(variable \<times> object) list \<Rightarrow> term list \<Rightarrow> object list" where
+  "ground_tuple b ts = map (subst_term (\<lambda>x. the (map_of b x))) ts"
+
 definition pmatch_atom_idx ::
     "(predicate, object) findex \<Rightarrow> (variable \<times> object) list \<Rightarrow> term atom formula
        \<Rightarrow> (variable \<times> object) list list" where
   "pmatch_atom_idx idx b a =
      (case a of Atom (predAtm p ts) \<Rightarrow>
-        List.map_filter (\<lambda>f. punify b ts (snd f)) (cand_facts_t b p ts idx)
+        (if all_bound_t b ts
+         then (if list_ex (\<lambda>f. snd f = ground_tuple b ts) (cand_facts_t b p ts idx) then [b] else [])
+         else List.map_filter (\<lambda>f. punify b ts (snd f)) (cand_facts_t b p ts idx))
       | _ \<Rightarrow> [])"
 
 fun pjoin_idx ::
@@ -313,6 +321,74 @@ proof -
     using gen[OF base M.invar_empty] by (simp add: build_aidx_def)
 qed
 
+text \<open>Tuple-pinning: when every variable of \<open>ts\<close> is already bound under \<open>b\<close>, \<^const>\<open>punify\<close> succeeds
+  against \<open>os\<close> iff \<open>os\<close> is exactly the ground tuple \<^term>\<open>ground_tuple b ts\<close>, and then leaves the binding
+  \<open>b\<close> unchanged. Proved by direct induction so as not to depend on \<open>punify_sound\<close> (defined later).\<close>
+lemma punify_all_bound:
+  "all_bound_t b ts \<Longrightarrow> (punify b ts os = Some r \<longleftrightarrow> os = ground_tuple b ts \<and> r = b)"
+proof (induct ts arbitrary: os)
+  case Nil
+  then show ?case by (cases os) (auto simp: ground_tuple_def)
+next
+  case (Cons t ts)
+  show ?case
+  proof (cases t)
+    case (VAR v)
+    with Cons.prems have bv: "map_of b v \<noteq> None" and ab: "all_bound_t b ts"
+      by (auto simp: all_bound_t_def)
+    from bv obtain ob2 where mv: "map_of b v = Some ob2" by auto
+    show ?thesis
+    proof (cases os)
+      case Nil then show ?thesis by (simp add: VAR mv ground_tuple_def)
+    next
+      case (Cons ob os')
+      have pu: "punify b (t # ts) os = (if ob2 = ob then punify b ts os' else None)"
+        by (simp add: VAR mv Cons)
+      have gt: "ground_tuple b (t # ts) = ob2 # ground_tuple b ts"
+        by (simp add: VAR ground_tuple_def mv)
+      show ?thesis
+      proof (cases "ob2 = ob")
+        case True
+        have "(punify b (t # ts) os = Some r) = (punify b ts os' = Some r)" using pu True by simp
+        also have "\<dots> = (os' = ground_tuple b ts \<and> r = b)" using Cons.hyps[OF ab] by simp
+        also have "\<dots> = (os = ground_tuple b (t # ts) \<and> r = b)" using gt Cons True by auto
+        finally show ?thesis .
+      next
+        case False
+        have "punify b (t # ts) os = None" using pu False by simp
+        moreover have "os \<noteq> ground_tuple b (t # ts)" using gt Cons False by simp
+        ultimately show ?thesis by simp
+      qed
+    qed
+  next
+    case (CONST c)
+    with Cons.prems have ab: "all_bound_t b ts" by (auto simp: all_bound_t_def)
+    show ?thesis
+    proof (cases os)
+      case Nil then show ?thesis by (simp add: CONST ground_tuple_def)
+    next
+      case (Cons ob os')
+      have pu: "punify b (t # ts) os = (if c = ob then punify b ts os' else None)"
+        by (simp add: CONST Cons)
+      have gt: "ground_tuple b (t # ts) = c # ground_tuple b ts"
+        by (simp add: CONST ground_tuple_def)
+      show ?thesis
+      proof (cases "c = ob")
+        case True
+        have "(punify b (t # ts) os = Some r) = (punify b ts os' = Some r)" using pu True by simp
+        also have "\<dots> = (os' = ground_tuple b ts \<and> r = b)" using Cons.hyps[OF ab] by simp
+        also have "\<dots> = (os = ground_tuple b (t # ts) \<and> r = b)" using gt Cons True by auto
+        finally show ?thesis .
+      next
+        case False
+        have "punify b (t # ts) os = None" using pu False by simp
+        moreover have "os \<noteq> ground_tuple b (t # ts)" using gt Cons False by simp
+        ultimately show ?thesis by simp
+      qed
+    qed
+  qed
+qed
+
 text \<open>\<^bold>\<open>Lemma A (cert_ops)\<close>: filtering the index-selected candidates with \<^const>\<open>punify\<close> yields exactly
   the matches of the full predicate-bucket scan.\<close>
 lemma pmatch_atom_idx_eq:
@@ -383,24 +459,48 @@ next
       unfolding set_map by blast
     show ?thesis using sh inbkt[OF mem] by simp
   qed
-  have "set (pmatch_atom_idx (build_findex M) b a)
-          = {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}"
-    unfolding a pmatch_atom_idx_def by (simp add: smf)
-  also have "... = {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
-  proof (rule set_eqI, rule iffI)
-    fix r assume "r \<in> {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}"
-    then obtain f where fC: "f \<in> set ?C" and pu: "punify b ts (snd f) = Some r" by blast
-    have "(p, snd f) \<in> set M" using sub[OF fC] .
-    with pu show "r \<in> {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}" by auto
-  next
-    fix r assume "r \<in> {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
-    then obtain os where os: "(p, os) \<in> set M" and pu: "punify b ts os = Some r" by blast
-    from comp[OF os pu] have "(p, os) \<in> set ?C" .
-    with pu show "r \<in> {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}" by force
-  qed
-  also have "... = set (pmatch_atom (organize_facts (map fact_to_facty M)) b a)"
+  \<comment> \<open>RHS is branch-independent\<close>
+  have RHS: "set (pmatch_atom (organize_facts (map fact_to_facty M)) b a)
+               = {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
     unfolding a pmatch_atom_def by (simp add: smf set_organize_facts_eq)
-  finally show ?thesis .
+  show ?thesis
+  proof (cases "all_bound_t b ts")
+    case False
+    have "set (pmatch_atom_idx (build_findex M) b a) = {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}"
+      unfolding a pmatch_atom_idx_def using False by (simp add: smf)
+    also have "\<dots> = {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
+    proof (rule set_eqI, rule iffI)
+      fix r assume "r \<in> {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}"
+      then obtain f where fC: "f \<in> set ?C" and pu: "punify b ts (snd f) = Some r" by blast
+      from sub[OF fC] pu show "r \<in> {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}" by auto
+    next
+      fix r assume "r \<in> {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
+      then obtain os where os: "(p, os) \<in> set M" and pu: "punify b ts os = Some r" by blast
+      from comp[OF os pu] pu show "r \<in> {r. \<exists>f \<in> set ?C. punify b ts (snd f) = Some r}" by force
+    qed
+    finally show ?thesis using RHS by simp
+  next
+    case True
+    have lex: "list_ex (\<lambda>f. snd f = ground_tuple b ts) ?C \<longleftrightarrow> (p, ground_tuple b ts) \<in> set M"
+    proof
+      assume "list_ex (\<lambda>f. snd f = ground_tuple b ts) ?C"
+      then obtain f where fC: "f \<in> set ?C" and sf: "snd f = ground_tuple b ts"
+        by (auto simp: list_ex_iff)
+      from sub[OF fC] sf show "(p, ground_tuple b ts) \<in> set M" by simp
+    next
+      assume m: "(p, ground_tuple b ts) \<in> set M"
+      have "punify b ts (ground_tuple b ts) = Some b" using punify_all_bound[OF True] by simp
+      from comp[OF m this] show "list_ex (\<lambda>f. snd f = ground_tuple b ts) ?C"
+        by (auto simp: list_ex_iff intro!: bexI[where x = "(p, ground_tuple b ts)"])
+    qed
+    have "set (pmatch_atom_idx (build_findex M) b a)
+            = (if list_ex (\<lambda>f. snd f = ground_tuple b ts) ?C then {b} else {})"
+      unfolding a pmatch_atom_idx_def using True by simp
+    also have "\<dots> = (if (p, ground_tuple b ts) \<in> set M then {b} else {})" using lex by simp
+    also have "\<dots> = {r. \<exists>os. (p, os) \<in> set M \<and> punify b ts os = Some r}"
+      using punify_all_bound[OF True] by auto
+    finally show ?thesis using RHS by simp
+  qed
 qed
 
 lemma pjoin_idx_eq:
@@ -775,5 +875,4 @@ proof -
     unfolding cert_ops_for_clause_def using set_form[symmetric] .
   finally show ?thesis .
 qed
-
 end
