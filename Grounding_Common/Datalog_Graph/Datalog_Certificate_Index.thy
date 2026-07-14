@@ -689,6 +689,22 @@ next
   then show ?thesis by (simp add: fmem_def build_findex_def Cons)
 qed
 
+text \<open>\<^const>\<open>dl_body_closed\<close> tests each ground-rule body atom with \<open>b \<in> set (dl_cert_facts c)\<close> --- a
+  linear scan over all certificate facts, per body atom per ground rule (and \<^const>\<open>dl_cert_facts\<close>
+  rebuilt each time): \<open>O(|rules| \<cdot> |body| \<cdot> F)\<close>, the third hidden quadratic (it is where
+  \<open>blocksworld-large-simple\<close> stalls). Route the membership through the same \<^const>\<open>fmem\<close> index, built
+  once; proven equal to the linear scan via @{thm fmem_eq}.\<close>
+declare dl_body_closed_code [code del]
+lemma dl_body_closed_fast_code [code]:
+  "dl_body_closed (c :: ('p::linorder, 'c::linorder) dl_certificate) =
+     (let idx = build_findex (dl_cert_facts c) in
+      list_all (\<lambda>r. list_all (\<lambda>b. fmem idx b) (gr_body r)) (dl_rules c))"
+proof -
+  have "fmem (build_findex (dl_cert_facts c)) = (\<lambda>b. b \<in> set (dl_cert_facts c))"
+    by (simp add: fun_eq_iff fmem_eq)
+  then show ?thesis by (simp add: dl_body_closed_code Let_def)
+qed
+
 text \<open>The fast closure check: identical to @{const dl_closure_check_exec} except that the safe branch
   reorders the body atoms most-constrained-first and drives the join through the index. Only the
   executable term changes; the soundness bridge @{thm dl_closure_check_exec_imp} mentions only the
