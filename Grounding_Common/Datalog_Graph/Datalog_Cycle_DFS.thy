@@ -76,6 +76,20 @@ definition dl_acyclic_dfs :: "('p, 'c) dl_certificate \<Rightarrow> bool" where
      list_all (\<lambda>i. \<not> DFS_dircycle_state.cycle (find_dircycle (dep_adjmap c) (dircycle_initial_state i)))
               [0..<length (dl_cert_facts c)]"
 
+text \<open>Code equation hoisting the support graph out of the per-vertex loop: \<^const>\<open>dep_adjmap\<close> does
+  not depend on the source \<open>i\<close>, but as written it sits inside the \<^const>\<open>list_all\<close> lambda, so the
+  generated code rebuilds the whole RBT adjacency map (relabelling every edge through the linear-scan
+  \<^const>\<open>fact_idx\<close>) once per certified fact --- \<open>O(|facts| \<cdot> |edges| \<cdot> |facts|)\<close>. Binding it once with a
+  \<^theory_text>\<open>let\<close> (the code generator emits an SML \<open>let val g = \<dots>\<close>, evaluated once) makes it
+  \<open>O(|edges| \<cdot> |facts|)\<close> plus the per-vertex DFS. Pure refinement: the term is definitionally equal, so
+  every soundness lemma about \<^const>\<open>dl_acyclic_dfs\<close> is untouched.\<close>
+lemma dl_acyclic_dfs_code [code]:
+  "dl_acyclic_dfs c =
+     (let g = dep_adjmap c in
+      list_all (\<lambda>i. \<not> DFS_dircycle_state.cycle (find_dircycle g (dircycle_initial_state i)))
+               [0..<length (dl_cert_facts c)])"
+  by (simp add: dl_acyclic_dfs_def Let_def)
+
 subsection \<open>Correctness of the acyclicity check\<close>
 
 text \<open>Step 2: the RBT adjacency map \<^const>\<open>a_graph\<close> faithfully abstracts an edge list.\<close>
