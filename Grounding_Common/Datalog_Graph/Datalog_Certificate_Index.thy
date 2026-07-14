@@ -665,6 +665,30 @@ proof -
   then show ?thesis by (simp add: list_all_iff)
 qed
 
+definition fmem :: "('p::linorder, 'c::linorder) findex \<Rightarrow> ('p, 'c) dl_fact \<Rightarrow> bool" where
+  "fmem idx f =
+     (case snd f of
+        [] \<Rightarrow> f \<in> set (plookup (fx_p idx) (fst f))
+      | v # _ \<Rightarrow> f \<in> set (alookup (fx_a idx) (fst f) 0 v))"
+
+lemma fmem_eq: "fmem (build_findex facts) f = (f \<in> set facts)"
+proof (cases "snd f")
+  case Nil
+  then show ?thesis
+    by (auto simp: fmem_def build_findex_def
+             dest: plookup_build_sound[THEN subsetD] intro: plookup_build_complete)
+next
+  case (Cons v vs)
+  have "(f \<in> set (alookup (build_aidx facts) (fst f) 0 v)) = (f \<in> set facts)"
+  proof
+    show "f \<in> set (alookup (build_aidx facts) (fst f) 0 v) \<Longrightarrow> f \<in> set facts"
+      using alookup_build_sound by blast
+    show "f \<in> set facts \<Longrightarrow> f \<in> set (alookup (build_aidx facts) (fst f) 0 v)"
+      using alookup_build_complete[of f facts 0] Cons by simp
+  qed
+  then show ?thesis by (simp add: fmem_def build_findex_def Cons)
+qed
+
 text \<open>The fast closure check: identical to @{const dl_closure_check_exec} except that the safe branch
   reorders the body atoms most-constrained-first and drives the join through the index. Only the
   executable term changes; the soundness bridge @{thm dl_closure_check_exec_imp} mentions only the
@@ -678,12 +702,12 @@ definition dl_closure_check_exec_fast ::
        if clause_safe_exec cl
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
-              \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) \<in> set (dl_cert_facts c))
+              \<longrightarrow> fmem idx (subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl)))
               (body_join_dyn [] (cls_body_atoms cl) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
-               \<and> list_all (\<lambda>a. subst_atom \<sigma> a \<in> set (dl_cert_facts c)) (cls_body_atoms cl))
-              \<longrightarrow> subst_atom \<sigma> (the_lh cl) \<in> set (dl_cert_facts c))
+               \<and> list_all (\<lambda>a. fmem idx (subst_atom \<sigma> a)) (cls_body_atoms cl))
+              \<longrightarrow> fmem idx (subst_atom \<sigma> (the_lh cl)))
               (cls_substs Ul cl))
        Pl)"
 
@@ -755,7 +779,7 @@ qed
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
   unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def Let_def
-  by (simp add: safe_branch_dyn_idx_eq)
+  by (simp add: fmem_eq safe_branch_dyn_idx_eq)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>
