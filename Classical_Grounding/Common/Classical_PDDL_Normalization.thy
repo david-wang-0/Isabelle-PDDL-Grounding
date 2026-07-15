@@ -391,6 +391,7 @@ definition (in ast_classical_domain) "grounded_dom \<equiv>
   types D = [] \<and>
   (\<forall>p \<in> set (predicates D). grounded_pred p) \<and>
   consts D = [] \<and>
+  (\<forall>f \<in> set (functions D). grounded_func f) \<and>
   (\<forall>a \<in> set (actions D). grounded_ac a)"
 
 locale grounded_domain = wf_ast_classical_domain +

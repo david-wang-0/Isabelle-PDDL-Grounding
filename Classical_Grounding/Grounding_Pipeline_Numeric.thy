@@ -18,14 +18,24 @@ text \<open>This theory assembles the verified grounding pipeline that applies t
 
 subsection \<open> Grounding preserves numeric-freeness and normalization \<close>
 
-text \<open>The grounder emits purely propositional output: \<^const>\<open>grounder.ground_fmla\<close> maps every
-  atom to either \<open>\<bottom>\<close>/\<open>\<^bold>\<not>\<bottom>\<close> (equalities) or a nullary \<^const>\<open>predAtm\<close> (predicate and numeric
-  atoms alike), so it never produces a numeric atom and preserves the conjunctive literal
-  structure. Hence the grounded problem is unconditionally numeric-free, and \<^emph>\<open>normalized\<close>
-  whenever its input is.\<close>
+text \<open>\<^const>\<open>grounder.ground_fmla\<close> maps a predicate atom to a nullary \<^const>\<open>predAtm\<close> and an
+  equality to \<open>\<bottom>\<close>/\<open>\<^bold>\<not>\<bottom>\<close>, and re-indexes a numeric-comparison atom onto nullary fluents (it is the
+  general, numeric-retaining form). Under the \<^emph>\<open>propositional\<close> grounder's assumptions, though, the
+  ground formulas are all \<^const>\<open>covered\<close> --- which rejects numeric atoms outright --- and every op is
+  \<open>ops_no_num\<close>, so no numeric atom or effect survives. Hence the grounded problem is numeric-free
+  under \<open>wf_grounder\<close>, and \<^emph>\<open>normalized\<close> whenever its input is. The bare \<open>grounder\<close> proof of numeric-
+  freeness therefore takes the relevant coverage fact as a hypothesis.\<close>
 
-lemma (in grounder) num_free_ground_fmla: "num_free_fmla (ground_fmla \<phi>)"
-  by (induction \<phi> rule: ground_fmla.induct) auto
+lemma (in grounder) num_free_ground_fmla:
+  "covered \<phi> facts \<Longrightarrow> num_free_fmla (ground_fmla \<phi>)"
+  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits simp: covered_def)
+
+text \<open>A \<^const>\<open>predAtm\<close> formula is re-indexed to a nullary \<^const>\<open>predAtm\<close>, hence numeric-free
+  unconditionally --- the initial state (\<open>init_props\<close>) is exactly such a formula, so it needs no
+  coverage assumption.\<close>
+lemma (in grounder) num_free_ground_predAtom:
+  "is_predAtom \<phi> \<Longrightarrow> num_free_fmla (ground_fmla \<phi>)"
+  by (cases \<phi> rule: is_predAtom.cases) auto
 
 lemma (in grounder) is_lit_plus_ground_fmla: "is_lit_plus L \<Longrightarrow> is_lit_plus (ground_fmla L)"
   apply (cases L rule: is_lit_plus.cases; simp)
@@ -40,13 +50,22 @@ lemma (in grounder) is_conj_ground_fmla: "is_conj F \<Longrightarrow> is_conj (g
   by (induction F rule: is_conj.induct)
      (auto simp: is_lit_plus_ground_fmla is_lit_plus_imp_is_conj)
 
-lemma (in grounder) num_free_ac_ground_ac: "num_free_ac (ground_ac \<pi> n)"
+lemma (in wf_grounder) num_free_ac_ground_ac:
+  assumes "\<pi> \<in> set ops"
+  shows "num_free_ac (ground_ac \<pi> n)"
 proof -
-  obtain pre a d ne where ga: "the (res_inst \<pi>) = GroundAction pre (Effect a d ne)"
-    by (cases "the (res_inst \<pi>)"; cases "ground_action.effect (the (res_inst \<pi>))") auto
+  let ?ga = "the (res_inst \<pi>)"
+  have pre_cov: "covered (precondition ?ga) facts" using pres_covered assms by blast
+  have ad_cov: "\<forall>\<phi> \<in> set (adds (effect ?ga) @ dels (effect ?ga)). covered \<phi> facts"
+    using effs_covered assms unfolding Let_def by blast
+  have ne0: "numeric_effects (effect ?ga) = []" using ops_no_num assms by blast
+  have pre: "num_free_fmla (ground_fmla (precondition ?ga))"
+    using num_free_ground_fmla[OF pre_cov] .
+  have ad: "\<forall>\<phi> \<in> set (adds (effect ?ga)) \<union> set (dels (effect ?ga)). num_free_fmla (ground_fmla \<phi>)"
+    using ad_cov by (auto simp: num_free_ground_fmla)
   show ?thesis
-    unfolding num_free_ac_def ground_ac_def Let_def ga
-    by (auto simp: num_free_ground_fmla)
+    unfolding num_free_ac_def ground_ac_sel ga_pre_alt ga_eff_alt num_free_eff.simps
+    using pre ad ne0 by (auto simp: ne0)
 qed
 
 lemma (in grounder) ac_pre_ground_ac:
@@ -56,20 +75,23 @@ lemma (in grounder) ac_pre_ground_ac:
 lemma (in grounder) ac_params_ground_ac: "ac_params (ground_ac \<pi> n) = []"
   unfolding ground_ac_def Let_def by (cases "the (res_inst \<pi>)") simp
 
-lemma (in grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob ground_prob"
+lemma (in wf_grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob ground_prob"
 proof -
   have dom: "ast_classical_domain.num_free_dom (domain ground_prob)"
     unfolding ast_classical_domain.num_free_dom_def
   proof
     fix a assume "a \<in> set (actions (domain ground_prob))"
-    then obtain \<pi> n where "a = ground_ac \<pi> n"
-      unfolding ground_prob_def ground_dom_def by (auto simp: map2_map_map set_zip)
-    thus "num_free_ac a" by (simp add: num_free_ac_ground_ac)
+    then obtain \<pi> n where a: "a = ground_ac \<pi> n" and pin: "(\<pi>, n) \<in> set (zip ops op_names)"
+      unfolding ground_prob_def ground_dom_def by (auto simp: map2_map_map)
+    from pin have "\<pi> \<in> set ops" using set_zip_leftD by fastforce
+    thus "num_free_ac a" unfolding a by (simp add: num_free_ac_ground_ac)
   qed
   have goal: "num_free_fmla (goal ground_prob)"
-    unfolding ground_prob_def ground_dom_def by (simp add: num_free_ground_fmla)
+    unfolding ground_prob_def ground_dom_def
+    by (simp add: num_free_ground_fmla goal_covered)
   have init: "\<forall>f \<in> set (init ground_prob). num_free_fmla f"
-    unfolding ground_prob_def ground_dom_def by (auto simp: num_free_ground_fmla)
+    unfolding ground_prob_def ground_dom_def
+    using init_props by (auto simp: num_free_ground_predAtom)
   show ?thesis
     unfolding ast_classical_problem.num_free_prob_def using dom goal init by blast
 qed

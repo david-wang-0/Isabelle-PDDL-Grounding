@@ -18,14 +18,16 @@ context ast_classical_domain begin
 
 lemma grounded_domI [intro]:
   assumes "types D = []" "\<forall>p \<in> set (predicates D). grounded_pred p"
-    "consts D = []" "\<forall>a \<in> set (actions D). grounded_ac a"
+    "consts D = []" "\<forall>f \<in> set (functions D). grounded_func f"
+    "\<forall>a \<in> set (actions D). grounded_ac a"
   shows grounded_dom
   unfolding grounded_dom_def using assms by blast
 
 lemma grounded_domD [dest]:
   assumes grounded_dom
   shows "types D = []" "\<forall>p \<in> set (predicates D). grounded_pred p"
-    "consts D = []" "\<forall>a \<in> set (actions D). grounded_ac a"
+    "consts D = []" "\<forall>f \<in> set (functions D). grounded_func f"
+    "\<forall>a \<in> set (actions D). grounded_ac a"
   using assms unfolding grounded_dom_def by blast+
 
 lemma wf_classical_domainI [intro]:
@@ -89,6 +91,52 @@ text \<open>Fresh, distinct nullary predicate names for the achievable facts, an
 definition "fact_names \<equiv> map Pred (distinct_strings_lit (length facts))"
 definition "fact_map \<equiv> map_of (zip facts fact_names)"
 
+text \<open>The fluent analogue of \<open>fact_names\<close>/\<open>fact_map\<close>: the ground fluents (primitive numeric
+  expressions) occurring in the reachable ops' ground actions, and fresh nullary function names for
+  them. Predicate and function names live in separate namespaces (\<^const>\<open>Pred\<close> vs \<^const>\<open>Func\<close>),
+  so reusing the \<open>distinct_strings_lit\<close> pool is clash-free.\<close>
+definition op_fluents :: "ast_classical_plan_action \<Rightarrow> object primitive_numeric_expression list" where
+  "op_fluents \<pi> = (let ga = the (res_inst \<pi>) in
+     formula_enumerate_primitive_numeric_expressions (precondition ga)
+     @ map (\<lambda>ne. case ne of NumericEffect _ l _ \<Rightarrow> l) (numeric_effects (effect ga))
+     @ ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ga))"
+
+definition "fluents \<equiv> remdups (concat (map op_fluents ops))"
+definition "fluent_names \<equiv> map Func (distinct_strings_lit (length fluents))"
+definition "fluent_map \<equiv> map_of (zip fluents fluent_names)"
+
+text \<open>Re-index a ground fluent / numeric expression / numeric effect to nullary form
+  (\<open>fuel(c) \<mapsto> fuel_c()\<close>), mirroring \<open>ground_fmla\<close> on atoms.\<close>
+definition ground_pne :: "object primitive_numeric_expression \<Rightarrow> 'a primitive_numeric_expression" where
+  "ground_pne fl = PNE (the (fluent_map fl)) []"
+
+fun ground_numexp :: "object numeric_expression \<Rightarrow> 'a numeric_expression" where
+  "ground_numexp (ConstantExpr r) = ConstantExpr r"
+| "ground_numexp DurationExpr = DurationExpr"
+| "ground_numexp PiExpr = PiExpr"
+| "ground_numexp (AddExpr x y) = AddExpr (ground_numexp x) (ground_numexp y)"
+| "ground_numexp (SubExpr x y) = SubExpr (ground_numexp x) (ground_numexp y)"
+| "ground_numexp (MulExpr x y) = MulExpr (ground_numexp x) (ground_numexp y)"
+| "ground_numexp (DivExpr x y) = DivExpr (ground_numexp x) (ground_numexp y)"
+| "ground_numexp (SinExpr x) = SinExpr (ground_numexp x)"
+| "ground_numexp (CosExpr x) = CosExpr (ground_numexp x)"
+| "ground_numexp (ExpExpr x) = ExpExpr (ground_numexp x)"
+| "ground_numexp (FunctionExpr fl) = FunctionExpr (ground_pne fl)"
+
+definition ground_neff :: "object numeric_effect \<Rightarrow> 'a numeric_effect" where
+  "ground_neff ne =
+     (case ne of NumericEffect opr l r \<Rightarrow> NumericEffect opr (ground_pne l) (ground_numexp r))"
+
+text \<open>Grounded fluents/expressions/effects are nullary, hence invariant under term substitution.\<close>
+lemma ground_pne_subst: "map_primitive_numeric_expression f (ground_pne fl) = ground_pne fl"
+  by (simp add: ground_pne_def)
+
+lemma ground_numexp_subst: "map_numeric_expression f (ground_numexp e) = ground_numexp e"
+  by (induction e) (simp_all add: ground_pne_subst)
+
+lemma ground_neff_subst: "map_numeric_effect f (ground_neff x) = ground_neff x"
+  by (simp add: ground_neff_def ground_pne_subst ground_numexp_subst split: numeric_effect.split)
+
 (* As this signature reveals, this function has to be handled with care,
   since a new type parameter appears from nowhere.
   In code, 'a is always object. In proofs, however, it is sometimes term, too. *)
@@ -96,6 +144,11 @@ fun ground_fmla :: "object atom formula \<Rightarrow> 'a atom formula" where
   "ground_fmla \<bottom> = \<bottom>" |
   "ground_fmla (Atom (eqAtm a b)) = (if a = b then \<^bold>\<not>\<bottom> else \<bottom>)" |
   "ground_fmla (\<^bold>\<not> (Atom (eqAtm a b))) = (if a = b then \<bottom> else \<^bold>\<not>\<bottom>)" |
+  "ground_fmla (Atom (numericEqAtm l r)) = Atom (numericEqAtm (ground_numexp l) (ground_numexp r))" |
+  "ground_fmla (Atom (numericLessAtm l r)) = Atom (numericLessAtm (ground_numexp l) (ground_numexp r))" |
+  "ground_fmla (Atom (numericLEAtm l r)) = Atom (numericLEAtm (ground_numexp l) (ground_numexp r))" |
+  "ground_fmla (Atom (numericGreaterAtm l r)) = Atom (numericGreaterAtm (ground_numexp l) (ground_numexp r))" |
+  "ground_fmla (Atom (numericGEAtm l r)) = Atom (numericGEAtm (ground_numexp l) (ground_numexp r))" |
   "ground_fmla (Atom patm) = Atom (predAtm (the (fact_map (Atom patm))) [])" |
   "ground_fmla (\<^bold>\<not> \<phi>) = \<^bold>\<not> (ground_fmla \<phi>)" |
   "ground_fmla (\<phi> \<^bold>\<and> \<psi>) = ground_fmla \<phi> \<^bold>\<and> ground_fmla \<psi>" |
@@ -110,7 +163,7 @@ fun ga_pre :: "ground_action \<Rightarrow> 'a atom formula" where
   propositional, so it carries no numeric effects. *)
 fun ga_eff :: "ground_action \<Rightarrow> 'a ast_effect" where
   "ga_eff (GroundAction pre (Effect a d ne)) =
-    Effect (map ground_fmla a) (map ground_fmla d) []"
+    Effect (map ground_fmla a) (map ground_fmla d) (map ground_neff ne)"
 
 definition "op_names \<equiv> distinct_strings_lit (length ops)"
 
@@ -123,7 +176,7 @@ definition ground_dom :: "ast_classical_domain" where
   "ground_dom \<equiv> Domain
     []
     (map (\<lambda>p. PredDecl p []) fact_names)
-    []
+    (map (\<lambda>f. FuncDecl f []) fluent_names)
     []
     (map2 ground_ac ops op_names)"
 
@@ -254,15 +307,17 @@ lemma ground_ac_sel [simp]:
 lemma ga_pre_alt: "ga_pre ga = ground_fmla (precondition ga)"
   by (cases ga; simp)
 
-text \<open>The grounded effect is purely propositional, hence carries no numeric effects.\<close>
+text \<open>The grounded effect re-indexes the numeric effects onto nullary fluents (empty when the input is
+  numeric-free, i.e. under \<open>ops_no_num\<close>).\<close>
 lemma ga_eff_alt: "ga_eff ga =
-  Effect (map ground_fmla (adds (effect ga))) (map ground_fmla (dels (effect ga))) []"
+  Effect (map ground_fmla (adds (effect ga))) (map ground_fmla (dels (effect ga)))
+         (map ground_neff (numeric_effects (effect ga)))"
   by (cases ga rule: ga_eff.cases) simp
 
 lemma ga_eff_sel [simp]:
   "adds (ga_eff ga) = map ground_fmla (adds (effect ga))"
   "dels (ga_eff ga) = map ground_fmla (dels (effect ga))"
-  "numeric_effects (ga_eff ga) = []"
+  "numeric_effects (ga_eff ga) = map ground_neff (numeric_effects (effect ga))"
   unfolding ga_eff_alt by simp_all
 
 subsubsection \<open> The output is grounded \<close>
@@ -281,6 +336,7 @@ proof (intro dg.grounded_domI)
   show "types D\<^sub>G = []" by (simp add: ground_dom_sel)
   show "\<forall>p \<in> set (predicates D\<^sub>G). grounded_pred p" by (auto simp: ground_dom_sel)
   show "consts D\<^sub>G = []" by (simp add: ground_dom_sel)
+  show "\<forall>f \<in> set (functions D\<^sub>G). grounded_func f" by (simp add: ground_dom_def)
   show "\<forall>a \<in> set (actions D\<^sub>G). grounded_ac a" using acs_grounded .
 qed
 
@@ -311,16 +367,8 @@ qed
 
 lemma ground_ac_names: "map ac_name (map2 ground_ac ops op_names) = op_names"
 proof -
-  have "map ac_name (map2 ground_ac ops names) = names" if "length ops = length names" for names
-    using that proof (induction ops arbitrary: names)
-    case (Cons op ops)
-    hence "length names \<noteq> 0" by auto
-    hence 1: "names = hd names # tl names" by simp
-    with Cons have "map ac_name (map2 ground_ac ops (tl names)) = tl names" by auto
-    hence "map ac_name (map2 ground_ac (op # ops) (hd names # tl names)) = hd names # tl names"
-      using ground_ac_sel by simp
-    thus ?case using 1 by simp
-  qed simp
+  have "map ac_name (map2 ground_ac xs ys) = ys" if "length xs = length ys" for xs ys
+    using that by (induction xs ys rule: list_induct2) (simp_all add: ground_ac_sel)
   thus ?thesis using ops_len by simp
 qed
 
@@ -409,13 +457,15 @@ lemma ground_eff_lit_wf:
 lemma wf_effect_ground:
   assumes "\<forall>a\<in>set (adds (effect ga)). dg.wf_fmla_atom tyt (ground_fmla a)"
           "\<forall>a\<in>set (dels (effect ga)). dg.wf_fmla_atom tyt (ground_fmla a)"
+          "numeric_effects (effect ga) = []"
   shows "dg.wf_effect tyt (ga_eff ga)"
   unfolding dg.wf_effect_alt ga_eff_sel list_all_iff using assms by auto
 
 lemma ground_eff_wf:
   assumes "\<pi> \<in> set ops"
   shows "dg.wf_effect tyt (ga_eff (the (res_inst \<pi>)))"
-  by (rule wf_effect_ground) (use ground_eff_lit_wf[OF assms] in blast)+
+  by (rule wf_effect_ground)
+     (use ground_eff_lit_wf[OF assms] ops_no_num assms in blast)+
 
 lemma ground_ac_wf:
   assumes "\<pi> \<in> set ops"
@@ -437,8 +487,40 @@ proof (rule ballI)
   thus "dg.wf_classical_action_schema ac" using ground_ac_wf by simp
 qed
 
+text \<open>Under the no-fluents assumptions (\<open>covered\<close> forbids numeric atoms, \<open>ops_no_num\<close> forbids numeric
+  effects) no ground fluents occur, so the grounded function table is empty.\<close>
+lemma covered_no_pne:
+  assumes "covered \<phi> facts" shows "formula_enumerate_primitive_numeric_expressions \<phi> = []"
+proof -
+  have "atom_enumerate_primitive_numeric_expressions a = []" if "a \<in> atoms \<phi>" for a
+    using assms that unfolding covered_def by (cases a) auto
+  hence "set (formula_enumerate_primitive_numeric_expressions \<phi>) = {}"
+    by (auto simp: set_formula_enumerate_primitive_numeric_expressions_conv)
+  thus ?thesis by simp
+qed
+
+lemma fluents_empty: "fluents = []"
+proof -
+  have "op_fluents \<pi> = []" if "\<pi> \<in> set ops" for \<pi>
+  proof -
+    have p: "formula_enumerate_primitive_numeric_expressions (precondition (the (res_inst \<pi>))) = []"
+      using covered_no_pne pres_covered that by blast
+    have n: "numeric_effects (effect (the (res_inst \<pi>))) = []" using ops_no_num that by blast
+    have r: "ast_effect_enumerate_rhs_primitive_numeric_expressions (effect (the (res_inst \<pi>))) = []"
+      using n by (cases "effect (the (res_inst \<pi>))") auto
+    show ?thesis using p n r by (simp add: op_fluents_def)
+  qed
+  thus ?thesis by (simp add: fluents_def)
+qed
+
+lemma fluent_names_empty: "fluent_names = []"
+proof -
+  have "distinct_strings_lit 0 = []" by (metis distinct_str_lit_length length_0_conv)
+  thus ?thesis using fluents_empty by (simp add: fluent_names_def)
+qed
+
 lemma ground_dom_funcs: "functions D\<^sub>G = []"
-  unfolding ground_dom_def by simp
+  unfolding ground_dom_def by (simp add: fluent_names_empty)
 
 theorem ground_dom_wf: "dg.wf_classical_domain"
 proof (intro dg.wf_classical_domainI)
@@ -526,10 +608,11 @@ lemma val_eqAtm_dom: "eqAtm a b \<in> dom (valuation M)"
 lemma covered_atoms_dom: "covered \<phi> facts \<Longrightarrow> atoms \<phi> \<subseteq> dom (valuation M)"
   using covered_atoms val_predAtm_dom val_eqAtm_dom by (metis subsetI)
 
-lemma ground_atoms_predAtm: "a \<in> atoms (ground_fmla \<phi>) \<Longrightarrow> \<exists>p. a = predAtm p []"
-  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits)
+lemma ground_atoms_predAtm:
+  "covered \<phi> facts \<Longrightarrow> a \<in> atoms (ground_fmla \<phi>) \<Longrightarrow> \<exists>p. a = predAtm p []"
+  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits simp: covered_def)
 
-lemma ground_atoms_dom: "atoms (ground_fmla \<phi>) \<subseteq> dom (valuation N)"
+lemma ground_atoms_dom: "covered \<phi> facts \<Longrightarrow> atoms (ground_fmla \<phi>) \<subseteq> dom (valuation N)"
   using ground_atoms_predAtm val_predAtm_dom by blast
 
 lemma ground_fmla_sem_aux:
@@ -537,7 +620,7 @@ lemma ground_fmla_sem_aux:
   shows "covered \<phi> facts \<Longrightarrow>
     (the \<circ> valuation M) \<Turnstile> \<phi> \<longleftrightarrow> (the \<circ> valuation (ground_fmla ` fst M, snd M)) \<Turnstile> ground_fmla \<phi>"
 proof (induction \<phi> rule: ground_fmla.induct)
-  case ("4_1" p xs)
+  case ("9" p xs)
   hence mem: "Atom (predAtm p xs) \<in> set facts" by (simp add: covered_def)
   have "(Atom (predAtm p xs) \<in> fst M)
     = (ground_fmla (Atom (predAtm p xs)) \<in> ground_fmla ` fst M)"
@@ -557,7 +640,7 @@ lemma ground_fmla_sem:
 proof -
   have dL: "\<forall>a\<in>atoms \<phi>. a \<in> dom (valuation M)" using covered_atoms_dom assms(1) by blast
   have dR: "\<forall>a\<in>atoms (ground_fmla \<phi>). a \<in> dom (valuation (ground_fmla ` fst M, snd M))"
-    using ground_atoms_dom by blast
+    using ground_atoms_dom assms(1) by blast
   show ?thesis
     unfolding map_formula_semantics_def
     using dL dR ground_fmla_sem_aux[OF assms(2) assms(1)] by simp
@@ -707,11 +790,11 @@ qed
 
 lemma ground_fmla_subst:
   "map_formula (map_atom (subst_term t)) (ground_fmla \<phi>) = ground_fmla \<phi>"
-  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits)
+  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits simp: ground_numexp_subst)
 
 lemma ground_effect_subst:
   "map_ast_effect (subst_term t) (ga_eff ga) = ga_eff ga"
-  using ground_fmla_subst by (cases ga rule: ga_eff.cases) (simp add: ga_eff_alt)
+  using ground_fmla_subst by (cases ga rule: ga_eff.cases) (simp add: ga_eff_alt ground_neff_subst)
 
 lemma gr_pa_instantiation:
   "instantiate_classical_action_schema (ground_ac \<pi> n) [] =
@@ -765,7 +848,7 @@ proof -
   let ?gM = "(ground_fmla ` fst M, snd M)"
   have ri: "?ga = GroundAction (ga_pre ?a) (ga_eff ?a)" using resinst_ground_pa[OF assms(2)] .
   have num1: "numeric_effects (effect ?a) = []" using assms(2) ops_no_num by blast
-  have num2: "numeric_effects (effect ?ga) = []" unfolding ri by (simp add: ga_eff_sel)
+  have num2: "numeric_effects (effect ?ga) = []" unfolding ri by (simp add: ga_eff_sel num1)
   have pre: "valuation M \<Turnstile>\<^sub>m precondition ?a \<longleftrightarrow> valuation ?gM \<Turnstile>\<^sub>m precondition ?ga"
     unfolding ri ground_action.sel ga_pre_alt
     using ground_fmla_sem[OF _ assms(1)] pres_covered assms(2) by simp
@@ -786,7 +869,7 @@ lemma list_num_update_single_id:
   unfolding action_list_numeric_update_function_def by (simp add: num_update_id)
 
 lemma num_ground: "\<pi> \<in> set ops \<Longrightarrow> numeric_effects (effect (the (pg.res_inst (ground_pa \<pi>)))) = []"
-  unfolding resinst_ground_pa_sel(2) by (simp add: ga_eff_sel)
+  using ops_no_num unfolding resinst_ground_pa_sel(2) by (simp add: ga_eff_sel)
 
 lemma pg_exec_simp:
   assumes "numeric_effects (effect (the (pg.res_inst a))) = []"
@@ -997,6 +1080,13 @@ subsection \<open> Code Setup \<close>
 lemmas pddl_ground_code =
   grounder.fact_names_def
   grounder.fact_map_def
+  grounder.op_fluents_def
+  grounder.fluents_def
+  grounder.fluent_names_def
+  grounder.fluent_map_def
+  grounder.ground_pne_def
+  grounder.ground_numexp.simps
+  grounder.ground_neff_def
   grounder.ground_fmla.simps
   grounder.ga_pre.simps
   grounder.ga_eff.simps
