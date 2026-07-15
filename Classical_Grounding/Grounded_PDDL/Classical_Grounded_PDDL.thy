@@ -223,13 +223,12 @@ locale wf_grounder_num = grounder +
     (* If "set ops = {\<pi>. applicable \<pi>}", this follows: *)
     ops_wf: "\<forall>\<pi> \<in> set ops. wf_classical_plan_action \<pi>"
 
-text \<open>The full grounder locale for the \<^emph>\<open>propositional\<close> grounder. It additionally requires the
-  reachable \<open>facts\<close> list to be well-formed and to cover every op's precondition/effect atoms and the
-  goal (so the propositional \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing is faithful --- \<open>covered\<close> also
-  forces those formulas to be numeric-free), \<^emph>\<open>and\<close> that the input is numeric-free (the initial state
-  has no function assignments, and the applicable ops carry no numeric effects). These hold trivially
-  once numerics have been compiled away upstream.\<close>
-locale wf_grounder = wf_grounder_num +
+text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>wf_grounder_num\<close> plus a reachable \<open>facts\<close> list that is
+  well-formed and covers every op's precondition/effect predicate atoms and the goal, so the shared
+  \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing of \<^emph>\<open>predicate\<close> atoms onto nullary \<open>predAtm\<close>s
+  is faithful. Numeric atoms/effects are \<^emph>\<open>allowed\<close> here (they re-index onto nullary fluents); this
+  is the layer at which the nullary-fluent-retaining grounded problem \<open>ground_prob\<close> lives.\<close>
+locale wf_grounder_cov = wf_grounder_num +
   assumes
     facts_dist: "distinct facts" and
     all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
@@ -237,7 +236,16 @@ locale wf_grounder = wf_grounder_num +
     effs_covered: "\<forall>\<pi> \<in> set ops. (let eff = effect (the (res_inst \<pi>)) in
       \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" and
     pres_covered: "\<forall>\<pi> \<in> set ops. covered (precondition (the (res_inst \<pi>))) facts" and
-    goal_covered: "covered (goal P) facts" and
+    goal_covered: "covered (goal P) facts"
+
+text \<open>The \<^emph>\<open>propositional\<close>/STRIPS grounder = the covered numeric grounder plus the actual
+  \<^emph>\<open>no-fluents\<close> assumptions: the initial state has no function assignments (it is purely
+  propositional) and the applicable ops carry no numeric effects. Under these the shared grounder
+  emits no numeric atom or effect, so the grounded problem is numeric-free --- these hold trivially
+  once numerics have been compiled away upstream. So \<^bold>\<open>the STRIPS grounder is the numeric grounder
+  (\<^locale>\<open>wf_grounder_cov\<close>) with the two numeric-freeness assumptions added\<close>.\<close>
+locale wf_grounder = wf_grounder_cov +
+  assumes
     init_props: "\<forall>f \<in> set (init P). is_predAtom f" and
     ops_no_num: "\<forall>\<pi> \<in> set ops. numeric_effects (effect (the (res_inst \<pi>))) = []"
 
