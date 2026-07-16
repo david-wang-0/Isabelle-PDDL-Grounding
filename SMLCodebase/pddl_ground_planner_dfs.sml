@@ -79,6 +79,29 @@ fun doPlan domFile probFile tMax outOpt =
    (Grounder_Timing.thy), code-printed to this same `Prof` accumulator. *)
 val profOn = Option.isSome (OS.Process.getEnv "GROUND_PROFILE")
 val modelSize = ref 0
+
+(* Peak resident memory (VmHWM from /proc/self/status, KiB), sampled at phase
+   boundaries. VmHWM is the monotonic high-water mark, so the value at a boundary is
+   the whole-process peak up to that point; the harness reads the PROFILE_RSS line
+   below into its per-stage RSS columns. Returns 0 if /proc is unavailable. *)
+fun vmhwm () : IntInf.int =
+  (let
+     val ins = TextIO.openIn "/proc/self/status"
+     fun loop () =
+       case TextIO.inputLine ins of
+           NONE => 0
+         | SOME l =>
+             if String.isPrefix "VmHWM:" l
+             then (case String.tokens (fn c => c = #" " orelse c = #"\t" orelse c = #"\n") l of
+                     (_ :: num :: _) => (case IntInf.fromString num of SOME v => v | NONE => 0)
+                   | _ => 0)
+             else loop ()
+     val r = loop ()
+   in TextIO.closeIn ins; r end)
+  handle _ => 0
+val rssParse = ref (0 : IntInf.int)
+val rssNemo = ref (0 : IntInf.int)
+val rssGround = ref (0 : IntInf.int)
 fun profMark s = if profOn then eprintln ("CHECKPOINT " ^ s) else ()
 fun printProfile () =
   if profOn then
@@ -91,6 +114,8 @@ fun printProfile () =
     val kt = GrounderTiming.get ()
     fun kget k = case List.find (fn (l, _) => l = k) kt of SOME (_, v) => v | NONE => 0
     fun s l v = l ^ "=" ^ IntInf.toString v ^ "ms"
+    val printRss = vmhwm ()
+    fun r l v = l ^ "=" ^ IntInf.toString v ^ "kb"
   in
     eprintln (String.concatWith " "
       ["PROFILE", "model=" ^ Int.toString (!modelSize),
@@ -99,25 +124,32 @@ fun printProfile () =
        s "buildprog" (Prof.ms "buildprog"), s "gcheck" (kget "gcheck"),
        s "emit" (Prof.ms "emit"),
        s "render" (Prof.ms "render"), s "write" (Prof.ms "write"),
-       s "ground_total" g])
+       s "ground_total" g]);
+    eprintln (String.concatWith " "
+      ["PROFILE_RSS", r "parse" (!rssParse), r "nemo" (!rssNemo),
+       r "check" (!rssGround), r "print" printRss])
   end
   else ()
 
 fun doGround domFile probFile outOpt =
   let
     val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
+    val () = rssParse := vmhwm ()
     val timedCertify = (fn prog =>
       Prof.time "nemo" (fn () =>
         let val (m, dc) = NemoDriver.certify prog
         in modelSize := length m;
+           rssNemo := vmhwm ();
            profMark ("nemo-done model=" ^ Int.toString (length m));
            (m, dc) end))
+    val gres = Prof.time "ground_total"
+                 (fn () => withNemo (fn () => E.ground_via_cert_numeric_dfs_e timedCertify isaProb))
+    val () = rssGround := vmhwm ()
   in
     (* The verified error-monad grounder returns a specific diagnostic on the left
        (a failing well-formedness check or a rejected reachability certificate) and,
        on the right, exactly the certified grounding (`ground_via_cert_numeric_dfs_e_sound`). *)
-    case Prof.time "ground_total"
-           (fn () => withNemo (fn () => E.ground_via_cert_numeric_dfs_e timedCertify isaProb)) of
+    case gres of
       E.Inl msg =>
         (eprintln ("Grounding rejected by the verified kernel: " ^ msg);
          printProfile ();
