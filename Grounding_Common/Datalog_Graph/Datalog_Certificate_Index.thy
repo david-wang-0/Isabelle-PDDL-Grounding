@@ -627,6 +627,34 @@ definition reorder_atoms ::
 lemma mset_reorder_atoms: "mset (reorder_atoms idx atoms) = mset atoms"
   by (simp add: reorder_atoms_def)
 
+subsection \<open>Variant 1: tree-decomposition-derived body-atom order (order-only)\<close>
+
+text \<open>Closure analogue of the cert_ops-side reorder: rank each body atom by its primal-graph
+  neighbourhood size (min-degree elimination first key), realized as a @{const sort_key} so it is a
+  permutation of the atoms by construction. The \<open>idx\<close> parameter is kept for a uniform reorder signature
+  with @{const reorder_atoms}.\<close>
+
+definition lh_vars_list :: "('p, 'x, 'c) lh \<Rightarrow> 'x list" where
+  "lh_vars_list a = concat (map id_vars_list (snd a))"
+
+definition primal_deg_lh :: "('p, 'x, 'c) lh list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> nat" where
+  "primal_deg_lh atoms a =
+     length (remdups (concat (map lh_vars_list
+        (filter (\<lambda>b. list_ex (\<lambda>v. v \<in> set (lh_vars_list a)) (lh_vars_list b)) atoms))))"
+
+definition reorder_td_atoms ::
+    "('p::linorder, 'c::linorder) findex \<Rightarrow> ('p, 'x, 'c) lh list \<Rightarrow> ('p, 'x, 'c) lh list" where
+  "reorder_td_atoms idx atoms = sort_key (\<lambda>a. primal_deg_lh atoms a) atoms"
+
+lemma mset_reorder_td_atoms: "mset (reorder_td_atoms idx atoms) = mset atoms"
+  by (simp add: reorder_td_atoms_def)
+
+text \<open>Compile-time join-mode flag (Variant 1 measurement). \<open>False\<close> = the dynamic per-step join
+  (\<^const>\<open>body_join_dyn\<close>, the baseline); \<open>True\<close> = the static index join over the tree-decomposition
+  order (\<^const>\<open>body_join_idx\<close> on \<^const>\<open>reorder_td_atoms\<close>). Both are proven set-equal to the abstract
+  join, so \<open>dl_closure_check_exec_fast_eq\<close> holds for either value; flip and re-export.\<close>
+definition closure_td_order :: bool where "closure_td_order = False"
+
 text \<open>The safe-branch per-assignment predicate depends on @{term al} only through @{term "map_of al"}:
   @{const eval_guard_al} does (via @{const subst_id_al}, whose only use of @{term al} is
   @{term "map_of al"}) and the head instance @{term "subst_atom (\<lambda>x. the (map_of al x)) lh"} does
@@ -719,7 +747,9 @@ definition dl_closure_check_exec_fast ::
        then list_all (\<lambda>al.
               list_all (eval_guard_al al) (cls_guards cl)
               \<longrightarrow> fmem idx (subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl)))
-              (body_join_dyn [] (cls_body_atoms cl) idx)
+              (if closure_td_order
+               then body_join_idx [] (reorder_td_atoms idx (cls_body_atoms cl)) idx
+               else body_join_dyn [] (cls_body_atoms cl) idx)
        else list_all (\<lambda>\<sigma>.
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. fmem idx (subst_atom \<sigma> a)) (cls_body_atoms cl))
@@ -762,6 +792,38 @@ proof -
   finally show ?thesis .
 qed
 
+text \<open>Safe-branch check invariance under \<^const>\<open>reorder_td_atoms\<close>: identical to
+  @{thm safe_branch_reorder_idx_eq}, using the permutation @{thm mset_reorder_td_atoms}.\<close>
+lemma safe_branch_reorder_idx_eq_td:
+  "list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join_idx [] (reorder_td_atoms (build_findex facts) atoms) (build_findex facts))
+   = list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join [] atoms facts)"
+  (is "list_all ?P _ = _")
+proof -
+  have pcong: "?P al = ?P al'" if eq: "map_of al = map_of al'" for al al'
+  proof -
+    have "list_all (eval_guard_al al) gs = list_all (eval_guard_al al') gs"
+      by (rule list_all_cong[OF refl]) (simp add: eval_guard_al_map_of_cong[OF eq])
+    moreover have "subst_atom (\<lambda>x. the (map_of al x)) lh = subst_atom (\<lambda>x. the (map_of al' x)) lh"
+      using eq by simp
+    ultimately show ?thesis by simp
+  qed
+  have img: "(\<lambda>al. map_of al) ` set (body_join [] (reorder_td_atoms (build_findex facts) atoms) facts)
+             = (\<lambda>al. map_of al) ` set (body_join [] atoms facts)"
+    using body_join_map_of_perm[OF mset_reorder_td_atoms] .
+  have "list_all ?P (body_join_idx [] (reorder_td_atoms (build_findex facts) atoms) (build_findex facts))
+        = list_all ?P (body_join [] (reorder_td_atoms (build_findex facts) atoms) facts)"
+    by (simp add: list_all_iff body_join_idx_eq)
+  also have "\<dots> = list_all ?P (body_join [] atoms facts)"
+    using list_all_map_of_cong[OF pcong img] .
+  finally show ?thesis .
+qed
+
 text \<open>Safe-branch check invariance for the \<^emph>\<open>dynamic\<close> join: the per-step most-constrained-first
   join over the original atoms visits the same SET of substitution maps (through @{const map_of}) as
   the abstract join (@{thm body_join_dyn_img_eq}), and the per-assignment predicate factors through
@@ -792,10 +854,27 @@ proof -
   show ?thesis using list_all_map_of_cong[OF pcong img] .
 qed
 
+text \<open>Safe-branch invariance for the flag-selected join (dynamic, or the static index join over the
+  tree-decomposition order): by cases on \<^const>\<open>closure_td_order\<close>, discharged by
+  @{thm safe_branch_reorder_idx_eq_td} / @{thm safe_branch_dyn_idx_eq}.\<close>
+lemma safe_branch_flag_idx_eq:
+  "list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (if closure_td_order
+      then body_join_idx [] (reorder_td_atoms (build_findex facts) atoms) (build_findex facts)
+      else body_join_dyn [] atoms (build_findex facts))
+   = list_all (\<lambda>al.
+      list_all (eval_guard_al al) gs
+      \<longrightarrow> subst_atom (\<lambda>x. the (map_of al x)) lh \<in> set facts)
+     (body_join [] atoms facts)"
+  by (cases closure_td_order)
+     (simp_all add: safe_branch_reorder_idx_eq_td safe_branch_dyn_idx_eq)
+
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
   unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def Let_def
-  by (simp add: fmem_eq safe_branch_dyn_idx_eq)
+  by (simp add: fmem_eq safe_branch_flag_idx_eq)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>

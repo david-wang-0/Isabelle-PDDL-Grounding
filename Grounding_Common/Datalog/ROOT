@@ -18,3 +18,4 @@ session Datalog_Certification = Grounding_Utils +
     Datalog_Certificate_Code
     Fact_Index
     Datalog_Evaluation
+    Tree_Decomposition

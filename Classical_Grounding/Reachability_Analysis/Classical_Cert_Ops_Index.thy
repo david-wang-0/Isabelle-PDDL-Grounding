@@ -940,13 +940,91 @@ proof -
   finally show ?thesis .
 qed
 
+subsection \<open>Variant 1: tree-decomposition-derived precondition order (order-only)\<close>
+
+text \<open>Untrusted heuristic order: rank each atom by its primal-graph neighbourhood size --- the
+  min-degree elimination first key --- so atoms with tightly-connected (low-width) variables sort to
+  the front. Realized as a @{const sort_key}, it is a permutation of the atoms by construction, hence
+  @{thm [source] pjoin_map_of_perm} makes the fast join enumerate the SAME set of
+  bindings through \<^const>\<open>map_of\<close>; correctness never depends on the order. Unlike \<^const>\<open>reorder_pre\<close>
+  (which keys on seed selectivity) this keys on graph connectivity, i.e. a tree-decomposition-flavoured
+  order. The \<open>idx\<close> parameter is kept for a uniform reorder signature (used by the mode dispatch).\<close>
+
+definition tvars_list :: "term list \<Rightarrow> variable list" where
+  "tvars_list ts = remdups (List.map_filter (\<lambda>t. case t of term.VAR v \<Rightarrow> Some v | _ \<Rightarrow> None) ts)"
+
+definition atom_vars_list :: "term atom formula \<Rightarrow> variable list" where
+  "atom_vars_list a = (case a of Atom (predAtm p ts) \<Rightarrow> tvars_list ts | _ \<Rightarrow> [])"
+
+definition primal_deg :: "term atom formula list \<Rightarrow> term atom formula \<Rightarrow> nat" where
+  "primal_deg atms a =
+     length (remdups (concat (map atom_vars_list
+        (filter (\<lambda>b. list_ex (\<lambda>v. v \<in> set (atom_vars_list a)) (atom_vars_list b)) atms))))"
+
+definition reorder_td :: "(predicate, object) findex \<Rightarrow> term atom formula list \<Rightarrow> term atom formula list" where
+  "reorder_td idx atms = sort_key (\<lambda>a. primal_deg atms a) atms"
+
+lemma mset_reorder_td: "mset (reorder_td idx atms) = mset atms"
+  by (simp add: reorder_td_def)
+
+text \<open>As for @{thm pjoin_idx_ptuples_reorder}: reordering the precondition atoms by
+  \<^const>\<open>reorder_td\<close> does not change the multiset of ground tuples fed to the guard filter.\<close>
+lemma pjoin_idx_ptuples_reorder_td:
+  "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_td idx atms)). set (ptuples allobjs b vars))
+     = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
+proof -
+  let ?orga = "organize_facts (map fact_to_facty M)"
+  have img: "(\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_td idx atms))
+               = (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
+    using pjoin_map_of_perm[OF mset_reorder_td[of idx]] .
+  have "(\<Union>b\<in>set (pjoin_idx (build_findex M) [] (reorder_td idx atms)). set (ptuples allobjs b vars))
+          = (\<Union>b\<in>set (pjoin ?orga [] (reorder_td idx atms)). set (ptuples allobjs b vars))"
+    by (simp add: pjoin_idx_eq)
+  also have "\<dots> = (\<Union>b\<in>set (pjoin ?orga [] atms). set (ptuples allobjs b vars))"
+  proof (rule equalityI, safe)
+    fix b x assume b: "b \<in> set (pjoin ?orga [] (reorder_td idx atms))"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] atms)"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin ?orga [] atms)" and eq: "map_of b' = map_of b"
+      by auto
+    have "x \<in> set (ptuples allobjs b' vars)"
+      using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] atms). set (ptuples allobjs b vars))"
+      using b' by blast
+  next
+    fix b x assume b: "b \<in> set (pjoin ?orga [] atms)"
+      and x: "x \<in> set (ptuples allobjs b vars)"
+    have "map_of b \<in> (\<lambda>b. map_of b) ` set (pjoin ?orga [] (reorder_td idx atms))"
+      using b img by auto
+    then obtain b' where b': "b' \<in> set (pjoin ?orga [] (reorder_td idx atms))"
+      and eq: "map_of b' = map_of b" by auto
+    have "x \<in> set (ptuples allobjs b' vars)"
+      using x ptuples_map_of_cong[OF eq] by simp
+    then show "x \<in> (\<Union>b\<in>set (pjoin ?orga [] (reorder_td idx atms)). set (ptuples allobjs b vars))"
+      using b' by blast
+  qed
+  also have "\<dots> = (\<Union>b\<in>set (pjoin_idx (build_findex M) [] atms). set (ptuples allobjs b vars))"
+    by (simp add: pjoin_idx_eq)
+  finally show ?thesis .
+qed
+
+text \<open>Compile-time join-mode flag (Variant 1 measurement). \<open>False\<close> = the dynamic per-step join
+  (\<^const>\<open>pjoin_dyn\<close>, the baseline); \<open>True\<close> = the tree-decomposition static order
+  (\<^const>\<open>pjoin_idx\<close> over \<^const>\<open>reorder_td\<close>). Both are proven set-equal to the abstract join, so
+  \<open>cert_ops_for_clause_fast_eq\<close> holds for either value; flip the flag and re-export to produce the
+  order-only binary.\<close>
+definition cert_ops_td_order :: bool where "cert_ops_td_order = False"
+
 definition cert_ops_for_clause_fast ::
     "object list \<Rightarrow> (predicate, object) findex \<Rightarrow> action_clause \<Rightarrow> ast_classical_plan_action list" where
   "cert_ops_for_clause_fast allobjs idx c =
      map (SimplePlanAction (cl_name c))
        (filter (satisfies_conds (cl_params c) (cl_cond_pre c))
          (concat (map (\<lambda>b. ptuples allobjs b (map fst (cl_params c)))
-                      (pjoin_dyn idx [] (cl_pred_pre c)))))"
+                      (if cert_ops_td_order
+                       then pjoin_idx idx [] (reorder_td idx (cl_pred_pre c))
+                       else pjoin_dyn idx [] (cl_pred_pre c)))))"
 
 lemma cert_ops_for_clause_fast_eq:
   "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
@@ -956,19 +1034,36 @@ proof -
   let ?P = "satisfies_conds (cl_params c) (cl_cond_pre c)"
   let ?vars = "map fst (cl_params c)"
   \<comment> \<open>candidate tuples: dynamic index join (fast) and unordered abstract enumerate the same set\<close>
-  have tup: "(\<Union>b\<in>set (pjoin_dyn (build_findex M) [] (cl_pred_pre c)).
+  \<comment> \<open>candidate tuples: either join (dynamic, or static index over the tree-decomposition order)
+      enumerates the same set as the unordered abstract enumerate\<close>
+  have tup: "(\<Union>b\<in>set (if cert_ops_td_order
+                       then pjoin_idx (build_findex M) [] (reorder_td (build_findex M) (cl_pred_pre c))
+                       else pjoin_dyn (build_findex M) [] (cl_pred_pre c)).
                 set (ptuples allobjs b ?vars))
              = (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) [] (cl_pred_pre c)).
                 set (ptuples allobjs b ?vars))"
-    using pjoin_dyn_ptuples_eq[where M = M and atms = "cl_pred_pre c"
-            and allobjs = allobjs and vars = ?vars] .
+  proof (cases cert_ops_td_order)
+    case True
+    then show ?thesis
+      using pjoin_idx_ptuples_reorder_td[where M = M and idx = "build_findex M"
+              and atms = "cl_pred_pre c" and allobjs = allobjs and vars = ?vars]
+      by (simp add: pjoin_idx_eq)
+  next
+    case False
+    then show ?thesis
+      using pjoin_dyn_ptuples_eq[where M = M and atms = "cl_pred_pre c"
+              and allobjs = allobjs and vars = ?vars]
+      by simp
+  qed
   \<comment> \<open>@{const cert_ops_for_clause}(\_fast) as an image of a filtered big-union of tuples\<close>
   have set_form: "set (map ?g (filter ?P (concat (map (\<lambda>b. ptuples allobjs b ?vars) L))))
                     = ?g ` {x \<in> (\<Union>b\<in>set L. set (ptuples allobjs b ?vars)). ?P x}" for L
     by auto
   have "set (cert_ops_for_clause_fast allobjs (build_findex M) c)
-          = ?g ` {x \<in> (\<Union>b\<in>set (pjoin_dyn (build_findex M) []
-                        (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"
+          = ?g ` {x \<in> (\<Union>b\<in>set (if cert_ops_td_order
+                        then pjoin_idx (build_findex M) [] (reorder_td (build_findex M) (cl_pred_pre c))
+                        else pjoin_dyn (build_findex M) [] (cl_pred_pre c)).
+                        set (ptuples allobjs b ?vars)). ?P x}"
     unfolding cert_ops_for_clause_fast_def using set_form .
   also have "\<dots> = ?g ` {x \<in> (\<Union>b\<in>set (pjoin (organize_facts (map fact_to_facty M)) []
                         (cl_pred_pre c)). set (ptuples allobjs b ?vars)). ?P x}"
