@@ -21,7 +21,7 @@ session Classical_Grounding = Grounding_Classical_Common +
 	"PDDL_to_STRIPS/STRIPS_Sema_Supplement"
 	"PDDL_to_STRIPS/Classical_PDDL_to_STRIPS"
 	Grounding_Pipeline_Numeric
-	Numeric_Grounder
+	Numeric_Grounding_Cert
 	Grounding_Pipeline_STRIPS
 	Code_Setup
 	Grounding_Pipeline_Common_Executable

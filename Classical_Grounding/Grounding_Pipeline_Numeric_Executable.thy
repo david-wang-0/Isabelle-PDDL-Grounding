@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_Numeric_Executable
-  imports Grounding_Pipeline_Common_Executable Numeric_Grounder
+  imports Grounding_Pipeline_Common_Executable Numeric_Grounding_Cert
 begin
 
 section \<open>Executable numeric grounding (up to, but not including, the STRIPS conversion)\<close>
@@ -8,7 +8,7 @@ text \<open>The re-checked grounding pipeline, stopping one step before the prop
   \<^const>\<open>ast_classical_problem.as_strips\<close>: it returns the grounded \<^emph>\<open>PDDL\<close> problem
   \<^term>\<open>numeric_ground_by_cert P M\<close> (a full \<^type>\<open>ast_problem\<close>) that \<^bold>\<open>retains numeric fluents\<close> ---
   the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>grounder.numeric_ground_prob\<close> (verified in
-  \<^theory>\<open>Classical_Grounding.Numeric_Grounder\<close>: well-formed, and plan-preserving via
+  \<^theory>\<open>Classical_Grounded_PDDL.Numeric_Grounder\<close>: well-formed, and plan-preserving via
   \<open>ast_classical_problem.numeric_ground_cert_plan_valid_iff\<close>), \<^emph>\<open>not\<close> the propositional
   \<^const>\<open>ground_by_cert\<close> that drops numerics. Foundedness of the untrusted datalog certificate is
   discharged by the verified directed-cycle DFS (\<^const>\<open>dl_certified_model_dfs\<close>).\<close>
