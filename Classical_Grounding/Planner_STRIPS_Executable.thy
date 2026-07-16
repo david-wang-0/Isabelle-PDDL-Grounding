@@ -117,15 +117,12 @@ proof -
         rp: "ast_classical_problem.restrict_prob P"
     and wf: "ast_classical_problem.wf_classical_problem P"
     and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
-    and pnfE: "ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
     and certE: "dl_certified_model_exec
                   (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
                   (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
     and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
     and PS: "PS = ast_classical_problem.as_strips (ground_by_cert P M)"
     unfolding ground_via_cert'_def by (auto simp: Let_def split: if_splits prod.splits)
-  have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
-    by (rule numeric_free_problem_exec[OF pnfE])
   have cert: "dl_certified_model
                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
@@ -133,7 +130,7 @@ proof -
   have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     by (rule grounding_checks_exec_P\<^sub>T[OF rp wf gc])
   have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
-    using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
+    using PS ground_by_cert_strips_eq[OF rp wf ne cert gc] by simp
   have valid: "is_valid_problem_strips PS"
     unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF ne cert gc' rp wf])
   have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
@@ -142,7 +139,7 @@ proof -
           (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
     by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF ne cert gc' rp wf serial])
   thus ?thesis
-    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
+    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf ne cert gc] .
 qed
 
 subsection \<open>The DFS-founded planner\<close>
@@ -171,15 +168,12 @@ proof -
         rp: "ast_classical_problem.restrict_prob P"
     and wf: "ast_classical_problem.wf_classical_problem P"
     and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
-    and pnfE: "ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
     and certE: "dl_certified_model_dfs
                   (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
                   (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
     and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
     and PS: "PS = ast_classical_problem.as_strips (ground_by_cert P M)"
     unfolding ground_via_cert'_dfs_def by (auto simp: Let_def split: if_splits prod.splits)
-  have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
-    by (rule numeric_free_problem_exec[OF pnfE])
   have cert: "dl_certified_model
                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
@@ -187,7 +181,7 @@ proof -
   have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     by (rule grounding_checks_exec_P\<^sub>T[OF rp wf gc])
   have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
-    using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
+    using PS ground_by_cert_strips_eq[OF rp wf ne cert gc] by simp
   have valid: "is_valid_problem_strips PS"
     unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF ne cert gc' rp wf])
   have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
@@ -196,7 +190,7 @@ proof -
           (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
     by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF ne cert gc' rp wf serial])
   thus ?thesis
-    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
+    unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf ne cert gc] .
 qed
 
 end

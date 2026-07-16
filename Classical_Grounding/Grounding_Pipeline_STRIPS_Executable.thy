@@ -109,7 +109,6 @@ subsection \<open>STRIPS exec \<open>\<leftrightarrow>\<close> locale bridges\<c
 
 lemma ground_by_cert_strips_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
-      and pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
       and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
@@ -122,14 +121,13 @@ proof -
   have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
-    unfolding ground_by_cert_eq[OF rp wf pnf ne cert gc]
+    unfolding ground_by_cert_eq[OF rp wf ne cert gc]
               ast_classical_problem.P\<^sub>S_cert_def[OF ne cert gc']
     by (rule refl)
 qed
 
 lemma reconstruct_plan_by_cert_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
-      and pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
       and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
@@ -145,7 +143,7 @@ proof -
     unfolding reconstruct_plan_by_cert_def
               ast_classical_problem.reconstruct_pipeline_plan_cert_def[OF ne cert gc']
               ast_classical_problem.reconstruct_plan_ground_cert_def[OF ne cert gc']
-              ground_by_cert_eq[OF rp wf pnf ne cert gc] cert_ops_of_exec_fast_canon_eq[OF rx]
+              ground_by_cert_eq[OF rp wf ne cert gc] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
 
@@ -169,8 +167,6 @@ definition ground_via_cert_prop_dfs_e ::
      let (M, dc) = f (dl_program_of P);
      check (ast_classical_problem.const_names R \<noteq> [])
            (STR ''relaxed problem has an empty object universe'');
-     check (ast_classical_problem.num_free_prob R)
-           (STR ''relaxation is not numeric-free'');
      check (dl_certified_model_dfs (dl_rules R) (ast_classical_problem.const_names R) M dc)
            (STR ''reachability certificate rejected by the verified DFS checker'');
      check (grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M)
@@ -184,7 +180,6 @@ lemma ground_via_cert_prop_dfs_e_return_iff[return_iff]:
     \<and> ast_classical_problem.wf_classical_problem P
     \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
          ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
-         \<and> ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))
          \<and> dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
               (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
          \<and> grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M
@@ -214,20 +209,21 @@ proof -
   have rp: "ast_classical_problem.restrict_prob P"
     and wf: "ast_classical_problem.wf_classical_problem P"
     and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
-    and pnfE: "ast_classical_problem.num_free_prob (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
     and certE: "dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
                   (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
     and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
     and Pg: "Pg = ground_by_cert P M"
     by (auto split: prod.splits)
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
   have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
-    by (rule numeric_free_problem_exec[OF pnfE])
+    by (rule numeric_free_problem_exec[OF normalized_problem_rx.relax_num_free[OF rx]])
   have cert: "dl_certified_model
                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
     by (rule dl_certified_model_dfs_imp[OF certE])
   have Pg_cert: "Pg = ast_classical_problem.P\<^sub>G_cert P M"
-    using Pg ground_by_cert_eq[OF rp wf pnf ne cert gc] by simp
+    using Pg ground_by_cert_eq[OF rp wf ne cert gc] by simp
   show thesis by (rule that[OF fMdc rp wf pnf ne cert gc Pg_cert])
 qed
 
@@ -266,7 +262,6 @@ text \<open>Plan restoration for the propositional error-monad grounding, reusin
   so it also serves the propositional grounded PDDL).\<close>
 lemma reconstruct_plan_by_cert_numeric_eq_prop:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
-      and pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
       and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
@@ -312,7 +307,7 @@ proof (elim ground_via_cert_prop_dfs_e_InrE)
           ast_classical_problem.ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
           (reconstruct_plan_by_cert_numeric P (fst (f (dl_program_of P))) \<pi>s)"
-    unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq_prop[OF rp wf pnf ne cert gc] .
+    unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq_prop[OF rp wf ne cert gc] .
 qed
 
 end

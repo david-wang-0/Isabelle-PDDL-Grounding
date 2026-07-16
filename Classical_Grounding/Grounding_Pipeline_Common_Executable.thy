@@ -242,7 +242,6 @@ text \<open>Under the (re-checked) kernel checks, the executable grounding agree
   \<open>P\<^sub>G_cert\<close> of the pipeline.\<close>
 lemma ground_by_cert_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
-      and pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
       and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
