@@ -407,30 +407,22 @@ definition grounding_checks :: "fact list \<Rightarrow> bool" where
 end
 
 text \<open>The shared grounding-input base locale: a relaxed-problem certificate \<open>M\<close>/\<open>dc\<close> accepted by the
-  generic checker, plus the (numeric-free, nonempty-universe) side conditions that make the
-  \<^locale>\<open>num_free_relaxed_problem\<close> reachability bridge available at \<open>PX\<close>. This carries all the
-  certificate machinery (\<open>cert_facts'\<close>/\<open>cert_ops'\<close>, the semantic supersets) that is independent of
-  which grounding re-check is imposed; the two grounders extend it with their respective checks.\<close>
+  generic checker, plus the nonempty-universe side condition that makes the \<^locale>\<open>pddl_datalog\<close>
+  reachability bridge available at \<open>PX\<close>. (Numeric-freeness of \<open>PX\<close> is now automatic --- carried by
+  the \<open>px\<close> \<^locale>\<open>pddl_datalog\<close> sublocale via \<open>relax_num_free\<close> --- so it is no longer assumed here.)
+  This carries all the certificate machinery (\<open>cert_facts'\<close>/\<open>cert_ops'\<close>, the semantic supersets) that
+  is independent of which grounding re-check is imposed; the two grounders extend it with their
+  respective checks.\<close>
 locale certified_reachability_base = normalized_problem_rx +
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
-  assumes px_numfree: "numeric_free_problem PX"
-      and nonempty: "ast_classical_problem.const_names PX \<noteq> []"
+  assumes nonempty: "ast_classical_problem.const_names PX \<noteq> []"
       and cert: "dl_certified_model (set (dl_rules PX)) (set (ast_classical_problem.const_names PX)) M dc"
 begin
 
-text \<open>\<open>PX\<close> is numeric-free, delete-relaxed and has a nonempty object universe, so the full
-  reachability bridge of \<^locale>\<open>num_free_relaxed_problem\<close> --- in particular
-  \<open>certified_facts_eq_achievable\<close> --- applies to it.\<close>
-lemma px_nfr: "num_free_relaxed_problem PX"
-proof -
-  have "pddl_datalog PX"
-    unfolding pddl_datalog_def
-    by (simp add: normalized_problem_def' relaxed_problem.intro relaxed_problem_axioms_def
-                  relax_wf relax_normed relax_relaxes relax_num_free)
-  thus ?thesis
-    using px_numfree nonempty
-    by (simp add: num_free_relaxed_problem_def num_free_relaxed_problem_axioms_def)
-qed
+text \<open>\<open>PX\<close> is numeric-free (\<open>relax_num_free\<close>, carried by the \<open>px\<close> \<^locale>\<open>pddl_datalog\<close> sublocale),
+  delete-relaxed and has a nonempty object universe, so the reachability bridge lemma
+  \<open>certified_facts_eq_achievable\<close> --- now a \<^locale>\<open>pddl_datalog\<close> lemma taking only the non-empty
+  universe as a hypothesis --- applies to \<open>PX\<close> under the \<open>px\<close> prefix.\<close>
 
 definition cert_ops' :: "ast_classical_plan_action list" where
   "cert_ops' \<equiv> canon (cert_ops_of M)"

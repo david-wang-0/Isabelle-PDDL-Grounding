@@ -88,8 +88,7 @@ qed
 
 context
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
-  assumes px_numfree: "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
-      and nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+  assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
                    (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
@@ -105,11 +104,11 @@ lemma wf_as_strips_cert:
   shows "is_valid_problem_strips P\<^sub>S_cert"
 proof -
   have nf: "ast_classical_problem.num_free_prob (P\<^sub>G_cert M)"
-    using ground_cert_num_free[OF px_numfree nonempty cert grounding_cert assms] .
+    using ground_cert_num_free[OF nonempty cert grounding_cert assms] .
   show ?thesis
     unfolding P\<^sub>S_cert_def
     using assms ast_classical_problem.wf_as_strips_compact
-          wf_ground_cert_problem[OF px_numfree nonempty cert grounding_cert assms] nf by blast
+          wf_ground_cert_problem[OF nonempty cert grounding_cert assms] nf by blast
 qed
 
 text \<open>The grounded goal is a single nullary predicate atom: \<^const>\<open>grounder.ground_fmla\<close> maps the
@@ -119,9 +118,9 @@ lemma goal_P\<^sub>G_cert_single:
   shows "\<exists>q. goal (P\<^sub>G_cert M) = Atom (predAtm q [])"
 proof -
   interpret cr: certified_reachability P\<^sub>T M dc
-    using certified_reachability_i[OF px_numfree nonempty cert grounding_cert assms] .
+    using certified_reachability_i[OF nonempty cert grounding_cert assms] .
   have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
-    unfolding P\<^sub>G_cert_def[OF px_numfree nonempty cert grounding_cert]
+    unfolding P\<^sub>G_cert_def[OF nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
   obtain gp where g: "goal P\<^sub>T = Atom (predAtm gp [])" using goal_P\<^sub>T_single by blast
   have "goal (P\<^sub>G_cert M) = cr.wfg.ground_fmla (goal P\<^sub>T)"
@@ -139,9 +138,9 @@ lemma pg_cert_pred_nonempty:
   shows "predicate.name n \<noteq> STR ''''"
 proof -
   interpret cr: certified_reachability P\<^sub>T M dc
-    using certified_reachability_i[OF px_numfree nonempty cert grounding_cert assms(1,2)] .
+    using certified_reachability_i[OF nonempty cert grounding_cert assms(1,2)] .
   have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
-    unfolding P\<^sub>G_cert_def[OF px_numfree nonempty cert grounding_cert]
+    unfolding P\<^sub>G_cert_def[OF nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
   from assms(3) have "PredDecl n [] \<in> set (predicates (ast_problem.domain (P\<^sub>G_cert M)))"
     unfolding ast_classical_domain.wf_pred_def .
@@ -157,7 +156,7 @@ lemma strips_encodable_P\<^sub>G_cert:
   assumes "restrict_prob" "wf_classical_problem"
   shows "strips_encodable_problem (P\<^sub>G_cert M)"
 proof -
-  note wfg = wf_ground_cert_problem[OF px_numfree nonempty cert grounding_cert assms]
+  note wfg = wf_ground_cert_problem[OF nonempty cert grounding_cert assms]
   obtain q where q: "goal (P\<^sub>G_cert M) = Atom (predAtm q [])"
     using goal_P\<^sub>G_cert_single[OF assms] by blast
   show ?thesis
@@ -166,7 +165,7 @@ proof -
     show "ast_classical_problem.grounded_prob (P\<^sub>G_cert M)" using wfg by blast
     show "ast_classical_problem.normalized_prob (P\<^sub>G_cert M)" using wfg by blast
     show "ast_classical_problem.num_free_prob (P\<^sub>G_cert M)"
-      using ground_cert_num_free[OF px_numfree nonempty cert grounding_cert assms] .
+      using ground_cert_num_free[OF nonempty cert grounding_cert assms] .
     show "\<And>p. ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert M)) p
               \<Longrightarrow> predicate.name p \<noteq> STR ''''"
       using pg_cert_pred_nonempty[OF assms] by blast
@@ -193,7 +192,7 @@ proof -
     unfolding P\<^sub>S_cert_def .
   with strips_encodable_problem.restore_pddl_plan_valid[OF strips_encodable_P\<^sub>G_cert[OF assms(1,2)]]
   have "\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 (P\<^sub>G_cert M) \<pi>s" by blast
-  thus ?thesis using ground_cert_plan_valid_iff[OF px_numfree nonempty cert grounding_cert assms(1,2)] by blast
+  thus ?thesis using ground_cert_plan_valid_iff[OF nonempty cert grounding_cert assms(1,2)] by blast
 qed
 
 text \<open>Solvability equivalence: the grounded problem has a STRIPS serial solution iff the original
@@ -209,7 +208,7 @@ proof -
     unfolding P\<^sub>S_cert_def
     using strips_encodable_problem.valid_plan_iff[OF strips_encodable_P\<^sub>G_cert[OF assms]] by blast
   also have "\<dots> \<longleftrightarrow> (\<exists>\<pi>s. valid_classical_plan2 \<pi>s)"
-    using ground_cert_plan_valid_iff[OF px_numfree nonempty cert grounding_cert assms] by blast
+    using ground_cert_plan_valid_iff[OF nonempty cert grounding_cert assms] by blast
   finally show ?thesis .
 qed
 
@@ -239,7 +238,7 @@ proof -
     using strips_encodable_problem.restore_prefix_valid[OF strips_encodable_P\<^sub>G_cert[OF assms(1,2)] ser] .
   show ?thesis
     unfolding reconstruct_pipeline_plan_cert_def
-    using ground_cert_plan_reconstruct[OF px_numfree nonempty cert grounding_cert assms(1,2) v] .
+    using ground_cert_plan_reconstruct[OF nonempty cert grounding_cert assms(1,2) v] .
 qed
 
 end

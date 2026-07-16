@@ -518,8 +518,7 @@ subsection \<open> Reachability Analysis & Grounding via Certificate Checking \<
 
 context
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
-  assumes px_numfree: "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
-      and nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+  assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
                    (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
@@ -548,8 +547,7 @@ proof -
   interpret rx: normalized_problem_rx P\<^sub>T using P_T_normalized_problem_rx[OF assms] .
   show ?thesis
     apply unfold_locales
-    using px_numfree nonempty cert grounding_cert
-          numeric_free_problem.num_free_prob[OF px_numfree]
+    using nonempty cert grounding_cert
     by simp_all
 qed
 

@@ -123,7 +123,7 @@ proof -
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding ground_by_cert_eq[OF rp wf pnf ne cert gc]
-              ast_classical_problem.P\<^sub>S_cert_def[OF pnf ne cert gc']
+              ast_classical_problem.P\<^sub>S_cert_def[OF ne cert gc']
     by (rule refl)
 qed
 
@@ -143,8 +143,8 @@ proof -
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding reconstruct_plan_by_cert_def
-              ast_classical_problem.reconstruct_pipeline_plan_cert_def[OF pnf ne cert gc']
-              ast_classical_problem.reconstruct_plan_ground_cert_def[OF pnf ne cert gc']
+              ast_classical_problem.reconstruct_pipeline_plan_cert_def[OF ne cert gc']
+              ast_classical_problem.reconstruct_plan_ground_cert_def[OF ne cert gc']
               ground_by_cert_eq[OF rp wf pnf ne cert gc] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
@@ -258,7 +258,7 @@ proof (elim ground_via_cert_prop_dfs_e_InrE)
   show "(\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 P \<pi>s)
         \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 Pg \<pi>s')"
     unfolding Pg_cert
-    by (rule ast_classical_problem.ground_cert_plan_valid_iff[OF pnf ne cert gc' rp wf])
+    by (rule ast_classical_problem.ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
 qed
 
 text \<open>Plan restoration for the propositional error-monad grounding, reusing
@@ -280,7 +280,7 @@ proof -
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding reconstruct_plan_by_cert_numeric_def
-              ast_classical_problem.reconstruct_plan_ground_cert_def[OF pnf ne cert gc']
+              ast_classical_problem.reconstruct_plan_ground_cert_def[OF ne cert gc']
               cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
@@ -309,7 +309,7 @@ proof (elim ground_via_cert_prop_dfs_e_InrE)
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.reconstruct_plan_ground_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
-          ast_classical_problem.ground_cert_plan_reconstruct[OF pnf ne cert gc' rp wf] by blast
+          ast_classical_problem.ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
           (reconstruct_plan_by_cert_numeric P (fst (f (dl_program_of P))) \<pi>s)"
     unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq_prop[OF rp wf pnf ne cert gc] .

@@ -294,26 +294,20 @@ lemma dl_bridge_wf_const_namesD [dest]:
   unfolding dl_bridge_wf_def by blast
 
 
-subsection \<open>The grounding-input locale: numeric-free, delete-relaxed, well-translated\<close>
-
-text \<open>On top of \<^locale>\<open>pddl_datalog\<close> and \<^locale>\<open>numeric_free_problem\<close>, fixing a
-  non-empty object universe, numeric-freeness (\<open>nne\<close>), delete relaxation (\<open>nd\<close>, inherited)
-  and the translation bundle (\<open>bridge\<close>) are all available as facts --- so every tightness
-  lemma below lives here without explicit \<open>nne\<close>/\<open>nd\<close>/\<open>dl_bridge_wf\<close> hypotheses.\<close>
-locale num_free_relaxed_problem = pddl_datalog + numeric_free_problem +
-  assumes nonempty: "const_names \<noteq> []"
-
 subsection \<open>The certified-grounding-input locale: a fixed accepted certificate\<close>
 
-text \<open>On top of \<^locale>\<open>num_free_relaxed_problem\<close>, fix a list \<open>M\<close> and certificate \<open>dc\<close> that the
-  \<^emph>\<open>generic\<close> datalog checker accepts as the minimal model of the translated program
-  \<^const>\<open>dl_rules\<close> over the object universe \<^const>\<open>ast_classical_problem.const_names\<close>. Then the PDDL reachable-fact
-  set is available \<^emph>\<open>hypothesis-free\<close> as the fact \<open>certified_facts_eq_reachable\<close>:
+text \<open>On top of \<^locale>\<open>pddl_datalog\<close> (which already carries numeric-freeness and delete
+  relaxation), assume a non-empty object universe (\<open>nonempty\<close>) and fix a list \<open>M\<close> and certificate
+  \<open>dc\<close> that the \<^emph>\<open>generic\<close> datalog checker accepts as the minimal model of the translated program
+  \<^const>\<open>dl_rules\<close> over the object universe \<^const>\<open>ast_classical_problem.const_names\<close>. Then the PDDL
+  reachable-fact set is available \<^emph>\<open>hypothesis-free\<close> as the fact \<open>certified_facts_eq_reachable\<close>:
   \<^term>\<open>set M = {f. achievable f}\<close>. This is the grounding-input locale the downstream grounder
   consumes --- it needs the achievable facts as a concrete enumerated list, with no PDDL-specific
-  reachability check.\<close>
-locale certified_pddl = num_free_relaxed_problem +
+  reachability check. (The former \<open>num_free_relaxed_problem\<close> layer folded numeric-freeness in as a
+  redundant assumption; it now lives entirely in \<^locale>\<open>pddl_datalog\<close>, so only \<open>nonempty\<close> remains.)\<close>
+locale certified_pddl = pddl_datalog +
   fixes M and dc
-  assumes cert: "dl_certified_model (set (dl_rules P)) (set const_names) M dc"
+  assumes nonempty: "const_names \<noteq> []"
+      and cert: "dl_certified_model (set (dl_rules P)) (set const_names) M dc"
 
 end

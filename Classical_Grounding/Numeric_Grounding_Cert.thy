@@ -25,8 +25,7 @@ text \<open>Interpretation helper for the numeric certified-reachability locale,
   \<open>certified_reachability_i\<close> but discharging the \<^emph>\<open>weaker\<close> \<open>numeric_grounding_checks\<close> re-check
   (so it applies to a task whose reachable ops still carry numeric effects).\<close>
 lemma certified_reachability_num_i:
-  assumes "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
-      and "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+  assumes "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
       and "dl_certified_model
              (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
              (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
@@ -37,8 +36,8 @@ proof -
   \<comment> \<open>\<open>normalized_problem_rx P\<^sub>T\<close> holds from \<open>restrict_prob\<close>/\<open>wf\<close> alone; we cannot reuse
      \<open>P_T_normalized_problem_rx\<close> because it is stated inside the propositional cert context (whose
      assumptions include the \<^emph>\<open>full\<close> \<open>grounding_checks\<close> that we deliberately do not have here).\<close>
-  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms(5,6) normalization_wf by simp
-  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms(5,6) normalization_normalizes by simp
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms(4,5) normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms(4,5) normalization_normalizes by simp
   have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
     using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
   have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
@@ -49,14 +48,13 @@ proof -
   interpret rx: normalized_problem_rx P\<^sub>T using rx_T .
   show ?thesis
     apply unfold_locales
-    using assms(1,2,3,4) numeric_free_problem.num_free_prob[OF assms(1)]
+    using assms(1,2,3)
     by simp_all
 qed
 
 context
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
-  assumes px_numfree: "numeric_free_problem (ast_classical_problem.relax_prob P\<^sub>T)"
-      and nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+  assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
       and cert: "dl_certified_model
                    (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
                    (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
@@ -71,7 +69,7 @@ lemma numeric_wf_ground_cert_problem:
   shows "ast_classical_problem.wf_classical_problem numeric_P\<^sub>G_cert"
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
-    using certified_reachability_num_i[OF px_numfree nonempty cert grounding_cert_num assms] .
+    using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
   have pg_eq: "numeric_P\<^sub>G_cert = cr.wfg_num.numeric_ground_prob"
     unfolding numeric_P\<^sub>G_cert_def cr.cert_ops'_def by simp
   show ?thesis unfolding pg_eq using cr.wfg_num.numeric_ground_prob_wf by simp
@@ -82,7 +80,7 @@ lemma numeric_ground_cert_plan_valid_iff:
   shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
-    using certified_reachability_num_i[OF px_numfree nonempty cert grounding_cert_num assms] .
+    using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
   have "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
     using assms normalization_valid_iff by simp
   also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
@@ -109,7 +107,7 @@ lemma numeric_ground_cert_plan_reconstruct:
 proof -
   assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s"
   interpret cr: certified_reachability_num P\<^sub>T M dc
-    using certified_reachability_num_i[OF px_numfree nonempty cert grounding_cert_num assms] .
+    using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
   let ?q = "grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
     using p[unfolded numeric_P\<^sub>G_cert_def] cr.wfg_num.numeric_valid_plan_left[unfolded cr.cert_ops'_def] by simp

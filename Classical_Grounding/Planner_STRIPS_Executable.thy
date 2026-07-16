@@ -135,12 +135,12 @@ proof -
   have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
     using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
   have valid: "is_valid_problem_strips PS"
-    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF pnf ne cert gc' rp wf])
+    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF ne cert gc' rp wf])
   have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
     using sat_solve_strips_sound[OF valid g2] unfolding PS_cert .
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
-    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF pnf ne cert gc' rp wf serial])
+    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF ne cert gc' rp wf serial])
   thus ?thesis
     unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
 qed
@@ -189,12 +189,12 @@ proof -
   have PS_cert: "PS = ast_classical_problem.P\<^sub>S_cert P M"
     using PS ground_by_cert_strips_eq[OF rp wf pnf ne cert gc] by simp
   have valid: "is_valid_problem_strips PS"
-    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF pnf ne cert gc' rp wf])
+    unfolding PS_cert by (rule ast_classical_problem.wf_as_strips_cert[OF ne cert gc' rp wf])
   have serial: "STRIPS_Semantics.is_serial_solution_for_problem (ast_classical_problem.P\<^sub>S_cert P M) ops"
     using sat_solve_strips_sound[OF valid g2] unfolding PS_cert .
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.reconstruct_pipeline_plan_cert P M ops)"
-    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF pnf ne cert gc' rp wf serial])
+    by (rule ast_classical_problem.strips_plan_reconstruct_cert[OF ne cert gc' rp wf serial])
   thus ?thesis
     unfolding \<pi>s Mdc fst_conv reconstruct_plan_by_cert_eq[OF rp wf pnf ne cert gc] .
 qed

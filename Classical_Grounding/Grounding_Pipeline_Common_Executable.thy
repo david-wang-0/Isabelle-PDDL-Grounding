@@ -255,7 +255,7 @@ proof -
   have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     using gc unfolding grounding_checks_exec_eq[OF rx] .
   show ?thesis
-    unfolding ground_by_cert_def ast_classical_problem.P\<^sub>G_cert_def[OF pnf ne cert gc']
+    unfolding ground_by_cert_def ast_classical_problem.P\<^sub>G_cert_def[OF ne cert gc']
               cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed

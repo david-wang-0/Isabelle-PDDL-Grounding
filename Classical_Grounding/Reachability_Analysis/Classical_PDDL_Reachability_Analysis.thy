@@ -389,10 +389,11 @@ qed
 subsection \<open>Delete-relaxation monotonicity infrastructure (for the tightness direction)\<close>
 
 text \<open>The tightness direction needs that the relaxed problem never deletes facts (delete
-  relaxation, \<open>nd\<close>) and --- in \<open>num_free_relaxed_problem\<close> below --- is numeric-free
-  (\<open>nne\<close>). Delete relaxation is already part of \<^locale>\<open>relaxed_problem\<close>, so \<open>nd\<close> holds here
-  as a locale fact; under it facts only grow along a plan and a plan replays from any larger start
-  state. Numeric-freeness, and the firing/derivability lemmas that need it, live in the sub-locale.\<close>
+  relaxation, \<open>nd\<close>) and --- in the \<^locale>\<open>pddl_datalog\<close> context below --- is numeric-free
+  (\<open>nne\<close>). Both are already part of \<^locale>\<open>relaxed_problem\<close> (hence \<^locale>\<open>pddl_datalog\<close>), so \<open>nd\<close>
+  and numeric-freeness hold here as locale facts; under \<open>nd\<close> facts only grow along a plan and a plan
+  replays from any larger start state. The firing/derivability lemmas additionally need only a
+  non-empty object universe, threaded as an explicit \<open>const_names \<noteq> []\<close> hypothesis.\<close>
 
 text \<open>Delete relaxation: the resolved action of every schema has no deletes; hence one executed
   step only adds facts (post-state facts = pre-state facts plus the action's adds).\<close>
@@ -486,7 +487,7 @@ qed
 
 end
 
-context num_free_relaxed_problem
+context pddl_datalog
 begin
 
 text \<open>No numeric effects --- derived from numeric-freeness (a numeric-free effect has an empty
@@ -494,7 +495,7 @@ text \<open>No numeric effects --- derived from numeric-freeness (a numeric-free
 lemma nne: "\<forall>a \<in> set (actions D). numeric_effects (ac_eff a) = []"
 proof
   fix a assume "a \<in> set (actions D)"
-  hence "num_free_ac a" using num_free_dom unfolding num_free_dom_def by blast
+  hence "num_free_ac a" using num_free unfolding num_free_prob_def num_free_dom_def by blast
   thus "numeric_effects (ac_eff a) = []" unfolding num_free_ac_def by (cases "ac_eff a") auto
 qed
 
@@ -783,7 +784,7 @@ proof -
     case True
     have wfor: "wf_fmla_atom objT f \<or> wf_func_assign f"
       using True wf_classical_problem unfolding wf_classical_problem_def by blast
-    have nf: "num_free_fmla f" using True num_free_prob unfolding num_free_prob_def by blast
+    have nf: "num_free_fmla f" using True num_free unfolding num_free_prob_def by blast
     have "\<not> wf_func_assign f"
     proof
       assume "wf_func_assign f"
@@ -807,8 +808,12 @@ proof -
   qed
 qed
 
-text \<open>The translation well-formedness bundle holds for this problem.\<close>
-lemma bridge: "dl_bridge_wf P"
+text \<open>The translation well-formedness bundle holds for this problem, given a non-empty object
+  universe (\<open>ne\<close>) --- the only conjunct of \<^const>\<open>dl_bridge_wf\<close> not derivable from the
+  \<^locale>\<open>pddl_datalog\<close> data.\<close>
+lemma bridge:
+  assumes ne: "const_names \<noteq> []"
+  shows "dl_bridge_wf P"
 proof (rule dl_bridge_wfI)
   fix cl a
   assume cl: "cl \<in> set (ast_classical_problem.a_clauses P)" and a: "a \<in> set (cl_pred_pre cl)"
@@ -852,7 +857,7 @@ next
   assume f: "f \<in> set (ast_classical_problem.init' P)"
   show "is_predAtom f" by (rule init'_is_predAtom[OF f])
 next
-  show "ast_classical_problem.const_names P \<noteq> []" using nonempty by simp
+  show "ast_classical_problem.const_names P \<noteq> []" using ne by simp
 qed
 
 text \<open>\<^bold>\<open>Step core:\<close> the add-effects of an enabled action are derivable, given
@@ -860,7 +865,8 @@ text \<open>\<^bold>\<open>Step core:\<close> the add-effects of an enabled acti
   generic ground instance (substitution from the action arguments, body atoms from the
   hypothesis, equality guards from \<^const>\<open>satisfies_conds\<close>).\<close>
 lemma derivable_step_adds:
-  assumes en: "plan_action_enabled a M"
+  assumes ne: "const_names \<noteq> []"
+    and en: "plan_action_enabled a M"
     and IH: "\<forall>p xs. Atom (predAtm p xs) \<in> fst M
                \<longrightarrow> dl_prog.derivable (p, xs)"
     and mem: "Atom (predAtm p xs) \<in> set (adds (effect ((the \<circ> res_inst) a)))"
@@ -892,14 +898,14 @@ proof -
   have cl_ac_mem: "cl_ac \<in> set a_clauses"
     unfolding cl_ac_def a_clauses_def using sch_mem by simp
   have np: "None \<notin> set (map dl_pos_rh (cl_pred_pre cl_ac))"
-    using dl_bridge_wf_pred_preD[OF bridge cl_ac_mem] by fastforce
+    using dl_bridge_wf_pred_preD[OF bridge[OF ne] cl_ac_mem] by fastforce
   have posprop: "\<forall>a \<in> set (cl_pos cl_ac). is_predAtom a"
-    using dl_bridge_wf_posD[OF bridge cl_ac_mem] by blast
+    using dl_bridge_wf_posD[OF bridge[OF ne] cl_ac_mem] by blast
   have condwf: "\<forall>cnd \<in> set (cl_cond_pre cl_ac).
        dl_cond_rh cnd \<noteq> None \<or> (\<forall>args. \<not> satisfies_cond ps args cnd)"
-    unfolding clparams[symmetric] using dl_bridge_wf_condD[OF bridge cl_ac_mem] by blast
+    unfolding clparams[symmetric] using dl_bridge_wf_condD[OF bridge[OF ne] cl_ac_mem] by blast
   have varsub: "\<forall>dcl \<in> set (dl_clauses_of_action_clause cl_ac). set (cls_vars dcl) \<subseteq> set (map fst ps)"
-    unfolding clparams[symmetric] using dl_bridge_wf_varsD[OF bridge cl_ac_mem] by blast
+    unfolding clparams[symmetric] using dl_bridge_wf_varsD[OF bridge[OF ne] cl_ac_mem] by blast
   have en': "plan_action_enabled (SimplePlanAction n args) M" using en a_eq by simp
   note ecb = enabled_clause_body[OF en' sch_mem sch_name]
   have pos_part: "set (map (map_atom_fmla (ac_tsubst ps args)) (cl_pred_pre cl_ac)) \<subseteq> fst M"
@@ -988,6 +994,7 @@ qed
 text \<open>The derivability invariant carried along a valid plan, proved from \<open>derivable_step_adds\<close>:
   every fact of a reachable world model is derivable, given the initial facts are.\<close>
 lemma derivable_invariant:
+  assumes ne: "const_names \<noteq> []"
   shows "valid_classical_plan_alt M \<pi>s M'
          \<Longrightarrow> (\<forall>p xs. Atom (predAtm p xs) \<in> fst M
                 \<longrightarrow> dl_prog.derivable (p, xs))
@@ -1017,7 +1024,7 @@ next
       thus ?thesis using Cons.prems(2) by blast
     next
       assume "Atom (predAtm p xs) \<in> set (adds (effect ?a'))"
-      thus ?thesis using derivable_step_adds[OF en Cons.prems(2)] by blast
+      thus ?thesis using derivable_step_adds[OF ne en Cons.prems(2)] by blast
     qed
   qed
   show ?case using Cons.IH[OF rest step] .
@@ -1026,7 +1033,8 @@ qed
 subsection \<open>The minimal-model relation\<close>
 
 lemma achievable_imp_dl_derivable:
-  assumes ach: "achievable f"
+  assumes ne: "const_names \<noteq> []"
+    and ach: "achievable f"
   shows "dl_prog.derivable f"
 proof -
   obtain \<pi>s M where vp: "valid_classical_plan_alt I \<pi>s M"
@@ -1039,7 +1047,7 @@ proof -
     using derivable_init by blast
   have allM: "\<forall>p xs. Atom (predAtm p xs) \<in> fst M
                 \<longrightarrow> dl_prog.derivable (p, xs)"
-    using derivable_invariant[OF vp init] .
+    using derivable_invariant[OF ne vp init] .
   have "Atom (predAtm p xs) \<in> fst M" using mem f by simp
   hence "dl_prog.derivable (p, xs)" using allM by blast
   thus ?thesis using f by simp
@@ -1351,7 +1359,8 @@ text \<open>Every fact of \<^const>\<open>init'\<close> is achievable. A fact of
   clause fired at condition-satisfying object arguments --- the empty-body special case of
   \<open>fire_clause_achievable\<close>.\<close>
 lemma init'_achievable:
-  assumes mem: "Atom (predAtm p xs) \<in> set init'"
+  assumes ne: "const_names \<noteq> []"
+    and mem: "Atom (predAtm p xs) \<in> set init'"
   shows "achievable (p, xs)"
 proof -
   have "Atom (predAtm p xs) \<in> set pseudo_init \<or> Atom (predAtm p xs) \<in> set (init P)" using mem
@@ -1407,7 +1416,7 @@ proof -
       using inconseq conseq by simp
     then obtain f0 where f0: "f0 \<in> set (cl_pos cl_ac)"
       and f0eq: "Atom (predAtm p xs) = map_atom_fmla (ac_tsubst ps args) f0" by auto
-    have "is_predAtom f0" using dl_bridge_wf_posD[OF bridge cl_mem] f0 by blast
+    have "is_predAtom f0" using dl_bridge_wf_posD[OF bridge[OF ne] cl_mem] f0 by blast
     then obtain p0 ts0 where f0_pred: "f0 = Atom (predAtm p0 ts0)"
       by (cases f0 rule: is_predAtom.cases) auto
     have pxs: "p = p0 \<and> xs = map (ac_tsubst ps args) ts0" using f0eq f0_pred by simp
@@ -1568,7 +1577,8 @@ proof -
 qed
 
 lemma dl_derivable_imp_achievable:
-  assumes der: "dl_prog.derivable f"
+  assumes ne: "const_names \<noteq> []"
+    and der: "dl_prog.derivable f"
   shows "achievable f"
 proof -
   note ind = dl_prog.derivable.induct[consumes 1, case_names step]
@@ -1602,14 +1612,14 @@ proof -
       have "wf_classical_action_schema sch" using wf_D(3) sch_mem by blast
       hence "distinct (map fst (ac_params sch))" using wf_classical_action_schema_alt by blast
       hence dist: "distinct (map fst ps)" using sch_eq by simp
-      have cn_ne: "const_names \<noteq> []" using dl_bridge_wf_const_namesD[OF bridge] .
+      have cn_ne: "const_names \<noteq> []" using ne .
       define c0 where "c0 = hd const_names"
       have c0_mem: "c0 \<in> set const_names" unfolding c0_def by (rule hd_in_set[OF cn_ne])
       define args where
         "args = map (\<lambda>vp. if fst vp \<in> set (cls_vars cl) then \<sigma> (fst vp) else c0) ps"
       have lenargs: "length args = length ps" unfolding args_def by simp
       have varsub: "set (cls_vars cl) \<subseteq> set (map fst ps)"
-        using dl_bridge_wf_varsD[OF bridge act(1) act(2)] cl_params by simp
+        using dl_bridge_wf_varsD[OF bridge[OF ne] act(1) act(2)] cl_params by simp
       have agree: "ac_tsubst ps args (term.VAR x) = \<sigma> x" if x: "x \<in> set (cls_vars cl)" for x
       proof -
         have "x \<in> set (map fst ps)" using x varsub by auto
@@ -1701,7 +1711,7 @@ proof -
         using dfc
         by (cases f0 rule: dl_fact_clause.cases) auto
       have "Atom (predAtm pp xs) \<in> set init'" using f0 f0_eq by simp
-      hence "achievable (pp, xs)" by (rule init'_achievable)
+      hence "achievable (pp, xs)" by (rule init'_achievable[OF ne])
       moreover
       have "subst_atom \<sigma> (the_lh cl) = (pp, xs)"
         unfolding cl_eq subst_atom_def by (simp add: comp_def)
@@ -1714,8 +1724,9 @@ qed
 text \<open>PDDL reachability is exactly the minimal datalog model: \<open>\<subseteq>\<close> (soundness) is unconditional,
   \<open>\<supseteq>\<close> (tightness) needs the delete-relaxation / numeric-freeness hypotheses \<open>nne\<close> / \<open>nd\<close>.\<close>
 theorem achievable_eq_minimal_model:
+  assumes ne: "const_names \<noteq> []"
   shows "{f. achievable f} = {f. dl_prog.derivable f}"
-  using achievable_imp_dl_derivable dl_derivable_imp_achievable by blast
+  using achievable_imp_dl_derivable[OF ne] dl_derivable_imp_achievable[OF ne] by blast
 
 end
 

@@ -11,7 +11,7 @@ text \<open>The certified reachable facts are \<^emph>\<open>exactly\<close> the
   (\<open>certified_facts_eq_achievable\<close> on \<open>PX\<close>), which over-approximate the un-relaxed problem's
   achievable facts (\<open>relax_achievables\<close>).\<close>
 lemma certified_eq_px_achievable: "set M = {f. px.achievable f}"
-  using num_free_relaxed_problem.certified_facts_eq_achievable[OF px_nfr cert] by simp
+  using px.certified_facts_eq_achievable[OF nonempty cert] by simp
 
 subsection \<open>Facts superset over \<open>P\<close>\<close>
 

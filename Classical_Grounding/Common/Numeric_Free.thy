@@ -44,6 +44,15 @@ sublocale numeric_free_domain D
   using num_free_prob unfolding num_free_prob_def by unfold_locales blast
 end
 
+text \<open>Every \<^locale>\<open>relaxed_problem\<close> is numeric-free: \<^locale>\<open>relaxed_problem\<close> now carries
+  \<open>num_free_prob\<close> as an assumption (\<open>num_free\<close>), so \<^locale>\<open>numeric_free_problem\<close> is a redundant
+  strengthening. This sublocale makes every numeric-free fact (e.g. \<open>num_free_dom\<close>) available
+  \<^emph>\<open>hypothesis-free\<close> inside \<^locale>\<open>relaxed_problem\<close> (hence inside every locale extending it, such as
+  \<open>pddl_datalog\<close>), and lets callers derive \<^prop>\<open>numeric_free_problem R\<close> for any relaxed problem
+  \<open>R\<close> from its \<^locale>\<open>relaxed_problem\<close> interpretation.\<close>
+sublocale relaxed_problem \<subseteq> numeric_free_problem P
+  using num_free by unfold_locales
+
 subsection \<open>Decidability: numeric-freeness is an executable check\<close>
 
 text \<open>All predicates above are executable, so a problem can be \<^emph>\<open>checked\<close> for numeric-freeness
