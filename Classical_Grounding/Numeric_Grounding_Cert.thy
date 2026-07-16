@@ -1,6 +1,6 @@
 theory Numeric_Grounding_Cert
   imports Grounding_Pipeline_Numeric
-    Classical_Grounded_PDDL.Numeric_Grounder
+    Classical_Grounded_PDDL.Numeric_Grounder_Semantics
 begin
 
 section \<open>Grounding against a certified reachability model (numeric)\<close>
