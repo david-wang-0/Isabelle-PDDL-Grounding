@@ -8,6 +8,7 @@ session Classical_Grounded_PDDL = Grounding_Classical_Common +
   sessions
     "Grounding_Grounded_PDDL"
   theories
+    Classical_Grounded_PDDL_Locales
     Classical_Grounded_PDDL
     Classical_Grounded_PDDL_Semantics
     Numeric_Grounder
