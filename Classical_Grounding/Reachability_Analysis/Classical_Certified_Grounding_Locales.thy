@@ -21,7 +21,7 @@ text \<open>\<open>PX\<close> (the delete-relaxation of a normalized problem) is
 sublocale normalized_problem_rx \<subseteq> px: pddl_datalog PX
   unfolding pddl_datalog_def
   by (simp add: normalized_problem_def' relaxed_problem.intro relaxed_problem_axioms_def
-                relax_wf relax_normed relax_relaxes)
+                relax_wf relax_normed relax_relaxes relax_num_free)
 
 subsection \<open>Step 2/3: certificate-derived facts/ops and the grounding well-formedness check\<close>
 
@@ -426,7 +426,7 @@ proof -
   have "pddl_datalog PX"
     unfolding pddl_datalog_def
     by (simp add: normalized_problem_def' relaxed_problem.intro relaxed_problem_axioms_def
-                  relax_wf relax_normed relax_relaxes)
+                  relax_wf relax_normed relax_relaxes relax_num_free)
   thus ?thesis
     using px_numfree nonempty
     by (simp add: num_free_relaxed_problem_def num_free_relaxed_problem_axioms_def)

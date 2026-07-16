@@ -154,7 +154,7 @@ proof -
   show ?thesis
     unfolding pddl_datalog_def
     by (simp add: normalized_problem_def' relaxed_problem.intro relaxed_problem_axioms_def
-                  rx.relax_wf rx.relax_normed rx.relax_relaxes)
+                  rx.relax_wf rx.relax_normed rx.relax_relaxes rx.relax_num_free)
 qed
 
 lemma P_T_normalized_problem_rx_unconditional:

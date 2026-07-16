@@ -26,53 +26,14 @@ text \<open>The verified grounding pipeline can compile to two backends:
   reconstruction. None of the definitions below preclude that; they only \<^emph>\<open>identify\<close> the
   propositional fragment that the STRIPS backend supports.\<close>
 
-subsection \<open>Numeric atoms and numeric-free formulas\<close>
+subsection \<open>Numeric-free locales\<close>
 
-text \<open>The numeric atoms of the PDDL \<^typ>\<open>'ent atom\<close> type: the arithmetic comparisons. The
-  \<^const>\<open>predAtm\<close> and \<^const>\<open>eqAtm\<close> (object equality) constructors are not numeric.\<close>
-fun is_numeric_atom :: "'ent atom \<Rightarrow> bool" where
-  "is_numeric_atom (numericEqAtm _ _) = True"
-| "is_numeric_atom (numericLessAtm _ _) = True"
-| "is_numeric_atom (numericLEAtm _ _) = True"
-| "is_numeric_atom (numericGreaterAtm _ _) = True"
-| "is_numeric_atom (numericGEAtm _ _) = True"
-| "is_numeric_atom _ = False"
-
-fun num_free_fmla :: "'ent atom formula \<Rightarrow> bool" where
-  "num_free_fmla (Atom a) = (\<not> is_numeric_atom a)"
-| "num_free_fmla \<bottom> = True"
-| "num_free_fmla (\<^bold>\<not> \<phi>) = num_free_fmla \<phi>"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<and> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<or> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<rightarrow> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-
-lemma num_free_fmla_un_and:
-  "num_free_fmla F \<Longrightarrow> \<forall>f \<in> set (un_and F). num_free_fmla f"
-  by (induction F rule: un_and.induct) auto
-
-lemma num_free_fmla_Atom_predAtom:
-  assumes "num_free_fmla (Atom a)" and "\<not> is_eqAtom (Atom a)"
-  shows "is_predAtom (Atom a)"
-  using assms by (cases a) auto
-
-subsection \<open>Numeric-free effects, actions, domains, problems\<close>
-
-text \<open>A purely propositional effect: its add/delete lists are numeric-free and it carries no
-  numeric effects.\<close>
-fun num_free_eff :: "'ent ast_effect \<Rightarrow> bool" where
-  "num_free_eff (Effect a d n) =
-     ((\<forall>\<phi> \<in> set a. num_free_fmla \<phi>) \<and> (\<forall>\<phi> \<in> set d. num_free_fmla \<phi>) \<and> n = [])"
-
-definition num_free_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
-  "num_free_ac a \<equiv> num_free_fmla (ac_pre a) \<and> num_free_eff (ac_eff a)"
-
-definition (in ast_classical_domain) num_free_dom :: bool where
-  "num_free_dom \<equiv> \<forall>a \<in> set (actions D). num_free_ac a"
-
-definition (in ast_classical_problem) num_free_prob :: bool where
-  "num_free_prob \<equiv> num_free_dom \<and> num_free_fmla (goal P) \<and> (\<forall>f \<in> set (init P). num_free_fmla f)"
-
-text \<open>Locales packaging the restriction, in the style of \<^locale>\<open>restrict_classical_problem\<close>.\<close>
+text \<open>The structural numeric-freeness predicates (\<^const>\<open>is_numeric_atom\<close>, \<^const>\<open>num_free_fmla\<close>,
+  \<^const>\<open>num_free_eff\<close>, \<^const>\<open>num_free_ac\<close>, \<^const>\<open>ast_classical_domain.num_free_dom\<close>,
+  \<^const>\<open>ast_classical_problem.num_free_prob\<close>) are defined in
+  \<^theory>\<open>Grounding_Classical_Common.Classical_PDDL_Normalization\<close> (they must precede
+  \<^locale>\<open>relaxed_problem\<close>, which now carries \<open>num_free_prob\<close> as an assumption). Here we package the
+  restriction as locales, in the style of \<^locale>\<open>restrict_classical_problem\<close>.\<close>
 locale numeric_free_domain = ast_classical_domain +
   assumes num_free_dom: num_free_dom
 
