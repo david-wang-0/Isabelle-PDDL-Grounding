@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_Numeric_Executable
-  imports Grounding_Pipeline_Common_Executable Numeric_Grounding_Cert Grounder_Timing
+  imports Grounding_Pipeline_Common_Executable Grounder_Timing
 begin
 
 section \<open>Executable numeric grounding (up to, but not including, the STRIPS conversion)\<close>
