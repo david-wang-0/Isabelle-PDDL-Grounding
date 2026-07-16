@@ -6,7 +6,7 @@ theory Grounding_Pipeline_Numeric
     Classical_Definedness_Translation.Classical_Definedness_Translation_Semantics
     Classical_PDDL_Relaxation.Classical_PDDL_Relaxation_Semantics
     Classical_Reachability_Analysis.Classical_Certified_Grounding_Semantics
-    Classical_Grounded_PDDL.Classical_Grounded_PDDL
+    Classical_Grounded_PDDL.Classical_Grounded_PDDL_Semantics
     Grounding_Classical_Common.Numeric_Free
 begin
 

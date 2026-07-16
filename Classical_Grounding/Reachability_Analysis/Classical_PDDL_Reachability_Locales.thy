@@ -1,5 +1,5 @@
 theory Classical_PDDL_Reachability_Locales
-  imports Classical_Reachability_Analysis Classical_Grounded_PDDL.Classical_Grounded_PDDL
+  imports Classical_Reachability_Analysis Classical_Grounded_PDDL.Classical_Grounded_PDDL_Semantics
     Datalog_Certification.Datalog_Certificate
     Grounding_Classical_Common.Numeric_Free Grounding_Reachability_Analysis.Reachability_Analysis
 begin
