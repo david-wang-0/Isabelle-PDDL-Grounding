@@ -703,6 +703,194 @@ qed
 
 end
 
+subsection \<open> General (numeric-effect-retaining) effect well-formedness \<close>
+
+text \<open>The propositional grounder's \<open>ground_eff_wf\<close> holds only under \<open>ops_no_num\<close> (no numeric
+  effects). Here we prove the \<^emph>\<open>general\<close> effect well-formedness \<open>ground_eff_wf_cov\<close> in
+  \<^locale>\<open>wf_grounder_cov\<close>, i.e. WITHOUT \<open>ops_no_num\<close>: the retained numeric effects
+  (\<open>map ground_neff (numeric_effects \<dots>)\<close>) are also well-formed, because every fluent occurring in
+  them is re-indexed to a freshly-declared nullary function in the grounded domain. The fluent side
+  mirrors the fact side: \<open>fluent_names\<close>/\<open>fluent_map\<close>/\<open>func_sig\<close> play the roles of
+  \<open>fact_names\<close>/\<open>fact_map\<close>/\<open>sig\<close>.\<close>
+
+context wf_grounder_cov begin
+
+subsubsection \<open> Fluent names, map, and nullary function signature \<close>
+
+lemma fluent_names_dis: "distinct fluent_names"
+  unfolding fluent_names_def
+  by (simp add: distinct_strings_lit_dist distinct_map inj_on_def)
+
+lemma fluent_names_len: "length fluent_names = length fluents"
+  unfolding fluent_names_def by simp
+
+lemma fluent_map_dom:
+  assumes "fl \<in> set fluents"
+  shows "\<exists>f. fluent_map fl = Some f \<and> f \<in> set fluent_names"
+  unfolding fluent_map_def using lookup_zip fluent_names_len assms by metis
+
+lemma gr_funcs_dis: "distinct (map function_decl.func (functions D\<^sub>G))"
+proof -
+  have "map function_decl.func (functions D\<^sub>G) = fluent_names"
+    unfolding ground_dom_def by (simp add: comp_def)
+  thus ?thesis using fluent_names_dis by metis
+qed
+
+lemma gr_sig_fun:
+  assumes "f \<in> set fluent_names"
+  shows "dg.func_sig f = Some []"
+proof -
+  have "FuncDecl f [] \<in> set (functions D\<^sub>G)"
+    using assms unfolding ground_dom_def by force
+  thus ?thesis using dg.func_resolve gr_funcs_dis by metis
+qed
+
+subsubsection \<open> Grounding a covered predicate atom yields a well-formed one \<close>
+
+text \<open>The following mirror \<open>gr_preds_dis\<close>/\<open>gr_sig_fact\<close>/\<open>gr_atom_wf\<close>/\<open>gr_fmla_atom_wf\<close>/\<open>wf_ops_resinst\<close>/
+  \<open>eff_lit_covered\<close>/\<open>eff_lit_predAtom\<close>/\<open>ground_eff_lit_wf\<close>, which are stated in \<^locale>\<open>wf_grounder\<close>
+  and hence not visible here, but whose proofs use only \<^locale>\<open>wf_grounder_cov\<close> /
+  \<^locale>\<open>wf_grounder_num\<close> facts (\<open>effs_covered\<close>, \<open>facts_wf\<close>, \<open>ops_wf\<close>, \<dots>). We re-derive the \<open>adds\<close>/\<open>dels\<close>
+  side so that \<open>ground_eff_wf_cov\<close> is self-contained in \<^locale>\<open>wf_grounder_cov\<close>.\<close>
+
+lemma gr_preds_dis_cov: "distinct (map pred (predicates D\<^sub>G))"
+proof -
+  have "map pred (predicates D\<^sub>G) = fact_names" unfolding ground_dom_sel by (simp add: comp_def)
+  thus ?thesis using fact_names_dis by metis
+qed
+
+lemma gr_sig_fact_cov: "p \<in> set fact_names \<Longrightarrow> dg.sig p = Some []"
+proof -
+  assume "p \<in> set fact_names"
+  hence "PredDecl p [] \<in> set (predicates D\<^sub>G)" unfolding ground_dom_sel by force
+  thus "dg.sig p = Some []" using dg.pred_resolve gr_preds_dis_cov by metis
+qed
+
+lemma gr_atom_wf_cov:
+  assumes "a \<in> set facts"
+  shows "dg.wf_fmla_atom tyt (ground_fmla a)"
+proof -
+  from assms obtain p where p: "fact_map a = Some p" "p \<in> set fact_names"
+    unfolding fact_map_def using lookup_zip facts_len by metis
+  with p have 1: "ground_fmla a = Atom (predAtm p [])"
+    using facts_wf assms by (cases a rule: is_predAtom.cases) auto
+  have "dg.wf_fmla_atom tyt (Atom (predAtm p []))"
+    using gr_sig_fact_cov[OF p(2)] by (simp add: dg.wf_fmla_atom_alt)
+  thus ?thesis using 1 by metis
+qed
+
+lemma gr_fmla_atom_wf_cov:
+  assumes "covered \<phi> facts" "is_predAtom \<phi>"
+  shows "dg.wf_fmla_atom tyt (ground_fmla \<phi>)"
+proof -
+  from assms(2) obtain p xs where "\<phi> = Atom (predAtm p xs)" using is_predAtom_decomp by blast
+  hence "\<phi> \<in> set facts" using covered_predAtm_mem[OF assms(1)] by simp
+  thus ?thesis using gr_atom_wf_cov by blast
+qed
+
+lemma wf_ops_resinst_cov:
+  "\<forall>\<pi> \<in> set ops. wf_effect objT (effect (the (res_inst \<pi>)))"
+  using ops_wf wf_resolve_instantiate wf_ground_action_alt by simp
+
+lemma eff_lit_covered_cov:
+  assumes "\<pi> \<in> set ops" "a \<in> set (adds (effect (the (res_inst \<pi>)))) \<union> set (dels (effect (the (res_inst \<pi>))))"
+  shows "covered a facts"
+  using assms effs_covered unfolding Let_def by auto
+
+lemma eff_lit_predAtom_cov:
+  assumes "\<pi> \<in> set ops" "a \<in> set (adds (effect (the (res_inst \<pi>)))) \<union> set (dels (effect (the (res_inst \<pi>))))"
+  shows "is_predAtom a"
+proof -
+  have "wf_effect objT (effect (the (res_inst \<pi>)))" using assms(1) wf_ops_resinst_cov by blast
+  hence "wf_fmla_atom objT a" using assms(2) unfolding wf_effect_alt list_all_iff by blast
+  thus "is_predAtom a" using wf_fmla_atom_pred by blast
+qed
+
+lemma ground_eff_lit_wf_cov:
+  assumes "\<pi> \<in> set ops" "a \<in> set (adds (effect (the (res_inst \<pi>)))) \<union> set (dels (effect (the (res_inst \<pi>))))"
+  shows "dg.wf_fmla_atom tyt (ground_fmla a)"
+  using eff_lit_covered_cov[OF assms] eff_lit_predAtom_cov[OF assms] gr_fmla_atom_wf_cov by blast
+
+subsubsection \<open> Grounding a fluent / numeric expression / numeric effect is well-formed \<close>
+
+lemma ground_pne_wf:
+  assumes "fl \<in> set fluents"
+  shows "dg.wf_primitive_numeric_expression tyt (ground_pne fl)"
+proof -
+  obtain f where f: "fluent_map fl = Some f" "f \<in> set fluent_names"
+    using fluent_map_dom[OF assms] by blast
+  hence "dg.func_sig f = Some []" using gr_sig_fun by blast
+  thus ?thesis using f(1) by (simp add: ground_pne_def)
+qed
+
+lemma ground_numexp_wf:
+  assumes "set (enumerate_primitive_numeric_expressions e) \<subseteq> set fluents"
+  shows "dg.wf_numeric_expression tyt (ground_numexp e)"
+  using assms by (induction e) (auto simp: ground_pne_wf)
+
+subsubsection \<open> Fluents of an op's numeric effects are collected in \<open>fluents\<close> \<close>
+
+lemma op_fluents_subset:
+  assumes "\<pi> \<in> set ops"
+  shows "set (op_fluents \<pi>) \<subseteq> set fluents"
+  using assms unfolding fluents_def by auto
+
+lemma neff_lhs_in_op_fluents:
+  assumes "NumericEffect opr l r \<in> set (numeric_effects (effect (the (res_inst \<pi>))))"
+  shows "l \<in> set (op_fluents \<pi>)"
+  using assms unfolding op_fluents_def Let_def by force
+
+lemma neff_rhs_pnes_in_op_fluents:
+  assumes "NumericEffect opr l r \<in> set (numeric_effects (effect (the (res_inst \<pi>))))"
+  shows "set (enumerate_primitive_numeric_expressions r) \<subseteq> set (op_fluents \<pi>)"
+proof -
+  let ?eff = "effect (the (res_inst \<pi>))"
+  have "enumerate_primitive_numeric_expressions r
+    = numeric_effect_enumerate_rhs_primitive_numeric_expressions (NumericEffect opr l r)"
+    by simp
+  hence "set (enumerate_primitive_numeric_expressions r)
+    \<subseteq> set (ast_effect_enumerate_rhs_primitive_numeric_expressions ?eff)"
+    using assms by (cases ?eff) auto
+  thus ?thesis unfolding op_fluents_def Let_def by auto
+qed
+
+subsubsection \<open> The grounded effect (with numeric effects) is well-formed \<close>
+
+lemma ground_neff_wf:
+  assumes "\<pi> \<in> set ops"
+          "ne \<in> set (numeric_effects (effect (the (res_inst \<pi>))))"
+  shows "dg.wf_numeric_effect tyt (ground_neff ne)"
+proof -
+  obtain opr l r where ne: "ne = NumericEffect opr l r" by (cases ne)
+  have "l \<in> set fluents"
+    using neff_lhs_in_op_fluents op_fluents_subset[OF assms(1)] assms(2) ne by blast
+  hence lhs: "dg.wf_primitive_numeric_expression tyt (ground_pne l)"
+    using ground_pne_wf by blast
+  have "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using neff_rhs_pnes_in_op_fluents op_fluents_subset[OF assms(1)] assms(2) ne by blast
+  hence "dg.wf_numeric_expression tyt (ground_numexp r)"
+    using ground_numexp_wf by blast
+  thus ?thesis using lhs ne by (simp add: ground_neff_def)
+qed
+
+lemma ground_eff_wf_cov:
+  assumes "\<pi> \<in> set ops"
+  shows "dg.wf_effect tyt (ga_eff (the (res_inst \<pi>)))"
+proof -
+  let ?eff = "effect (the (res_inst \<pi>))"
+  have adds: "\<forall>a \<in> set (adds ?eff). dg.wf_fmla_atom tyt (ground_fmla a)"
+    using ground_eff_lit_wf_cov[OF assms(1)] by auto
+  have dels: "\<forall>a \<in> set (dels ?eff). dg.wf_fmla_atom tyt (ground_fmla a)"
+    using ground_eff_lit_wf_cov[OF assms(1)] by auto
+  have nums: "\<forall>ne \<in> set (numeric_effects ?eff). dg.wf_numeric_effect tyt (ground_neff ne)"
+    using ground_neff_wf[OF assms] by blast
+  show ?thesis
+    unfolding dg.wf_effect_alt ga_eff_sel list_all_iff
+    using adds dels nums by auto
+qed
+
+end
+
 subsection \<open> Plan-action correspondence \<close>
 
 text \<open>\<open>ground_pa\<close> maps an applicable op to its nullary grounded plan action; \<open>restore_ground_pa\<close>
