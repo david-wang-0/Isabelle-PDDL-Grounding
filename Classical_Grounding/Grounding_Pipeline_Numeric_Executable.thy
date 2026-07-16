@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_Numeric_Executable
-  imports Grounding_Pipeline_Common_Executable Numeric_Grounding_Cert
+  imports Grounding_Pipeline_Common_Executable Numeric_Grounding_Cert Grounder_Timing
 begin
 
 section \<open>Executable numeric grounding (up to, but not including, the STRIPS conversion)\<close>
@@ -79,11 +79,13 @@ definition ground_via_cert_numeric_dfs_e ::
            (STR ''relaxed problem has an empty object universe'');
      check (ast_classical_problem.num_free_prob R)
            (STR ''relaxation is not numeric-free'');
-     check (dl_certified_model_dfs (dl_rules R) (ast_classical_problem.const_names R) M dc)
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_dfs (dl_rules R) (ast_classical_problem.const_names R) M dc))
            (STR ''reachability certificate rejected by the verified DFS checker'');
-     check (numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M)
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M))
            (STR ''grounding well-formedness checks failed'');
-     Error_Monad.return (numeric_ground_by_cert P M)
+     Error_Monad.return (time_it (STR ''enumerate'') (\<lambda>_. numeric_ground_by_cert P M))
    }"
 
 lemma ground_via_cert_numeric_dfs_e_return_iff[return_iff]:

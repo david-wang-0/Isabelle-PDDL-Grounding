@@ -74,9 +74,9 @@ fun doPlan domFile probFile tMax outOpt =
    machine-greppable per-phase wall-clock breakdown (and coarse checkpoints) to
    stderr; normal runs are silent. Phases are timed via `Prof` (basics.sml): the
    driver brackets parse / nemo (oracle callback) / ground_total / render / write
-   here, and the internal check / gcheck / emit sub-phases are bracketed at their
-   call sites in the exported kernel when it is instrumented (0 otherwise).
-   enumerate = ground_total - nemo - check. *)
+   here, and the internal check / gcheck / enumerate sub-phases are bracketed
+   INSIDE the exported kernel by the verified-transparent `time_it` combinator
+   (Grounder_Timing.thy), code-printed to this same `Prof` accumulator. *)
 val profOn = Option.isSome (OS.Process.getEnv "GROUND_PROFILE")
 val modelSize = ref 0
 fun profMark s = if profOn then eprintln ("CHECKPOINT " ^ s) else ()
@@ -85,15 +85,18 @@ fun printProfile () =
   let
     val g = Prof.ms "ground_total"
     val n = Prof.ms "nemo"
-    val c = Prof.ms "check"
-    val enumerate = Int.max (0, IntInf.toInt (g - n - c))
+    (* check / gcheck / enumerate are timed INSIDE the verified kernel by the
+       transparent `time_it` combinator (Grounder_Timing.thy), accumulated in the
+       self-contained GrounderTiming module. *)
+    val kt = GrounderTiming.get ()
+    fun kget k = case List.find (fn (l, _) => l = k) kt of SOME (_, v) => v | NONE => 0
     fun s l v = l ^ "=" ^ IntInf.toString v ^ "ms"
   in
     eprintln (String.concatWith " "
       ["PROFILE", "model=" ^ Int.toString (!modelSize),
-       s "parse" (Prof.ms "parse"), s "nemo" n, s "check" c,
-       "enumerate=" ^ Int.toString enumerate ^ "ms",
-       s "buildprog" (Prof.ms "buildprog"), s "gcheck" (Prof.ms "gcheck"),
+       s "parse" (Prof.ms "parse"), s "nemo" n, s "check" (kget "check"),
+       s "enumerate" (kget "enumerate"),
+       s "buildprog" (Prof.ms "buildprog"), s "gcheck" (kget "gcheck"),
        s "emit" (Prof.ms "emit"),
        s "render" (Prof.ms "render"), s "write" (Prof.ms "write"),
        s "ground_total" g])
