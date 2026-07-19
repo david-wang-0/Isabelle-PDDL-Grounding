@@ -19,7 +19,7 @@ text \<open>\<^bold>\<open>The default SML export of the session\<close> (the on
 
 export_code
   plan_by_cert_dfs ground_via_cert'_dfs ground_via_cert_dfs
-  ground_via_cert_numeric_dfs_e ground_via_cert_prop_dfs_e
+  ground_via_cert_numeric_dfs_e ground_via_cert_numeric_exec_e ground_via_cert_prop_dfs_e
   dl_program_of sat_solve_strips
   reconstruct_plan_by_cert reconstruct_plan_by_cert_numeric
   dl_acyclic_dfs dl_certified_model_dfs

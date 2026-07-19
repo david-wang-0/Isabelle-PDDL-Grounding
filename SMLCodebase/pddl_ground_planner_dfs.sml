@@ -120,6 +120,9 @@ fun printProfile () =
     eprintln (String.concatWith " "
       ["PROFILE", "model=" ^ Int.toString (!modelSize),
        s "parse" (Prof.ms "parse"), s "nemo" n, s "check" (kget "check"),
+       s "chk_positive" (kget "chk_positive"), s "chk_rulevalid" (kget "chk_rulevalid"),
+       s "chk_closure" (kget "chk_closure"), s "chk_bodyclosed" (kget "chk_bodyclosed"),
+       s "chk_acyclic" (kget "chk_acyclic"),
        s "enumerate" (kget "enumerate"),
        s "buildprog" (Prof.ms "buildprog"), s "gcheck" (kget "gcheck"),
        s "emit" (Prof.ms "emit"),
@@ -131,7 +134,7 @@ fun printProfile () =
   end
   else ()
 
-fun doGround domFile probFile outOpt =
+fun doGround topo domFile probFile outOpt =
   let
     val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
     val () = rssParse := vmhwm ()
@@ -143,7 +146,9 @@ fun doGround domFile probFile outOpt =
            profMark ("nemo-done model=" ^ Int.toString (length m));
            (m, dc) end))
     val gres = Prof.time "ground_total"
-                 (fn () => withNemo (fn () => E.ground_via_cert_numeric_dfs_e timedCertify isaProb))
+                 (fn () => withNemo (fn () =>
+                    (if topo then E.ground_via_cert_numeric_exec_e else E.ground_via_cert_numeric_dfs_e)
+                       timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
     (* The verified error-monad grounder returns a specific diagnostic on the left
@@ -169,7 +174,9 @@ fun doGround domFile probFile outOpt =
 
 fun help () =
   eprintln ("Usage:\n  " ^ CommandLine.name () ^ " plan   <domain.pddl> <problem.pddl> [t_max (default 30)] [out.plan]\n"
-            ^ "  " ^ CommandLine.name () ^ " ground <domain.pddl> <problem.pddl> [out.pddl]")
+            ^ "  " ^ CommandLine.name () ^ " ground [--topo] <domain.pddl> <problem.pddl> [out.pddl]\n"
+            ^ "    (--topo re-checks the reachability certificate with the ordered linear scan over\n"
+            ^ "     Nemo's topological order instead of the per-vertex directed-cycle DFS)")
 
 fun withTMax t k =
   case Int.fromString t of SOME tMax => k tMax | NONE => (help (); OS.Process.exit OS.Process.failure)
@@ -179,8 +186,10 @@ val _ =
     ["plan", d, p]         => doPlan d p 30 NONE
   | ["plan", d, p, t]      => withTMax t (fn tMax => doPlan d p tMax NONE)
   | ["plan", d, p, t, out] => withTMax t (fn tMax => doPlan d p tMax (SOME out))
-  | ["ground", d, p]       => doGround d p NONE
-  | ["ground", d, p, out]  => doGround d p (SOME out)
+  | ["ground", d, p]                => doGround false d p NONE
+  | ["ground", d, p, out]           => doGround false d p (SOME out)
+  | ["ground", "--topo", d, p]      => doGround true d p NONE
+  | ["ground", "--topo", d, p, out] => doGround true d p (SOME out)
   | _                      => (help (); OS.Process.exit OS.Process.failure)
 
 val _ = OS.Process.exit OS.Process.success

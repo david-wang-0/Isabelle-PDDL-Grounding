@@ -2,6 +2,25 @@ theory Grounding_Pipeline_Numeric_Executable
   imports Grounding_Pipeline_Common_Executable Grounder_Timing
 begin
 
+subsection \<open>Per-conjunct timing split of the certificate check (measurement instrumentation)\<close>
+
+text \<open>Split the single \<open>check\<close> timing bracket of \<^const>\<open>dl_certified_model_dfs\<close> into one
+  \<^const>\<open>time_it\<close> key per admissibility conjunct. Since \<^const>\<open>time_it\<close> is the identity
+  (\<open>time_it_id\<close>) this is a proven-equal \<open>[code]\<close> refinement --- no logical change --- used only to
+  attribute the certificate-check wall-clock across positivity / rule-validity / closure /
+  body-closedness / acyclicity.\<close>
+
+declare dl_admissible_dfs_def [code del]
+
+lemma dl_admissible_dfs_timed_code [code]:
+  "dl_admissible_dfs Pl Ul c =
+     (time_it (STR ''chk_positive'')   (\<lambda>_. dl_positive_prog_exec Pl)
+      \<and> time_it (STR ''chk_rulevalid'')  (\<lambda>_. list_all (dl_rule_valid_exec Pl Ul) (Datalog_Certificate.dl_rules c))
+      \<and> time_it (STR ''chk_closure'')    (\<lambda>_. dl_closure_check_exec Pl Ul c)
+      \<and> time_it (STR ''chk_bodyclosed'') (\<lambda>_. dl_body_closed c)
+      \<and> time_it (STR ''chk_acyclic'')    (\<lambda>_. dl_acyclic_dfs c))"
+  by (simp add: dl_admissible_dfs_def time_it_id)
+
 section \<open>Executable numeric grounding (up to, but not including, the STRIPS conversion)\<close>
 
 text \<open>The re-checked grounding pipeline, stopping one step before the propositional STRIPS encoding
@@ -142,6 +161,92 @@ theorem ground_via_cert_numeric_dfs_e_sound:
   assumes "ground_via_cert_numeric_dfs_e f P = Inr Pg"
   shows "\<exists>M. Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
   using assms by (elim ground_via_cert_numeric_dfs_e_InrE) blast
+
+subsection \<open>Ordered-scan (Nemo topological-order) alternative to the DFS check\<close>
+
+text \<open>Identical to \<^const>\<open>ground_via_cert_numeric_dfs_e\<close> except that the reachability certificate is
+  re-checked with the \<^emph>\<open>ordered linear scan\<close> \<^const>\<open>dl_certified_model_exec\<close> (foundedness via
+  \<^const>\<open>dl_founded_exec\<close>, which validates the certificate's rule order --- the topological order the
+  Nemo oracle emits) instead of the per-vertex directed-cycle DFS \<^const>\<open>dl_certified_model_dfs\<close>.
+  Both are sound (\<open>dl_certified_model_exec_imp\<close> / \<open>dl_certified_model_dfs_imp\<close> to the same
+  abstract \<^const>\<open>dl_certified_model\<close>), so the soundness argument is verbatim once the \<open>InrE\<close> rule has
+  converted the concrete check. On Hard-To-Ground tasks the ordered scan is \<open>O(|rules| \<cdot> |body| \<cdot>
+  |facts|)\<close> versus the DFS's \<open>O(|facts|\<^sup>2)\<close>.\<close>
+definition ground_via_cert_numeric_exec_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_problem" where
+  [code]: "ground_via_cert_numeric_exec_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_exec (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified ordered-scan checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'') (\<lambda>_. numeric_ground_by_cert P M))
+   }"
+
+lemma ground_via_cert_numeric_exec_e_return_iff[return_iff]:
+  "ground_via_cert_numeric_exec_e f P = Inr Pg \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> Pg = numeric_ground_by_cert P M))"
+  unfolding ground_via_cert_numeric_exec_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+lemma ground_via_cert_numeric_exec_e_InrE:
+  assumes "ground_via_cert_numeric_exec_e f P = Inr Pg"
+  obtains M dc where
+    "f (dl_program_of P) = (M, dc)"
+    "ast_classical_problem.restrict_prob P"
+    "ast_classical_problem.wf_classical_problem P"
+    "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    "dl_certified_model
+       (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+       (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_via_cert_numeric_exec_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg: "Pg = numeric_ground_by_cert P M"
+    by (auto split: prod.splits)
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have pnf: "numeric_free_problem (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))"
+    by (rule numeric_free_problem_exec[OF normalized_problem_rx.relax_num_free[OF rx]])
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_exec_imp[OF certE])
+  have Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    using Pg numeric_ground_by_cert_eq[OF rp wf ne cert gc] by simp
+  show thesis by (rule that[OF fMdc rp wf pnf ne cert gc Pg_cert])
+qed
+
+theorem ground_via_cert_numeric_exec_e_sound:
+  assumes "ground_via_cert_numeric_exec_e f P = Inr Pg"
+  shows "\<exists>M. Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  using assms by (elim ground_via_cert_numeric_exec_e_InrE) blast
 
 text \<open>Plan-validity equivalence: whenever the numeric grounder succeeds, the grounded
   (fluent-retaining) output has a valid plan \<^emph>\<open>iff\<close> the original problem does.\<close>
