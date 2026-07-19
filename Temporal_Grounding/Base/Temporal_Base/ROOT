@@ -1,13 +1,15 @@
 chapter AFP
 
 session Grounding_Temporal_Base = Grounding_Base +
-  description \<open>Thin layer loading the Formal-PDDL-Semantics temporal PDDL semantics
-    (Temporal_Planning) on top of the stable Grounding_Base heap.
-    Because the heavy continuous/ODE tower lives BELOW this layer, an edit to the temporal
-    PDDL semantics in Formal-PDDL-Semantics only re-elaborates these light theories,
-    not the whole Continuous_Planning tower. SAT-free and graph-free. No project-local theories.\<close>
+  description \<open>Thin layer loading the Formal-PDDL-Semantics temporal PDDL semantics on top of the
+    Analysis-free Grounding_Base heap. It loads the DISCRETE temporal semantics
+    (Temporal_Planning_Discrete), which is free of the HOL-Analysis / ODE tower -- so the whole
+    temporal grounding tree stays Analysis-free. The continuous ODE checker
+    (Temporal_Planning.Temporal_PDDL_Checker_Numeric) is deliberately NOT loaded: the grounder is
+    grounding-only and reasons about plan validity through the discrete valid_temp_plan2, never the
+    checker. SAT-free and graph-free. No project-local theories.\<close>
   sessions
-    "Temporal_Planning"
+    "Temporal_Planning_Discrete"
   theories [document = false]
-    "Temporal_Planning.Temporal_Happening_Semantics"
-    "Temporal_Planning.Temporal_PDDL_Checker_Numeric"
+    "Temporal_Planning_Discrete.Temporal_Happening_Semantics"
+    "Temporal_Planning_Discrete.Temporal_State_Sequence_Semantics"

@@ -1,5 +1,5 @@
 theory PDDL_Relaxation
-  imports "Continuous_Planning.Abstract_Syntax"
+  imports "Analysis_Free_Base.Abstract_Syntax"
 begin
 
 text \<open>Reusable, AST-agnostic core of delete-relaxation: dropping the delete-effects \<^emph>\<open>and\<close> the

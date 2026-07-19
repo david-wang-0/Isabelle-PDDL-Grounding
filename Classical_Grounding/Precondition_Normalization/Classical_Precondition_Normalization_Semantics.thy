@@ -533,7 +533,7 @@ next
 qed
 
 lemma p4_I: "p4.I = I"
-  unfolding p4.I_def split_prob_sel I_def by order
+  unfolding p4.I_def split_prob_sel I_def by (rule refl)
 
 theorem split_valid_iff:
   "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. p4.valid_classical_plan2 \<pi>s')"

@@ -1,5 +1,5 @@
 theory Temporal_PDDL_Normalization
-  imports "Temporal_Planning.Temporal_Well_Formedness"
+  imports "Temporal_Planning_Discrete.Temporal_Well_Formedness"
     "Grounding_Common.PDDL_Normalization"
     "Grounding_Common.Formula_Utils"
 begin

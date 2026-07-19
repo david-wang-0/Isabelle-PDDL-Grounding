@@ -1,7 +1,7 @@
 theory PDDL_Sema_Supplement
-  imports "Continuous_Planning.Instantiations"
-    "Continuous_Planning.Happening_Semantics"
-    "Continuous_Planning.Numeric_Update_Functions"
+  imports "Analysis_Free_Base.Instantiations"
+    "Analysis_Free_Base.Happening_Semantics_Discrete"
+    "Analysis_Free_Base.Numeric_Update_Functions"
     Grounding_Common.Formula_Utils
     Grounding_Utils.Grounding_Utils
 begin

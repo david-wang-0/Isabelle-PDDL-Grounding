@@ -2,6 +2,12 @@ theory Grounding_Utils
   imports Main
 begin
 
+text \<open>General list helper: the length of a \<open>map2\<close>. This previously arrived incidentally from the
+  Affine_Arithmetic.Executable_Euclidean_Space tower (a HOL-Analysis/ODE dependency); it is kept
+  here so the Analysis-free grounder no longer needs that tower for a plain list fact.\<close>
+lemma length_map2: "length (map2 f xs ys) = min (length xs) (length ys)"
+  by simp
+
 (* for testing and debugging *)
 definition "showvals f xs \<equiv> map (\<lambda>x. (x, f x)) xs"
 

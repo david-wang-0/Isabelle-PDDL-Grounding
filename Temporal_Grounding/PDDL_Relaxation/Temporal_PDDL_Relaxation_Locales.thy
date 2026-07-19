@@ -1,5 +1,5 @@
 theory Temporal_PDDL_Relaxation_Locales
-  imports "Temporal_Planning.Temporal_Abstract_Syntax"
+  imports "Temporal_Planning_Discrete.Temporal_Abstract_Syntax"
     Grounding_Temporal_Common.Temporal_PDDL_Normalization
     Grounding_PDDL_Relaxation.PDDL_Relaxation
 begin

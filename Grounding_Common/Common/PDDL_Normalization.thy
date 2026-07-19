@@ -1,5 +1,5 @@
 theory PDDL_Normalization
-  imports "Continuous_Planning.Signatures"
+  imports "Analysis_Free_Base.Signatures"
 begin
 
 text \<open>AST-agnostic signature-level normalization properties: input restriction and detyping over a

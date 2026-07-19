@@ -120,7 +120,7 @@ proof -
   let ?tyt2 = "ty_term (map_of (ac_params (detype_classical_ac a))) d2.constT"
 
   have tyt_om: "\<forall>x. ?tyt x \<noteq> None \<longrightarrow> ?tyt2 x = Some \<omega>" using t_ac_tyt by simp
-  from assms have wfa: "wf_classical_action_schema a" using wf_D by presburger
+  have wfa: "wf_classical_action_schema a" using assms wf_D by blast
 
   from assms have "distinct (map fst (ac_params a))" using wfa wf_classical_action_schema_alt by metis
   hence c1: "distinct (map fst (ac_params ?a2))" using t_ents_dis by auto

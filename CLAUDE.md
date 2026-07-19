@@ -25,11 +25,12 @@ This is a multi-session AFP-style development laid out as **two mirrored trees**
 
 Stage directories keep a plain name (e.g. `Type_Normalization/`), but the session/theories *inside* a classical stage dir carry the `Classical_` prefix; the reusable session in the mirrored dir under `Grounding_Common/` does not.
 
-### Base spine (3-tier: continuous-isolation + light-datalog + SAT-free)
+### Base spine (light Analysis-free AST base + light-datalog + SAT-free)
 
 - **`Grounding_Light_Base`** (`= HOL +`) — `HOL-Library` + `Show`; the light root for the PDDL-free utility/datalog branch.
-- **`Grounding_Base`** (`= Continuous_Planning +`) — the **frozen heavy heap** (FPS `Continuous_Planning`, `Continuous_Planning.Abstract_Syntax`, `Propositional_Proof_Systems`). Build once and load in jEdit as a prebuilt heap; frozen at runtime.
-- **`Grounding_Classical_Base`** (`= Grounding_Base +`) — thin classical layer (`Classical_Planning` happening semantics + numeric checker).
+- **`Grounding_Base`** (`= Analysis_Free_Base +`) — the **Analysis-free PDDL-AST base** (FPS `Analysis_Free_Base` — the discrete, HOL-Analysis/ODE-free core of the PDDL semantics — plus `Analysis_Free_Base.Abstract_Syntax`, `Propositional_Proof_Systems`, `HOL-Library`/`Show`). Build once and load in jEdit as a prebuilt heap. The heavy euclidean/ODE tower is **not** here; only the classical base pulls it (via `Classical_Planning`). The whole reusable `Grounding_Common` spine sits on this, so it is Analysis-free and reusable by the temporal grounder.
+- **`Grounding_Classical_Base`** (`= Grounding_Base +`, `sessions Classical_Planning`) — the classical layer; importing `Classical_Planning` is what pulls the continuous/ODE tower, making this (and everything above it) the heavy classical heap (`Classical_Planning` happening semantics + numeric checker for code export).
+- **`Grounding_Temporal_Base`** (`= Grounding_Base +`, `sessions Temporal_Planning_Discrete`) — the temporal layer, loading only the **discrete** temporal semantics (`Temporal_Planning_Discrete`); Analysis-free (no ODE checker).
 - **`Grounding_Base_STRIPS`** (`= Grounding_Classical_Base +`) — the AFP SAT planner (`Verified_SAT_Based_AI_Planning`); SAT lives **only** here.
 
 ### Reusable tree — `Grounding_Common/` (Classical-free)

@@ -1,5 +1,5 @@
 theory Type_Normalization
-  imports "Continuous_Planning.Signatures"
+  imports "Analysis_Free_Base.Signatures"
     Grounding_Common.PDDL_Normalization
     Grounding_Common.Formula_Utils
     Grounding_Utils.Graph_Funs

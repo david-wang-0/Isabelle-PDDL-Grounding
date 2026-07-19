@@ -1,5 +1,5 @@
 theory Temporal_PDDL_Sema_Supplement
-  imports "Temporal_Planning.Temporal_Happening_Semantics"
+  imports "Temporal_Planning_Discrete.Temporal_Happening_Semantics"
     Grounding_Utils.Grounding_Utils Grounding_Common.Formula_Utils Grounding_Common.PDDL_Normalization
     Grounding_Common.PDDL_Sema_Supplement
 begin

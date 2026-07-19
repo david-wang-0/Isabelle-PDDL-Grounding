@@ -1,5 +1,5 @@
 theory Temporal_PDDL_Reachability_Locales
-  imports "Temporal_Planning.Temporal_Abstract_Syntax"
+  imports "Temporal_Planning_Discrete.Temporal_Abstract_Syntax"
     Temporal_Reachability_Analysis
     Temporal_Grounded_PDDL.Temporal_Grounded_PDDL
     Datalog_Certification.Datalog_Certificate
