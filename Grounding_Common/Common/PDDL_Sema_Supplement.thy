@@ -12,7 +12,7 @@ text \<open>AST-agnostic supplement lemmas about a PDDL domain/problem \<^emph>\
   well-formedness bundles into component facts, characterizing predicate/function-declaration and
   effect well-formedness, resolving \<open>sig\<close>/\<open>func_sig\<close> against the declaration lists, and lifting an
   atom-level signature relation to formulas/effects/world models (well-formedness covariance). These
-  mention only the shared \<open>domain_signature\<close>/\<open>problem_signature\<close> semantics (from Continuous_Planning),
+  mention only the shared \<open>domain_signature\<close>/\<open>problem_signature\<close> semantics (from Analysis_Free_Base),
   so they are reusable by any grounder. They were previously in
   \<open>Classical_Grounding.Classical_PDDL_Sema_Supplement\<close>; the classical-AST supplements (action schemas, the
   \<open>ast_classical_*\<close> locales) stay there.\<close>

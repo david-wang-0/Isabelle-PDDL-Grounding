@@ -12,7 +12,7 @@ text \<open>The AST-agnostic part of type normalization: the detyping helper fun
   domain/problem \<^emph>\<open>signature\<close>, the detyped predicate/function/object lists, and the parallel \<open>*2\<close>
   signature-locale hierarchy relating a typed signature to its detyped counterpart. These mention only
   the shared signature and the shared action AST (\<open>ActionHead\<close>/\<open>SimpleActionBody\<close> from
-  Continuous_Planning), so they are reusable by any grounder. The classical-AST counterparts
+  Analysis_Free_Base), so they are reusable by any grounder. The classical-AST counterparts
   (\<open>detype_classical_ac\<close>, \<open>detype_classical_dom\<close>/\<open>prob\<close>, the \<open>ast_classical_*2\<close> locales) live in
   \<open>Classical_Grounding.Classical_Type_Normalization_Locales\<close>.\<close>
 
