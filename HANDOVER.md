@@ -20,6 +20,31 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
+- **Certificate-check bottleneck on HTG = `dl_acyclic_dfs` (per-vertex DFS).** Profiling the exported
+  grounder on the Hard-To-Ground set (GED `d-8-12`, `model=1594`) with `GROUND_PROFILE=1` shows the
+  certificate re-check is **58.5 s = 94 % of grounding**, and the timer-split
+  (`chk_positive=0 chk_rulevalid=3 chk_closure=408 chk_bodyclosed=5 chk_acyclic=58041` ms) pins it
+  **entirely on `dl_acyclic_dfs`**. Cause: `dl_acyclic_dfs c = list_all (λi. ¬ cycle (find_dircycle
+  (dep_adjmap c) (dircycle_initial_state i))) [0..<|facts|]` (`Datalog_Cycle_DFS.thy:74`) runs an
+  **independent DFS from every vertex** → `O(|facts|·(V+E)) ≈ O(V²)`. (The `dep_adjmap` rebuild is
+  already hoisted out of the loop via `[code]`; the per-vertex *traversal* is what remains.)
+  Rule-validity (3 ms), the indexed closure join + `fmem` membership (408 ms) and the indexed
+  `dl_body_closed` (5 ms) are all fine. Two fixes:
+  - **(1) Global-visited backtrack across DFS roots.** Make the outer per-vertex loop *skip* (backtrack)
+    the moment it reaches a node already fully explored by a previous root's inner DFS — a single
+    finished/visited set shared across roots turns the `O(V²)` sweep into one `O(V+E)` pass. The graph
+    library has this for the **undirected** cycle checker but not for this directed one; the missing
+    piece is the directed analogue. (This is the same "verified DFS constructs the order" item below.)
+  - **(2) Ordered-scan check via Nemo's topological order (easy, big win).** `dl_certified_model_exec`
+    / `dl_founded_exec` (`Datalog/Datalog_Certificate_Code.thy`, already `[code]`, sound via
+    `dl_founded_exec_imp_dl_founded` / `dl_admissible_exec_imp`) validate foundedness by scanning
+    `dl_rules c` **in list order** and checking each rule's body precedes its head — which is exactly
+    the topological order the Nemo driver emits (`nemo_driver.sml` inserts nodes topologically). Cost
+    `O(|rules|·|body|·|facts|) ≈ 5 ms` (like `dl_body_closed`), so swapping `dl_certified_model_dfs` →
+    `dl_certified_model_exec` on the Nemo path collapses the 58 s to sub-second (~140×). The check
+    already lives in the graph-free `Datalog_Certification` session; only a numeric grounder entry
+    (`ground_via_cert_numeric_exec_e`, mirroring `_dfs_e`'s 5-lemma suite) + SML wiring remain to make
+    it the default Nemo-path checker. Both running examples now `value` both checks side by side.
 - **Verified cycle-detecting DFS for `dl_founded` (path 2).** Session `Datalog_Graph` already proves the
   graph-theoretic `acyclic ⟺ has_top_num` and the kernel integration
   (`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`), which replace the non-executable

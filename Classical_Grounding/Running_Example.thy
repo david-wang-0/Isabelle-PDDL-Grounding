@@ -259,6 +259,17 @@ value "my_cert"
 value "dl_certified_model_dfs (dl_rules my_P\<^sub>R)
          (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
 value "dl_acyclic_dfs (snd my_cert)"
+
+text \<open>The \<^emph>\<open>ordered-scan\<close> alternative to the per-vertex DFS foundedness: \<^const>\<open>dl_founded_exec\<close>
+  validates foundedness by scanning the certificate rules \<^emph>\<open>in list order\<close> --- the topological order
+  the Nemo oracle emits, and the derivation order \<^const>\<open>naive_cert\<close> produces here (each rule is
+  \<open>@\<close>-appended only once its body is already derived) --- checking each rule's body precedes its head.
+  \<^const>\<open>dl_certified_model_exec\<close> therefore accepts the \<^emph>\<open>same\<close> certificate as the DFS
+  \<^const>\<open>dl_certified_model_dfs\<close> above (both \<^const>\<open>True\<close>), but in \<open>O(|rules| \<cdot> |body| \<cdot> |facts|)\<close>
+  rather than the per-vertex DFS's \<open>O(|facts|\<^sup>2)\<close>.\<close>
+value "dl_founded_exec (snd my_cert)"
+value "dl_certified_model_exec (dl_rules my_P\<^sub>R)
+         (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
 value "grounding_checks_exec my_P\<^sub>T (fst my_cert)"
 
 text \<open>The fully grounded problem: first the raw nullary propositional PDDL (\<^const>\<open>ground_by_cert\<close>),
