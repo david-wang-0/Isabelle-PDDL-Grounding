@@ -62,6 +62,16 @@ definition fact_idx :: "('p, 'c) dl_certificate \<Rightarrow> ('p, 'c) dl_fact \
 definition nat_edges :: "('p, 'c) dl_certificate \<Rightarrow> (nat \<times> nat) list" where
   "nat_edges c = map (\<lambda>(a, b). (fact_idx c a, fact_idx c b)) (dep_edges c)"
 
+text \<open>Code refinement: as written, \<^const>\<open>fact_idx\<close> is \<^term>\<open>idx_of (dl_cert_facts c)\<close>, so the generated
+  code rebuilds \<^const>\<open>dl_cert_facts\<close> --- an \<open>O(R\<^sup>2)\<close> \<^const>\<open>remdups\<close> --- once for \<^emph>\<open>each\<close> of the
+  \<open>2\<cdot>|dep_edges|\<close> endpoint relabellings, i.e. \<open>O(|edges|\<cdot>R\<^sup>2)\<close> (this, not the per-vertex DFS, is what
+  dominates \<open>dl_acyclic_dfs\<close>). Binding \<^const>\<open>dl_cert_facts\<close> once with a \<^theory_text>\<open>let\<close>
+  drops it to \<open>O(R\<^sup>2 + |edges|\<cdot>R)\<close>. Pure refinement (definitionally equal).\<close>
+lemma nat_edges_code [code]:
+  "nat_edges c = (let facts = dl_cert_facts c in
+                  map (\<lambda>(a, b). (idx_of facts a, idx_of facts b)) (dep_edges c))"
+  by (simp add: nat_edges_def fact_idx_def Let_def)
+
 definition dep_adjmap :: "('p, 'c) dl_certificate \<Rightarrow> _" where
   "dep_adjmap c = a_graph (nat_edges c)"
 

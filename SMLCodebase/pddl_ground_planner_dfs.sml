@@ -122,7 +122,7 @@ fun printProfile () =
        s "parse" (Prof.ms "parse"), s "nemo" n, s "check" (kget "check"),
        s "chk_positive" (kget "chk_positive"), s "chk_rulevalid" (kget "chk_rulevalid"),
        s "chk_closure" (kget "chk_closure"), s "chk_bodyclosed" (kget "chk_bodyclosed"),
-       s "chk_acyclic" (kget "chk_acyclic"),
+       s "chk_acyclic" (kget "chk_acyclic"), s "chk_acyclic_global" (kget "chk_acyclic_global"),
        s "enumerate" (kget "enumerate"),
        s "buildprog" (Prof.ms "buildprog"), s "gcheck" (kget "gcheck"),
        s "emit" (Prof.ms "emit"),
@@ -134,7 +134,10 @@ fun printProfile () =
   end
   else ()
 
-fun doGround topo domFile probFile outOpt =
+(* Which verified foundedness check re-validates the Nemo reachability certificate. *)
+datatype checkMode = ChkDFS | ChkTopo | ChkGDFS
+
+fun doGround mode domFile probFile outOpt =
   let
     val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
     val () = rssParse := vmhwm ()
@@ -147,7 +150,10 @@ fun doGround topo domFile probFile outOpt =
            (m, dc) end))
     val gres = Prof.time "ground_total"
                  (fn () => withNemo (fn () =>
-                    (if topo then E.ground_via_cert_numeric_exec_e else E.ground_via_cert_numeric_dfs_e)
+                    (case mode of
+                        ChkDFS  => E.ground_via_cert_numeric_dfs_e
+                      | ChkTopo => E.ground_via_cert_numeric_exec_e
+                      | ChkGDFS => E.ground_via_cert_numeric_gdfs_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
@@ -174,9 +180,10 @@ fun doGround topo domFile probFile outOpt =
 
 fun help () =
   eprintln ("Usage:\n  " ^ CommandLine.name () ^ " plan   <domain.pddl> <problem.pddl> [t_max (default 30)] [out.plan]\n"
-            ^ "  " ^ CommandLine.name () ^ " ground [--topo] <domain.pddl> <problem.pddl> [out.pddl]\n"
-            ^ "    (--topo re-checks the reachability certificate with the ordered linear scan over\n"
-            ^ "     Nemo's topological order instead of the per-vertex directed-cycle DFS)")
+            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] <domain.pddl> <problem.pddl> [out.pddl]\n"
+            ^ "    (reachability-certificate foundedness check: --dfs (default) = per-vertex directed-cycle\n"
+            ^ "     DFS; --topo = ordered linear scan over Nemo's topological order; --gdfs = fast\n"
+            ^ "     single-sweep global-visited directed-cycle DFS)")
 
 fun withTMax t k =
   case Int.fromString t of SOME tMax => k tMax | NONE => (help (); OS.Process.exit OS.Process.failure)
@@ -186,10 +193,16 @@ val _ =
     ["plan", d, p]         => doPlan d p 30 NONE
   | ["plan", d, p, t]      => withTMax t (fn tMax => doPlan d p tMax NONE)
   | ["plan", d, p, t, out] => withTMax t (fn tMax => doPlan d p tMax (SOME out))
-  | ["ground", d, p]                => doGround false d p NONE
-  | ["ground", d, p, out]           => doGround false d p (SOME out)
-  | ["ground", "--topo", d, p]      => doGround true d p NONE
-  | ["ground", "--topo", d, p, out] => doGround true d p (SOME out)
+  (* The specific --dfs/--topo/--gdfs clauses MUST precede the general ground clauses: SML takes the
+     first matching clause, and ["ground", d, p, out] would otherwise bind d to the flag string. *)
+  | ["ground", "--dfs", d, p]        => doGround ChkDFS d p NONE
+  | ["ground", "--dfs", d, p, out]   => doGround ChkDFS d p (SOME out)
+  | ["ground", "--topo", d, p]       => doGround ChkTopo d p NONE
+  | ["ground", "--topo", d, p, out]  => doGround ChkTopo d p (SOME out)
+  | ["ground", "--gdfs", d, p]       => doGround ChkGDFS d p NONE
+  | ["ground", "--gdfs", d, p, out]  => doGround ChkGDFS d p (SOME out)
+  | ["ground", d, p]                 => doGround ChkDFS d p NONE
+  | ["ground", d, p, out]            => doGround ChkDFS d p (SOME out)
   | _                      => (help (); OS.Process.exit OS.Process.failure)
 
 val _ = OS.Process.exit OS.Process.success

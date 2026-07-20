@@ -733,6 +733,41 @@ proof -
   then show ?thesis by (simp add: dl_body_closed_code Let_def)
 qed
 
+subsection \<open>Streaming the unsafe-clause substitution universal\<close>
+
+text \<open>The unsafe (\<open>else\<close>) branch of the closure check ranges a universal over @{const cls_substs},
+  which \<^emph>\<open>materialises\<close> the whole \<open>|U|\<^sup>k\<close> product of substitutions before testing any --- the cost a
+  head-only clause (empty body, head variables unbound by any body atom: an action with a trivial
+  precondition and effect parameters) pays even though it is \<^emph>\<open>almost\<close> a fact. \<open>combos_forall\<close>
+  fuses generation and testing: it walks the choices digit-by-digit with a short-circuiting
+  @{const list_all}, so it never builds the product and stops at the first violating assignment. It
+  equals the @{const list_all} over @{const all_combos} (same tuple set, @{thm set_all_combos}).\<close>
+
+fun combos_forall :: "('a list \<Rightarrow> bool) \<Rightarrow> 'a list list \<Rightarrow> bool" where
+  "combos_forall P [] \<longleftrightarrow> P []"
+| "combos_forall P (vs # vss) \<longleftrightarrow> list_all (\<lambda>v. combos_forall (\<lambda>ys. P (v # ys)) vss) vs"
+
+lemma combos_forall_iff: "combos_forall P vals \<longleftrightarrow> (\<forall>xs. chosen_from vals xs \<longrightarrow> P xs)"
+proof (induction vals arbitrary: P)
+  case Nil
+  show ?case by (auto elim: chosen_from.elims)
+next
+  case (Cons vs vss)
+  have "combos_forall P (vs # vss) \<longleftrightarrow> (\<forall>v \<in> set vs. \<forall>ys. chosen_from vss ys \<longrightarrow> P (v # ys))"
+    by (simp add: list_all_iff Cons.IH)
+  also have "\<dots> \<longleftrightarrow> (\<forall>xs. chosen_from (vs # vss) xs \<longrightarrow> P xs)"
+    by (auto elim: chosen_from.elims)
+  finally show ?case .
+qed
+
+lemma list_all_all_combos_accept: "list_all P (all_combos \<checkmark> vals) \<longleftrightarrow> combos_forall P vals"
+  by (simp add: list_all_iff set_all_combos combos_forall_iff)
+
+lemma cls_substs_forall:
+  "list_all Q (cls_substs U cl)
+     \<longleftrightarrow> combos_forall (\<lambda>cs. Q (subst_of (cls_vars cl) cs)) (replicate (length (cls_vars cl)) U)"
+  by (simp add: cls_substs_def list.pred_map comp_def list_all_all_combos_accept)
+
 text \<open>The fast closure check: identical to @{const dl_closure_check_exec} except that the safe branch
   reorders the body atoms most-constrained-first and drives the join through the index. Only the
   executable term changes; the soundness bridge @{thm dl_closure_check_exec_imp} mentions only the
@@ -750,11 +785,11 @@ definition dl_closure_check_exec_fast ::
               (if closure_td_order
                then body_join_idx [] (reorder_td_atoms idx (cls_body_atoms cl)) idx
                else body_join_dyn [] (cls_body_atoms cl) idx)
-       else list_all (\<lambda>\<sigma>.
+       else combos_forall (\<lambda>cs. let \<sigma> = subst_of (cls_vars cl) cs in
               (list_all (\<lambda>g. eval_guard \<sigma> g) (cls_guards cl)
                \<and> list_all (\<lambda>a. fmem idx (subst_atom \<sigma> a)) (cls_body_atoms cl))
               \<longrightarrow> fmem idx (subst_atom \<sigma> (the_lh cl)))
-              (cls_substs Ul cl))
+              (replicate (length (cls_vars cl)) Ul))
        Pl)"
 
 text \<open>The safe-branch check is invariant under the most-constrained-first reindexing: the indexed join
@@ -874,7 +909,7 @@ lemma safe_branch_flag_idx_eq:
 lemma dl_closure_check_exec_fast_eq:
   "dl_closure_check_exec Pl Ul c = dl_closure_check_exec_fast Pl Ul c"
   unfolding dl_closure_check_exec_def dl_closure_check_exec_fast_def Let_def
-  by (simp add: fmem_eq safe_branch_flag_idx_eq)
+  by (simp add: fmem_eq safe_branch_flag_idx_eq cls_substs_forall)
 
 text \<open>Install the fast join as the code equation for @{const dl_closure_check_exec}, replacing its
   linear-scan equation.\<close>

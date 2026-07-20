@@ -20,39 +20,37 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
-- **Certificate-check bottleneck on HTG = `dl_acyclic_dfs` (per-vertex DFS).** Profiling the exported
-  grounder on the Hard-To-Ground set (GED `d-8-12`, `model=1594`) with `GROUND_PROFILE=1` shows the
-  certificate re-check is **58.5 s = 94 % of grounding**, and the timer-split
-  (`chk_positive=0 chk_rulevalid=3 chk_closure=408 chk_bodyclosed=5 chk_acyclic=58041` ms) pins it
-  **entirely on `dl_acyclic_dfs`**. Cause: `dl_acyclic_dfs c = list_all (λi. ¬ cycle (find_dircycle
-  (dep_adjmap c) (dircycle_initial_state i))) [0..<|facts|]` (`Datalog_Cycle_DFS.thy:74`) runs an
-  **independent DFS from every vertex** → `O(|facts|·(V+E)) ≈ O(V²)`. (The `dep_adjmap` rebuild is
-  already hoisted out of the loop via `[code]`; the per-vertex *traversal* is what remains.)
-  Rule-validity (3 ms), the indexed closure join + `fmem` membership (408 ms) and the indexed
-  `dl_body_closed` (5 ms) are all fine. Two fixes:
-  - **(1) Global-visited backtrack across DFS roots.** Make the outer per-vertex loop *skip* (backtrack)
-    the moment it reaches a node already fully explored by a previous root's inner DFS — a single
-    finished/visited set shared across roots turns the `O(V²)` sweep into one `O(V+E)` pass. The graph
-    library has this for the **undirected** cycle checker but not for this directed one; the missing
-    piece is the directed analogue. (This is the same "verified DFS constructs the order" item below.)
-  - **(2) Ordered-scan check via Nemo's topological order (easy, big win).** `dl_certified_model_exec`
-    / `dl_founded_exec` (`Datalog/Datalog_Certificate_Code.thy`, already `[code]`, sound via
-    `dl_founded_exec_imp_dl_founded` / `dl_admissible_exec_imp`) validate foundedness by scanning
-    `dl_rules c` **in list order** and checking each rule's body precedes its head — which is exactly
-    the topological order the Nemo driver emits (`nemo_driver.sml` inserts nodes topologically). Cost
-    `O(|rules|·|body|·|facts|) ≈ 5 ms` (like `dl_body_closed`), so swapping `dl_certified_model_dfs` →
-    `dl_certified_model_exec` on the Nemo path collapses the 58 s to sub-second (~140×). The check
-    already lives in the graph-free `Datalog_Certification` session; only a numeric grounder entry
-    (`ground_via_cert_numeric_exec_e`, mirroring `_dfs_e`'s 5-lemma suite) + SML wiring remain to make
-    it the default Nemo-path checker. Both running examples now `value` both checks side by side.
-- **Verified cycle-detecting DFS for `dl_founded` (path 2).** Session `Datalog_Graph` already proves the
-  graph-theoretic `acyclic ⟺ has_top_num` and the kernel integration
-  (`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`), which replace the non-executable
-  `dl_founded` conjunct by support-graph acyclicity. The one missing piece is a **verified DFS that
-  *constructs* the topological order / acyclicity witness**; it then slots straight into
-  `dl_certified_model` → `dl_certified_model_correct`. (Both discharge paths are kept on purpose: the
-  fast ordered-cert linear scan `dl_founded_exec` when the certificate carries a trusted order, the
-  graph path when it does not.) Candidate AFP DFS entries noted in memory `project_afp_dfs_lookup`.
+- **Cert-check speed on HTG — SOLVED; three selectable foundedness checks (ONE soundness `sorry` left).**
+  The exported grounder now offers three re-checks of the reachability certificate, selectable via the
+  SML CLI `ground [--dfs|--topo|--gdfs]` (default `--dfs`), each a grounder entry
+  `ground_via_cert_numeric_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`, all **kept on
+  purpose**:
+  - `--dfs` — the per-vertex directed-cycle DFS `dl_acyclic_dfs` (graph library, `O(V²)`);
+  - `--topo` — the ordered linear scan `dl_founded_exec` over Nemo's topological order (`dl_certified_model_exec`);
+  - `--gdfs` — a fast single-sweep global-visited directed-cycle DFS `dl_acyclic_dfs_global`
+    (`Datalog_Cycle_DFS_Global.thy`, `O(V+E)`, one `seen`/gray set shared across roots; list-iterated
+    neighbours + balancing `RBT_Set.insert`/`delete`).
+
+  The real bottleneck turned out to be **graph construction, not the DFS**: `nat_edges`/`fact_idx`
+  rebuilt `dl_cert_facts` (an `O(R²)` `remdups`) inside every one of the `~2·|edges|` relabellings.
+  `nat_edges_code [code]` (bind `dl_cert_facts` once) fixed it — helping BOTH default checks. GED
+  `d-8-12`, all three byte-identical: acyclicity `--gdfs` **111 s → 129 ms**, `--dfs` **57 s → 1.25 s**,
+  `--topo` 0 ms; total ~4.4–5.6 s. The unsafe closure branch was also streamed
+  (`combos_forall`, proven-equal, `Datalog_Certificate_Index.thy`) so head-only clauses no longer
+  materialise `|U|^k` substitutions.
+
+  **Remaining obligation:** `dl_acyclic_dfs_global_imp_acyclic` (`dl_body_closed c ⟹ dl_acyclic_dfs_global
+  c ⟹ acyclic (dl_dep_graph c)`, the 3-colour-DFS "cyclic ⇒ back-edge" completeness) is a `sorry`;
+  everything downstream (`dl_admissible_gdfs` → `dl_founded` via `dl_acyclic_dfs_global_imp_dl_founded`
+  → grounder soundness) is proven on top of it. Cleanest route: reduce to the existing
+  `dl_acyclic_dfs_imp_acyclic` by proving `dl_acyclic_dfs_global c ⟹ dl_acyclic_dfs c`, or a direct
+  invariant over `dfs_fuel` (gray = on-stack path, black = finished-closed). **Until it is discharged the
+  session builds only under `-o quick_and_dirty`.**
+- **Order-constructing witness (optional).** `Datalog_Graph` proves `acyclic ⟺ has_top_num` and the
+  kernel integration (`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`); a verified DFS
+  that *constructs* the topological order (vs merely detecting a cycle) would slot into
+  `dl_certified_model` → `dl_certified_model_correct`. Candidate AFP DFS entries in memory
+  `project_afp_dfs_lookup`.
 - **Swap the fuel-counted evaluator for a fixpoint one.** `Grounding_Common/Datalog/Datalog_Evaluation_Fixpoint.thy`
   holds a counter-free `dl_saturate` (+ termination + soundness, written) meant to replace
   `dl_iterate`/`dl_eval`. It is **not in any ROOT and not jEdit-verified**; wire it in and retire the

@@ -73,6 +73,10 @@ text \<open>The ordered-scan (topological-order) alternative: same certificate, 
   \<open>O(|rules| \<cdot> |body| \<cdot> |facts|)\<close> instead of the per-vertex DFS's \<open>O(|facts|\<^sup>2)\<close>. Both \<^const>\<open>True\<close>.\<close>
 value "dl_certified_model_exec (dl_rules my_P\<^sub>R_num)
          (ast_classical_problem.const_names my_P\<^sub>R_num) (fst my_cert_num) (snd my_cert_num)"
+text \<open>The fast single-sweep global-visited DFS (\<^const>\<open>dl_acyclic_dfs_global\<close>): one \<open>O(|V|+|E|)\<close>
+  pass, again accepting the same certificate. All three foundedness checks agree (\<^const>\<open>True\<close>).\<close>
+value "dl_certified_model_gdfs (dl_rules my_P\<^sub>R_num)
+         (ast_classical_problem.const_names my_P\<^sub>R_num) (fst my_cert_num) (snd my_cert_num)"
 value "grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 value "numeric_grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 
