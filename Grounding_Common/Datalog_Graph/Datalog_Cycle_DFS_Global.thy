@@ -63,10 +63,93 @@ text \<open>Soundness --- the only direction needed to \<^emph>\<open>use\<close
   The obligation is the classical 3-colour DFS fact: on a cyclic graph the shared-\<open>seen\<close> sweep meets an
   edge into the on-stack (gray) set, i.e. sets \<^term>\<open>gs_cyc\<close>.\<close>
 
+subsection \<open>Plumbing: RBT-set \<^const>\<open>RBT_Set.delete\<close>, adjacency lists, edge-index range\<close>
+
+text \<open>\<^const>\<open>RBT_Set.delete\<close> preserves the vset invariant and removes exactly one element
+  (the \<^const>\<open>RBT_Set.insert\<close> analogues \<open>rbt_insert_inv\<close> / \<open>rbt_insert_set\<close> live in
+  \<^theory>\<open>Datalog_Graph.Datalog_Cycle_DFS\<close>).\<close>
+
+lemma rbt_delete_inv:
+  assumes "vset_inv t"
+  shows "vset_inv (RBT_Set.delete x t)"
+proof -
+  have c: "invc t" and h: "invh t" and b: "Tree2.bst t"
+    using assms by (auto simp: vset_inv_def)
+  note invd = inv_del[OF h c]
+  have "invh (RBT_Set.delete x t)"
+    using invd by (simp add: RBT_Set.delete_def invh_paint)
+  moreover have "invc (RBT_Set.delete x t)"
+    using invd by (cases "color t") (auto simp: RBT_Set.delete_def invc2I)
+  moreover have "Tree2.bst (RBT_Set.delete x t)"
+  proof -
+    have s: "sorted (Tree2.inorder t)" using b by (simp add: bst_iff_sorted_inorder)
+    have "Tree2.inorder (RBT_Set.delete x t) = del_list x (Tree2.inorder t)"
+      using s by (rule RBT_Set.inorder_delete)
+    thus ?thesis using s by (simp add: bst_iff_sorted_inorder sorted_del_list)
+  qed
+  ultimately show ?thesis by (simp add: vset_inv_def)
+qed
+
+lemma rbt_delete_set:
+  assumes "vset_inv t"
+  shows "t_set (RBT_Set.delete x t) = t_set t - {x}"
+proof -
+  have b: "Tree2.bst t" using assms by (auto simp: vset_inv_def)
+  hence s: "sorted (Tree2.inorder t)" by (simp add: bst_iff_sorted_inorder)
+  have "t_set (RBT_Set.delete x t) = set (Tree2.inorder (RBT_Set.delete x t))"
+    by (simp add: Tree2.set_inorder)
+  also have "\<dots> = set (del_list x (Tree2.inorder t))"
+    using s by (simp add: RBT_Set.inorder_delete)
+  also have "\<dots> = set (Tree2.inorder t) - {x}"
+    using s by (simp add: set_del_list)
+  also have "\<dots> = t_set t - {x}"
+    by (simp add: Tree2.set_inorder)
+  finally show ?thesis .
+qed
+
+text \<open>The materialised neighbour list of \<^const>\<open>dep_adjmap\<close> lists exactly the out-neighbours of a
+  vertex in the natural-number edge set.\<close>
+
+lemma adj_set:
+  "set (Tree2.inorder (neighbourhood (dep_adjmap c) w)) = {v. (w, v) \<in> set (nat_edges c)}"
+  by (simp add: dep_adjmap_def Tree2.set_inorder a_graph_neighbourhood)
+
+text \<open>Under \<^const>\<open>dl_body_closed\<close> every endpoint of a natural-number edge is a fact index below the
+  number of certified facts.\<close>
+
+lemma nat_edges_endpoint_lt:
+  assumes "dl_body_closed c" and "(a, b) \<in> set (nat_edges c)"
+  shows "a < length (dl_cert_facts c)"
+    and "b < length (dl_cert_facts c)"
+proof -
+  obtain u v where uv: "(u, v) \<in> dl_dep_graph c" and ab: "a = fact_idx c u" "b = fact_idx c v"
+    using assms(2) by (auto simp: set_nat_edges)
+  have "u \<in> set (dl_cert_facts c)" and "v \<in> set (dl_cert_facts c)"
+    using assms(1) uv by (auto dest: dl_dep_graph_vertex_cert_fact)
+  thus "a < length (dl_cert_facts c)" and "b < length (dl_cert_facts c)"
+    using ab by (auto simp: fact_idx_def idx_of_less)
+qed
+
+text \<open>The mathematical core (completeness of the shared-\<open>seen\<close> 3-colour sweep): a global sweep that
+  reports no back edge witnesses that the natural-number support graph \<^term>\<open>set (nat_edges c)\<close> is
+  acyclic. Everything else is relabelling.\<close>
+
+lemma global_sweep_acyclic:
+  assumes bc: "dl_body_closed c" and dfs: "dl_acyclic_dfs_global c"
+  shows "acyclic (set (nat_edges c))"
+  sorry
+
 lemma dl_acyclic_dfs_global_imp_acyclic:
   assumes bc: "dl_body_closed c" and dfs: "dl_acyclic_dfs_global c"
   shows "acyclic (dl_dep_graph c)"
-  sorry
+proof (rule ccontr)
+  assume "\<not> acyclic (dl_dep_graph c)"
+  hence "\<not> acyclic (set (nat_edges c))"
+    by (rule not_acyclic_dep_graph_imp_nat_edges)
+  moreover have "acyclic (set (nat_edges c))"
+    using bc dfs by (rule global_sweep_acyclic)
+  ultimately show False by blast
+qed
 
 theorem dl_acyclic_dfs_global_imp_dl_founded:
   assumes "dl_body_closed c" and "dl_acyclic_dfs_global c"

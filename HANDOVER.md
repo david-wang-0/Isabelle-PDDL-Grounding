@@ -39,13 +39,30 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   (`combos_forall`, proven-equal, `Datalog_Certificate_Index.thy`) so head-only clauses no longer
   materialise `|U|^k` substitutions.
 
-  **Remaining obligation:** `dl_acyclic_dfs_global_imp_acyclic` (`dl_body_closed c ⟹ dl_acyclic_dfs_global
-  c ⟹ acyclic (dl_dep_graph c)`, the 3-colour-DFS "cyclic ⇒ back-edge" completeness) is a `sorry`;
-  everything downstream (`dl_admissible_gdfs` → `dl_founded` via `dl_acyclic_dfs_global_imp_dl_founded`
-  → grounder soundness) is proven on top of it. Cleanest route: reduce to the existing
-  `dl_acyclic_dfs_imp_acyclic` by proving `dl_acyclic_dfs_global c ⟹ dl_acyclic_dfs c`, or a direct
-  invariant over `dfs_fuel` (gray = on-stack path, black = finished-closed). **Until it is discharged the
-  session builds only under `-o quick_and_dirty`.**
+  **Remaining obligation — ONE `sorry`, reduced to a clean self-contained sub-lemma.** The top lemma
+  `dl_acyclic_dfs_global_imp_acyclic` is **proved** (via `not_acyclic_dep_graph_imp_nat_edges`), and
+  everything downstream (`dl_admissible_gdfs` → `dl_founded` → grounder soundness) sits on it. Four
+  plumbing lemmas are proved: `rbt_delete_inv`, `rbt_delete_set`, `adj_set`
+  (`set (Tree2.inorder (neighbourhood (dep_adjmap c) w)) = {v. (w,v) ∈ set (nat_edges c)}`),
+  `nat_edges_endpoint_lt` (`dl_body_closed c ⟹` edge endpoints `< length (dl_cert_facts c)`). The one
+  `sorry` is:
+  `global_sweep_acyclic : dl_body_closed c ⟹ dl_acyclic_dfs_global c ⟹ acyclic (set (nat_edges c))`
+  — 3-colour-DFS completeness for the fuel-bounded `dfs_fuel`. It needs a **REPL/sledgehammer** session
+  (the `isabelle-prover` subagent's toolset lacks `repl_connect`, so it could only do buffer-write +
+  diagnostics). **Plan** (contrapositive over `E = set (nat_edges c)`, `n = length (dl_cert_facts c)`,
+  `adj w` set fixed by `adj_set`): a `dfs_inv E adj s` invariant guarded by `¬ gs_cyc s` — `vset_inv`
+  seen/unf; `GRAY ⊆ SEEN`; `GRAY = set (map fst (work s))` distinct; per frame `set ns ⊆ out v` and
+  consumed neighbours `⊆ SEEN`; **(F)** no `BLACK→GRAY` edge; **(G)** `BLACK` (= SEEN−GRAY) is E-closed;
+  **(Hacyc)** `acyclic (E ∩ BLACK×BLACK)`, preserved at *blacken* via `acyclic_insert` (newly-blackened
+  top vertex is a fresh source: all out-neighbours already BLACK by the split form, no BLACK in-edge by
+  (F)); **(K)** split form `work = ss1 @ (v,ns) # ss2 ⟹ out v − set ns ⊆ BLACK ∪ set (map fst ss1)`.
+  Two inductions on fuel (`dfs_fuel.induct`): **(1)** single-step `dfs_inv` preservation (cases
+  blacken/push/skip/back-edge, set-algebra via `rbt_insert_set`/`rbt_delete_set` + `set.set_isin`);
+  **(2)** fuel sufficiency via measure `μ s = 2·(n−|SEEN|) + Σ_{v∉SEEN} outdeg v + |GRAY| + Σ_frames
+  length ns` (drops ≥1/step, starts `< fuel = 2n+|nat_edges|+1`) ⇒ `work(fin)=[]` when `¬gs_cyc`. Then
+  the `foldl` over `[0..<n)` keeps `dfs_inv` and forces `SEEN ⊇ [0..<n)`; with `nat_edges_endpoint_lt`,
+  `E ∩ BLACK×BLACK = E`, so (Hacyc) gives `acyclic E`. **Until it is discharged the session builds only
+  under `-o quick_and_dirty`.**
 - **Order-constructing witness (optional).** `Datalog_Graph` proves `acyclic ⟺ has_top_num` and the
   kernel integration (`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`); a verified DFS
   that *constructs* the topological order (vs merely detecting a cycle) would slot into
