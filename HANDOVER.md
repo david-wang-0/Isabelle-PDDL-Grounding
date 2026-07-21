@@ -20,49 +20,19 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
-- **Cert-check speed on HTG — SOLVED; three selectable foundedness checks (ONE soundness `sorry` left).**
-  The exported grounder now offers three re-checks of the reachability certificate, selectable via the
-  SML CLI `ground [--dfs|--topo|--gdfs]` (default `--dfs`), each a grounder entry
-  `ground_via_cert_numeric_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`, all **kept on
-  purpose**:
-  - `--dfs` — the per-vertex directed-cycle DFS `dl_acyclic_dfs` (graph library, `O(V²)`);
-  - `--topo` — the ordered linear scan `dl_founded_exec` over Nemo's topological order (`dl_certified_model_exec`);
-  - `--gdfs` — a fast single-sweep global-visited directed-cycle DFS `dl_acyclic_dfs_global`
-    (`Datalog_Cycle_DFS_Global.thy`, `O(V+E)`, one `seen`/gray set shared across roots; list-iterated
-    neighbours + balancing `RBT_Set.insert`/`delete`).
-
-  The real bottleneck turned out to be **graph construction, not the DFS**: `nat_edges`/`fact_idx`
-  rebuilt `dl_cert_facts` (an `O(R²)` `remdups`) inside every one of the `~2·|edges|` relabellings.
-  `nat_edges_code [code]` (bind `dl_cert_facts` once) fixed it — helping BOTH default checks. GED
-  `d-8-12`, all three byte-identical: acyclicity `--gdfs` **111 s → 129 ms**, `--dfs` **57 s → 1.25 s**,
-  `--topo` 0 ms; total ~4.4–5.6 s. The unsafe closure branch was also streamed
-  (`combos_forall`, proven-equal, `Datalog_Certificate_Index.thy`) so head-only clauses no longer
-  materialise `|U|^k` substitutions.
-
-  **Remaining obligation — ONE `sorry`, reduced to a clean self-contained sub-lemma.** The top lemma
-  `dl_acyclic_dfs_global_imp_acyclic` is **proved** (via `not_acyclic_dep_graph_imp_nat_edges`), and
-  everything downstream (`dl_admissible_gdfs` → `dl_founded` → grounder soundness) sits on it. Four
-  plumbing lemmas are proved: `rbt_delete_inv`, `rbt_delete_set`, `adj_set`
-  (`set (Tree2.inorder (neighbourhood (dep_adjmap c) w)) = {v. (w,v) ∈ set (nat_edges c)}`),
-  `nat_edges_endpoint_lt` (`dl_body_closed c ⟹` edge endpoints `< length (dl_cert_facts c)`). The one
-  `sorry` is:
-  `global_sweep_acyclic : dl_body_closed c ⟹ dl_acyclic_dfs_global c ⟹ acyclic (set (nat_edges c))`
-  — 3-colour-DFS completeness for the fuel-bounded `dfs_fuel`. It needs a **REPL/sledgehammer** session
-  (the `isabelle-prover` subagent's toolset lacks `repl_connect`, so it could only do buffer-write +
-  diagnostics). **Plan** (contrapositive over `E = set (nat_edges c)`, `n = length (dl_cert_facts c)`,
-  `adj w` set fixed by `adj_set`): a `dfs_inv E adj s` invariant guarded by `¬ gs_cyc s` — `vset_inv`
-  seen/unf; `GRAY ⊆ SEEN`; `GRAY = set (map fst (work s))` distinct; per frame `set ns ⊆ out v` and
-  consumed neighbours `⊆ SEEN`; **(F)** no `BLACK→GRAY` edge; **(G)** `BLACK` (= SEEN−GRAY) is E-closed;
-  **(Hacyc)** `acyclic (E ∩ BLACK×BLACK)`, preserved at *blacken* via `acyclic_insert` (newly-blackened
-  top vertex is a fresh source: all out-neighbours already BLACK by the split form, no BLACK in-edge by
-  (F)); **(K)** split form `work = ss1 @ (v,ns) # ss2 ⟹ out v − set ns ⊆ BLACK ∪ set (map fst ss1)`.
-  Two inductions on fuel (`dfs_fuel.induct`): **(1)** single-step `dfs_inv` preservation (cases
-  blacken/push/skip/back-edge, set-algebra via `rbt_insert_set`/`rbt_delete_set` + `set.set_isin`);
-  **(2)** fuel sufficiency via measure `μ s = 2·(n−|SEEN|) + Σ_{v∉SEEN} outdeg v + |GRAY| + Σ_frames
-  length ns` (drops ≥1/step, starts `< fuel = 2n+|nat_edges|+1`) ⇒ `work(fin)=[]` when `¬gs_cyc`. Then
-  the `foldl` over `[0..<n)` keeps `dfs_inv` and forces `SEEN ⊇ [0..<n)`; with `nat_edges_endpoint_lt`,
-  `E ∩ BLACK×BLACK = E`, so (Hacyc) gives `acyclic E`. **Until it is discharged the session builds only
-  under `-o quick_and_dirty`.**
+- **DONE (fully verified, 0 `sorry`) — HTG cert-check speed + three selectable foundedness checks.** The
+  exported grounder offers three re-checks of the reachability certificate, `ground [--dfs|--topo|--gdfs]`
+  (default `--dfs`), each `ground_via_cert_numeric_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`,
+  all kept on purpose: `--dfs` per-vertex `dl_acyclic_dfs` (`O(V²)`); `--topo` ordered scan
+  `dl_founded_exec` over Nemo's topological order; `--gdfs` the fast single-sweep global-visited DFS
+  `dl_acyclic_dfs_global` (`Datalog_Cycle_DFS_Global.thy`, `O(V+E)`), **now fully proven** —
+  `dl_acyclic_dfs_global_imp_acyclic` → `_imp_dl_founded` → grounder soundness, via `global_sweep_acyclic`
+  (a `dfs_gctx` locale + 12-conjunct `dfs_inv` DFS invariant + fuel measure). The real bottleneck was
+  **graph construction, not the DFS**: `nat_edges_code [code]` binds `dl_cert_facts` once (it was an
+  `O(R²)` `remdups` rebuilt per relabelling), speeding up BOTH default checks. GED `d-8-12`, all three
+  byte-identical: acyclicity `--gdfs` **111 s → 141 ms**, `--dfs` **57 s → 1.25 s**, `--topo` 0 ms. Unsafe
+  closure branch streamed via `combos_forall` (proven-equal, `Datalog_Certificate_Index.thy`). The session
+  builds normally (no `-o quick_and_dirty`).
 - **Order-constructing witness (optional).** `Datalog_Graph` proves `acyclic ⟺ has_top_num` and the
   kernel integration (`dl_admissible_via_acyclic` / `dl_certified_model_via_acyclic`); a verified DFS
   that *constructs* the topological order (vs merely detecting a cycle) would slot into
