@@ -49,8 +49,8 @@ each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`ground_via_cert_numeric_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
-| Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, verified DFS foundedness) | 0 sorry |
-| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground`) |
+| Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`, ordered scan), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, per-vertex DFS), `Datalog_Cycle_DFS_Global.thy` (`dl_certified_model_gdfs`, fast `O(V+E)` global-sweep DFS) — three verified foundedness re-checks | 0 sorry |
+| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo\|--gdfs]`) |
 | End-to-end demos | `Running_Example.thy`, `Running_Example_DFS.thy`, `Running_Example_Numeric.thy` | green; in-Isabelle `(M, dc)` cert demos (`naive_cert`) |
 
 ## Numeric grounding pipeline (fluent-retaining)

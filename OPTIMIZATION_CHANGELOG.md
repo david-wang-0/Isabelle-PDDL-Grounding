@@ -436,3 +436,59 @@ join (see below).
   **tree-decomposed join** (Helmert / Corrêa), evaluated as a set-preserving refinement so the
   certificate is unchanged, and **rigid-predicate elimination**. These are ranked in the
   `verified-grounder-optimizations.md` reference (in the grounding-benchmarks repo) (Speed 11).
+
+---
+
+# Sprint 2 — 2026-07-19 → 2026-07-21: selectable foundedness checks + the graph-construction fix
+
+Second optimization sprint, same branch. Headline: the certificate **foundedness** re-check on the
+hard-to-ground (HTG) set — long blamed on the per-vertex directed-cycle DFS — was actually dominated by
+**graph construction**, and a fast, fully **verified** single-sweep DFS was added as a third selectable
+check. Every change is a proven-equal `[code]` refinement (or a new verified def), so grounded output is
+byte-identical across all variants and `Classical_Grounding` builds with `0 sorry` (no `quick_and_dirty`).
+
+| # | Commit | Date | Change |
+|---|--------|------|--------|
+| 13 | `be92008` | 07-19 | `ground --topo`: ordered-scan (`dl_founded_exec`) cert check over the Nemo topo order |
+| 14 | `4582f67` | 07-20 | 3-way `ground [--dfs\|--topo\|--gdfs]` + fast global-visited DFS `dl_acyclic_dfs_global`; **`nat_edges_code` graph-construction fix**; `combos_forall` closure streaming; `--topo` CLI arg-order fix |
+| 15 | `7b3d923` | 07-20 | soundness reduction: `dl_acyclic_dfs_global_imp_acyclic` proved; sorry down to `global_sweep_acyclic` |
+| 16 | `7884c51` | 07-21 | `global_sweep_acyclic` proved (3-colour-DFS completeness) — `dl_acyclic_dfs_global` **fully verified, 0 sorry** |
+
+### 13. The real HTG bottleneck: graph construction, not the DFS — `nat_edges_code`
+
+`chk_acyclic` on GED `d-8-12` (model=1594) measured ~57 s. It looked like the per-vertex DFS
+(`dl_acyclic_dfs` runs an independent DFS from every vertex, `O(V²)`), but the exported `nat_edges c =
+map (λ(a,b). (fact_idx c a, fact_idx c b)) (dep_edges c)` with `fact_idx c = idx_of (dl_cert_facts c)`
+**rebuilds `dl_cert_facts c` — an `O(R²)` `remdups` — inside every one of the `~2·|dep_edges|`
+relabellings**, i.e. `O(|edges|·R²)`. `nat_edges_code [code]` (`Datalog_Cycle_DFS.thy`) binds
+`dl_cert_facts` once with a `let` (`by (simp add: nat_edges_def fact_idx_def Let_def)`), dropping it to
+`O(R² + |edges|·R)`. This sped up BOTH default checks. GED `d-8-12`, all variants byte-identical:
+acyclicity `--gdfs` 111 s → ~140 ms, `--dfs` 57 s → 1.25 s, `--topo` 0 ms.
+
+### 14. Three selectable foundedness checks — `ground [--dfs|--topo|--gdfs]`
+
+`ground_via_cert_numeric_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`, all kept on purpose:
+`--dfs` per-vertex `dl_acyclic_dfs` (`O(V²)`); `--topo` ordered scan `dl_founded_exec` over Nemo's topo
+order; `--gdfs` the new fast single-sweep global-visited DFS `dl_acyclic_dfs_global`
+(`Datalog_Cycle_DFS_Global.thy`, `O(V+E)`, one gray/seen set shared across roots, list-iterated
+neighbours + balancing `RBT_Set.insert`/`delete` rather than the graph-lib join-based `insert_rbt`). Both
+the list rewrite and `RBT_Set.insert` were *needed* but were **not** the bottleneck (see 13).
+
+### 15–16. `dl_acyclic_dfs_global` fully verified (`0 sorry`)
+
+`dl_acyclic_dfs_global_imp_acyclic` reduces (via `not_acyclic_dep_graph_imp_nat_edges`) to
+`global_sweep_acyclic : dl_body_closed c ⟹ dl_acyclic_dfs_global c ⟹ acyclic (set (nat_edges c))` — the
+3-colour-DFS completeness of the fuel-bounded `dfs_fuel`, proved via a `dfs_gctx` locale carrying a
+12-conjunct `dfs_inv` invariant (intro + element-level dest lemmas), per-step preservation
+(blacken/skip/push), a fuel measure `μ` with strict-decrease lemmas, `dfs_fuel_terminal`, and the
+outer-root-sweep capstone `sweep_acyclic`. So `dl_acyclic_dfs_global_imp_dl_founded` →
+`dl_admissible_gdfs_imp` → grounder soundness is complete with no `sorry`.
+
+### 14b. Closure streaming for head-only clauses — `combos_forall`
+
+`dl_closure_check_exec_fast`'s unsafe branch materialised the whole `|U|^k` product of substitutions
+(`cls_substs`) before testing any — the cost a head-only clause (empty body, head variables unbound by
+any body atom: an action with a trivial precondition and effect parameters) pays. `combos_forall`
+(`Datalog_Certificate_Index.thy`) fuses generation and testing with a short-circuiting `list_all`, never
+building the product and stopping at the first violating assignment; proven equal to the abstract check
+via `cls_substs_forall`, so the abstract `dl_closure_check_exec` soundness bridge is untouched.
