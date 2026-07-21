@@ -148,34 +148,42 @@ fun doGround mode domFile probFile outOpt =
            rssNemo := vmhwm ();
            profMark ("nemo-done model=" ^ Int.toString (length m));
            (m, dc) end))
+    (* Streaming grounders return only the small `canon`-ed reachable-op list (`Inr ops`),
+       NOT the fully-built ground-action-schema problem: the schema expansion is folded by
+       the printer one action at a time (`problemToStreamOps`), so the ~10^6-action schema
+       list is never materialized -- the peak-RSS bottleneck on action-list-bound domains.
+       Soundness is `ground_via_cert_numeric_*_stream_e_sound`: on `Inr ops`, building the
+       full problem from `ops` would equal the abstract certified grounding. *)
     val gres = Prof.time "ground_total"
                  (fn () => withNemo (fn () =>
                     (case mode of
-                        ChkDFS  => E.ground_via_cert_numeric_dfs_e
-                      | ChkTopo => E.ground_via_cert_numeric_exec_e
-                      | ChkGDFS => E.ground_via_cert_numeric_gdfs_e)
+                        ChkDFS  => E.ground_via_cert_numeric_dfs_stream_e
+                      | ChkTopo => E.ground_via_cert_numeric_exec_stream_e
+                      | ChkGDFS => E.ground_via_cert_numeric_gdfs_stream_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
     (* The verified error-monad grounder returns a specific diagnostic on the left
        (a failing well-formedness check or a rejected reachability certificate) and,
-       on the right, exactly the certified grounding (`ground_via_cert_numeric_dfs_e_sound`). *)
+       on the right, exactly the certified reachable-op list. *)
     case gres of
       E.Inl msg =>
         (eprintln ("Grounding rejected by the verified kernel: " ^ msg);
          printProfile ();
          OS.Process.exit OS.Process.failure)
-    | E.Inr gp =>
-        (Prof.time "render" (fn () =>
-           case outOpt of
-               NONE      => GroundedPddlPrinter.problemToStream TextIO.stdOut gp
-             | SOME path =>
-                 let val out = TextIO.openOut path
-                 in GroundedPddlPrinter.problemToStream out gp;
-                    TextIO.closeOut out;
-                    eprintln ("Wrote grounded PDDL to " ^ path)
-                 end);
-         printProfile ())
+    | E.Inr ops =>
+        let val ptp = E.p_T isaProb in
+          (Prof.time "render" (fn () =>
+             case outOpt of
+                 NONE      => GroundedPddlPrinter.problemToStreamOps TextIO.stdOut (ptp, ops)
+               | SOME path =>
+                   let val out = TextIO.openOut path
+                   in GroundedPddlPrinter.problemToStreamOps out (ptp, ops);
+                      TextIO.closeOut out;
+                      eprintln ("Wrote grounded PDDL to " ^ path)
+                   end);
+           printProfile ())
+        end
   end
 
 fun help () =

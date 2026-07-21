@@ -24,6 +24,16 @@ structure GroundedPddlPrinter :> sig
     TextIO.outstream ->
     PDDL_SAT_Planner_Exported.ast_classical_action_schema
       PDDL_SAT_Planner_Exported.ast_problem -> unit
+  (* Memory-optimized streaming variant: instead of a fully-built grounded problem,
+     take the normalized problem `ptp` (= P_T of the input) plus the small materialized
+     ops list, and expand + emit each ground action schema one at a time
+     (`E.numeric_ground_ac ptp op name`), so only a single schema is ever live. The
+     emitted bytes are IDENTICAL to `problemToStream` on the fully-built problem. *)
+  val problemToStreamOps :
+    TextIO.outstream ->
+    PDDL_SAT_Planner_Exported.ast_classical_action_schema
+      PDDL_SAT_Planner_Exported.ast_problem
+      * PDDL_SAT_Planner_Exported.ast_classical_plan_action list -> unit
 end = struct
   structure E = PDDL_SAT_Planner_Exported
 
@@ -224,6 +234,65 @@ end = struct
         ((if !firstAction then firstAction := false else w "\n");
          w (actionStr a);
          List.app addObj (actionObjs a))) actions;
+      w "\n)\n";
+
+      w "\n(define (problem grounded-inst)\n";
+      w "  (:domain grounded)\n";
+      (case List.rev (!ord) of
+           []    => ()
+         | names => w ("  (:objects " ^ String.concatWith " " (map pddlName names) ^ " - object)\n"));
+      w ("  (:init " ^ String.concatWith " " (map (fmlaStr objName) init) ^ ")\n");
+      w ("  (:goal " ^ fmlaStr objName goal ^ "))\n")
+    end
+
+  (* Streaming twin of `problemToStream` that never materializes the ground-action
+     list. `ptp` is the normalized problem (= P_T of the input): its domain carries the
+     grounded task's predicates/functions and its problem part the init/goal (the built
+     grounded problem copies exactly these). `ops` is the small `canon`-ed reachable-op
+     list; each op expands to a schema via `E.numeric_ground_ac ptp op name`, printed and
+     dropped one at a time. Action names are `E.op_names ops` = `distinct_strings_lit
+     (length ops)`. Header, objects (init/goal then per-action, first-occurrence order),
+     init, and goal are emitted with the identical logic as `problemToStream`, so the
+     bytes match the fully-built path exactly. *)
+  fun problemToStreamOps out (ptp, ops) =
+    let
+      val E.Problem (dom, _, init, goal) = ptp
+      val E.Domain (_, preds, funcs, _, _) = dom
+      fun w s = TextIO.output (out, s)
+
+      (* distinct object names, first-occurrence order, via a hash set *)
+      val seen : unit StringHashTable.table = StringHashTable.table 4096
+      val ord  = ref ([] : string list)
+      fun addObj s =
+        if StringHashTable.member seen s then ()
+        else (StringHashTable.insert seen s (); ord := s :: !ord)
+      val _ = List.app addObj (List.concat (map (fmlaObjs objElem) init))
+      val _ = List.app addObj (fmlaObjs objElem goal)
+
+      val reqs = ":strips :typing :negative-preconditions"
+                 ^ (case funcs of [] => "" | _ => " :numeric-fluents")
+      val firstAction = ref true
+
+      (* op_names ops = distinct_strings_lit (size_list ops): one name per reachable op,
+         a pure function of the count, so identical to the built domain's names. *)
+      val opNames =
+        E.distinct_strings_lit (E.nat_of_integer (IntInf.fromInt (length ops)))
+    in
+      w "(define (domain grounded)\n";
+      w ("  (:requirements " ^ reqs ^ ")\n");
+      w ("  (:predicates " ^ String.concatWith " " (map predDeclStr preds) ^ ")\n");
+      (case funcs of
+           [] => ()
+         | _  => w ("  (:functions " ^ String.concatWith " " (map funcDeclStr funcs) ^ ")\n"));
+      w "\n";
+      (* actions joined by "\n", built one at a time from (op, name) and dropped after
+         emission; objects accumulated exactly as the built-list path would. *)
+      ListPair.app (fn (oper, name) =>
+        let val a = E.numeric_ground_ac ptp oper name in
+          (if !firstAction then firstAction := false else w "\n");
+          w (actionStr a);
+          List.app addObj (actionObjs a)
+        end) (ops, opNames);
       w "\n)\n";
 
       w "\n(define (problem grounded-inst)\n";

@@ -430,4 +430,197 @@ proof (elim ground_via_cert_numeric_dfs_e_InrE)
     unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq[OF rp wf ne cert gc] .
 qed
 
+subsection \<open>Streaming numeric grounding: return the ops enumeration, not the built problem\<close>
+
+text \<open>Memory optimization for action-list-bound domains. Instead of materializing the full
+  ground-action-schema list inside \<^const>\<open>numeric_ground_by_cert\<close> (the \<open>map2\<close> that expands every
+  reachable op into an instantiated precondition/effect schema --- the peak-RSS bottleneck), these
+  streaming variants run \<^emph>\<open>exactly the same checks\<close> as their \<open>_e\<close> twins but return only the small
+  materialized ops list \<^term>\<open>canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)\<close>. The
+  untrusted SML printer then folds the schema expansion \<^const>\<open>ast_classical_problem.numeric_ground_ac\<close>
+  over that ops list, one schema live at a time, reproducing the identical bytes. Each soundness lemma
+  records both the ops identity and that building the full problem from \<open>M\<close> would have equalled the
+  abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close> (via \<open>numeric_ground_by_cert_eq\<close> under the
+  checks that \<open>Inr\<close> established).\<close>
+
+definition ground_via_cert_numeric_dfs_stream_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_plan_action list" where
+  [code]: "ground_via_cert_numeric_dfs_stream_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_dfs (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified DFS checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'')
+       (\<lambda>_. canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))
+   }"
+
+lemma ground_via_cert_numeric_dfs_stream_e_return_iff[return_iff]:
+  "ground_via_cert_numeric_dfs_stream_e f P = Inr ops \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))"
+  unfolding ground_via_cert_numeric_dfs_stream_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+theorem ground_via_cert_numeric_dfs_stream_e_sound:
+  assumes "ground_via_cert_numeric_dfs_stream_e f P = Inr ops"
+  shows "\<exists>M dc. f (dl_program_of P) = (M, dc)
+      \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)
+      \<and> numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_via_cert_numeric_dfs_stream_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and ops_eq: "ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_dfs_imp[OF certE])
+  have "numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    by (rule numeric_ground_by_cert_eq[OF rp wf ne cert gc])
+  thus ?thesis using fMdc ops_eq by blast
+qed
+
+definition ground_via_cert_numeric_exec_stream_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_plan_action list" where
+  [code]: "ground_via_cert_numeric_exec_stream_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_exec (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified ordered-scan checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'')
+       (\<lambda>_. canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))
+   }"
+
+lemma ground_via_cert_numeric_exec_stream_e_return_iff[return_iff]:
+  "ground_via_cert_numeric_exec_stream_e f P = Inr ops \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))"
+  unfolding ground_via_cert_numeric_exec_stream_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+theorem ground_via_cert_numeric_exec_stream_e_sound:
+  assumes "ground_via_cert_numeric_exec_stream_e f P = Inr ops"
+  shows "\<exists>M dc. f (dl_program_of P) = (M, dc)
+      \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)
+      \<and> numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_via_cert_numeric_exec_stream_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and ops_eq: "ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_exec_imp[OF certE])
+  have "numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    by (rule numeric_ground_by_cert_eq[OF rp wf ne cert gc])
+  thus ?thesis using fMdc ops_eq by blast
+qed
+
+definition ground_via_cert_numeric_gdfs_stream_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_plan_action list" where
+  [code]: "ground_via_cert_numeric_gdfs_stream_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_gdfs (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified global-sweep DFS checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'')
+       (\<lambda>_. canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))
+   }"
+
+lemma ground_via_cert_numeric_gdfs_stream_e_return_iff[return_iff]:
+  "ground_via_cert_numeric_gdfs_stream_e f P = Inr ops \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_gdfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))"
+  unfolding ground_via_cert_numeric_gdfs_stream_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+theorem ground_via_cert_numeric_gdfs_stream_e_sound:
+  assumes "ground_via_cert_numeric_gdfs_stream_e f P = Inr ops"
+  shows "\<exists>M dc. f (dl_program_of P) = (M, dc)
+      \<and> ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)
+      \<and> numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_via_cert_numeric_gdfs_stream_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_gdfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and ops_eq: "ops = canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_gdfs_imp[OF certE])
+  have "numeric_ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    by (rule numeric_ground_by_cert_eq[OF rp wf ne cert gc])
+  thus ?thesis using fMdc ops_eq by blast
+qed
+
 end

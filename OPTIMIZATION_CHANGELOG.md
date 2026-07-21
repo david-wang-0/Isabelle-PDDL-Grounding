@@ -492,3 +492,22 @@ any body atom: an action with a trivial precondition and effect parameters) pays
 (`Datalog_Certificate_Index.thy`) fuses generation and testing with a short-circuiting `list_all`, never
 building the product and stopping at the first violating assignment; proven equal to the abstract check
 via `cls_substs_forall`, so the abstract `dl_closure_check_exec` soundness bridge is untouched.
+
+### 17. Stream the ground-action schema expansion through the printer — memory
+
+`numeric_ground_by_cert P M = numeric_ground_prob (P⇩T P) (canon (cert_ops_of_exec_fast (P⇩T P) M))`, and
+`actions numeric_ground_dom = map2 numeric_ground_ac ops op_names` (`Numeric_Grounder.thy`) — each op (a
+small name+args `ast_classical_plan_action`) expanded to a full ground schema (instantiated pre/eff via
+`res_inst`). On action-list-bound domains (childsnack, satellite p33, organic-orig) that **schema list**
+is the peak-RSS bottleneck; the `canon ops` list (the certificate that must stay materialised — `canon`
+dedup+sorts it) is much smaller. Fix: three checks-only streaming grounders
+`ground_via_cert_numeric_{dfs,exec,gdfs}_stream_e` — identical checks to the `_e` twins, but returning
+`Inr (canon (cert_ops_of_exec_fast (P⇩T P) M))` (the ops) instead of the built problem — each with a
+`_sound` theorem (`Inr ops ⟹ ∃M. ops = canon(…) ∧ numeric_ground_by_cert P M = numeric_P⇩G_cert P M`,
+via `dl_certified_model_*_imp` + `numeric_ground_by_cert_eq`; **`0 sorry`**). The SML printer
+`problemToStreamOps` then folds `numeric_ground_ac (P⇩T P)` over `ops` (`op_names =
+distinct_strings_lit (length ops)`), building → printing → dropping ONE schema at a time. The printer is
+untrusted output formatting (as always), so no new formatting proof is needed. Emitted bytes are
+IDENTICAL (md5: gripper / blocks / rovers / GED × all three modes, and satellite p33's 3.97M-line
+output). Peak RSS on satellite p33 `--topo`: **9.75 GB → 3.70 GB (−6 GB, ~2.6×)** — the saved delta is
+exactly the materialised schema list.
