@@ -22,7 +22,7 @@ export_code
   ground_via_cert_numeric_dfs_e ground_via_cert_numeric_exec_e ground_via_cert_numeric_gdfs_e
   ground_via_cert_numeric_dfs_stream_e ground_via_cert_numeric_exec_stream_e ground_via_cert_numeric_gdfs_stream_e
   ast_classical_problem.P\<^sub>T cert_ops_of_exec_fast canon ast_classical_problem.numeric_ground_ac
-  distinct_strings_lit
+  distinct_strings_lit grounder.op_names
   ground_via_cert_prop_dfs_e
   dl_program_of sat_solve_strips
   reconstruct_plan_by_cert reconstruct_plan_by_cert_numeric

@@ -250,8 +250,8 @@ end = struct
      grounded task's predicates/functions and its problem part the init/goal (the built
      grounded problem copies exactly these). `ops` is the small `canon`-ed reachable-op
      list; each op expands to a schema via `E.numeric_ground_ac ptp op name`, printed and
-     dropped one at a time. Action names are `E.op_names ops` = `distinct_strings_lit
-     (length ops)`. Header, objects (init/goal then per-action, first-occurrence order),
+     dropped one at a time. Action names are the verified `E.op_names ops` (readable
+     `<schema>_<args>_<index>`). Header, objects (init/goal then per-action, first-occurrence order),
      init, and goal are emitted with the identical logic as `problemToStream`, so the
      bytes match the fully-built path exactly. *)
   fun problemToStreamOps out (ptp, ops) =
@@ -273,10 +273,11 @@ end = struct
                  ^ (case funcs of [] => "" | _ => " :numeric-fluents")
       val firstAction = ref true
 
-      (* op_names ops = distinct_strings_lit (size_list ops): one name per reachable op,
-         a pure function of the count, so identical to the built domain's names. *)
-      val opNames =
-        E.distinct_strings_lit (E.nat_of_integer (IntInf.fromInt (length ops)))
+      (* Verified readable action names: `E.op_names ops` (the grounder-locale
+         `op_names`) = `readable_pa <op> ^ "_" ^ <index>`, one per reachable op. This is
+         the SAME function the fully-built domain uses (`numeric_ground_dom` calls
+         `op_names ops`), so the streamed bytes match the built path exactly. *)
+      val opNames = E.op_names ops
     in
       w "(define (domain grounded)\n";
       w ("  (:requirements " ^ reqs ^ ")\n");

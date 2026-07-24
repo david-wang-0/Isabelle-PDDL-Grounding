@@ -77,6 +77,16 @@ lemma wf_classical_problemD [dest]:
 
 end
 
+text \<open>A readable string encoder for ground plan actions: the action name, followed by each
+  argument object's name, all joined by underscores. Used to name ground actions readably.\<close>
+
+fun obj_str :: "object \<Rightarrow> String.literal" where
+  "obj_str (Obj nm) = nm"
+
+definition readable_pa :: "ast_classical_plan_action \<Rightarrow> String.literal" where
+  "readable_pa \<pi> = (case \<pi> of SimplePlanAction n args \<Rightarrow>
+     foldl (\<lambda>s ob. s + STR ''_'' + obj_str ob) n args)"
+
 text \<open>The grounder is parameterised by the lists of achievable facts and applicable plan actions.\<close>
 
 locale grounder = ast_classical_problem +
@@ -165,7 +175,8 @@ fun ga_eff :: "ground_action \<Rightarrow> 'a ast_effect" where
   "ga_eff (GroundAction pre (Effect a d ne)) =
     Effect (map ground_fmla a) (map ground_fmla d) (map ground_neff ne)"
 
-definition "op_names \<equiv> distinct_strings_lit (length ops)"
+definition "op_names \<equiv>
+  map2 (\<lambda>\<pi> i. readable_pa \<pi> + STR ''_'' + String.implode (show i)) ops [0..<length ops]"
 
 definition ground_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
   "ground_ac \<pi> n =
