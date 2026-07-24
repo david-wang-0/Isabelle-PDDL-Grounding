@@ -8,7 +8,7 @@
 ;; the numeric grounder retains the `fuel` function declaration and the
 ;; `def(fuel, c)` fluent-state atoms in the grounded (pre-STRIPS) output.
 (define (domain running-example-numeric)
-  (:requirements :strips :typing :disjunctive-preconditions :numeric-fluents)
+  (:requirements :strips :typing :equality :disjunctive-preconditions :numeric-fluents)
   (:types
     City Movable - object
     Vehicle Parcel - Movable
@@ -29,6 +29,7 @@
     :parameters (?c - Car ?from - City ?to - City)
     :precondition (and (at ?c ?from)
                        (>= (fuel ?c) 1)
+                       (not (= ?from ?to))
                        (or (road ?from ?to) (road ?to ?from)))
     :effect (and (at ?c ?to) (not (at ?c ?from))
                  (decrease (fuel ?c) 1)))

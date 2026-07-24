@@ -254,10 +254,11 @@ definition naive_cert where
       in (map fst ns, DLCert (map (\<lambda>(h, b). DLRule h b) ns)))"
 
 definition "my_cert \<equiv> naive_cert my_P\<^sub>R"
-
+definition "my_dl_rules \<equiv> dl_rules my_P\<^sub>R"
+definition "my_const_names \<equiv> ast_classical_problem.const_names my_P\<^sub>R"
 value "my_cert"
-value "dl_certified_model_dfs (dl_rules my_P\<^sub>R)
-         (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
+value "my_dl_rules"
+value "dl_certified_model_dfs my_dl_rules my_const_names (fst my_cert) (snd my_cert)"
 value "dl_acyclic_dfs (snd my_cert)"
 
 text \<open>The \<^emph>\<open>ordered-scan\<close> alternative to the per-vertex DFS foundedness: \<^const>\<open>dl_founded_exec\<close>
@@ -268,8 +269,7 @@ text \<open>The \<^emph>\<open>ordered-scan\<close> alternative to the per-verte
   \<^const>\<open>dl_certified_model_dfs\<close> above (both \<^const>\<open>True\<close>), but in \<open>O(|rules| \<cdot> |body| \<cdot> |facts|)\<close>
   rather than the per-vertex DFS's \<open>O(|facts|\<^sup>2)\<close>.\<close>
 value "dl_founded_exec (snd my_cert)"
-value "dl_certified_model_exec (dl_rules my_P\<^sub>R)
-         (ast_classical_problem.const_names my_P\<^sub>R) (fst my_cert) (snd my_cert)"
+value "dl_certified_model_exec my_dl_rules my_const_names (fst my_cert) (snd my_cert)"
 value "grounding_checks_exec my_P\<^sub>T (fst my_cert)"
 
 text \<open>The fully grounded problem: first the raw nullary propositional PDDL (\<^const>\<open>ground_by_cert\<close>),
@@ -277,7 +277,8 @@ text \<open>The fully grounded problem: first the raw nullary propositional PDDL
   \<^const>\<open>Inl\<close> diagnostic would mean the certificate failed the kernel re-checks, while \<^const>\<open>Inr\<close>
   carries the grounded PDDL problem.\<close>
 value "ground_by_cert my_problem (fst my_cert)"
-value "ground_via_cert_prop_dfs_e (\<lambda>_. my_cert) my_problem"
+definition "my_grounded \<equiv> ground_via_cert_prop_dfs_e (\<lambda>_. my_cert) my_problem"
+value "my_grounded"
 
 subsection \<open>The real (untrusted) oracle: Nemo via the SML driver\<close>
 
