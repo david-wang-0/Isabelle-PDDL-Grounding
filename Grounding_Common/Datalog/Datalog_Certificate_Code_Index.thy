@@ -88,12 +88,26 @@ lemma non_free_body_var:
   shows "\<exists>a \<in> set (cls_body_atoms cl). x \<in> set (concat (map id_vars_list (snd a)))"
   using assms by (auto simp: free_cls_vars_set list_ex_iff)
 
+text \<open>The \<^emph>\<open>guard-only\<close> clause variables: free variables (in no positive body atom) that also do not
+  occur in the head. The head-occurring free variables are \<^emph>\<open>determined\<close> by the head-equality
+  obligation \<open>subst_atom \<sigma> (the_lh cl) = gr_head r\<close>, so the unsafe branch of \<open>clause_ok\<close> reads them off
+  \<^term>\<open>gr_head r\<close> (by seeding \<^const>\<open>body_join\<close> with the head match \<^const>\<open>match_atom_al\<close>) rather than
+  enumerating them over \<open>Ul\<close>; only the guard-only variables are enumerated (via \<^const>\<open>List.n_lists\<close>).\<close>
+definition guard_only_cls_vars :: "('p, 'x, 'c) clause \<Rightarrow> 'x list" where
+  "guard_only_cls_vars cl =
+     filter (\<lambda>x. x \<notin> set (concat (map id_vars_list (snd (the_lh cl))))) (free_cls_vars cl)"
+
+lemma guard_only_cls_vars_subset: "set (guard_only_cls_vars cl) \<subseteq> set (cls_vars cl)"
+  unfolding guard_only_cls_vars_def using free_cls_vars_subset[of cl] by auto
+
 text \<open>Exact per-clause decision: for a \<^emph>\<open>safe\<close> clause a fact-driven, order-independent join over the
   rule body (\<^const>\<open>body_join\<close>, reuse allowed) followed by an explicit head-equality and body
-  \<^emph>\<open>set\<close>-equality check. Otherwise the same fact-driven \<^const>\<open>body_join\<close> binds the body variables and
-  only the \<^const>\<open>free_cls_vars\<close> are enumerated over \<open>Ul\<close> (via \<^const>\<open>List.n_lists\<close>), rather than the
-  full \<^const>\<open>cls_substs\<close> product. In both branches the four abstract conjuncts are checked, so the
-  decision is exact (see \<open>clause_ok_iff\<close>).\<close>
+  \<^emph>\<open>set\<close>-equality check. Otherwise the head is matched against \<^term>\<open>gr_head r\<close> (\<^const>\<open>match_atom_al\<close>,
+  fail-closed when the predicates/constants clash), pinning the head variables; the resulting bindings
+  seed the fact-driven \<^const>\<open>body_join\<close> over the body, and only the \<^const>\<open>guard_only_cls_vars\<close> --- free
+  variables occurring in neither head nor body --- are enumerated over \<open>Ul\<close> (via \<^const>\<open>List.n_lists\<close>),
+  rather than every free variable or the full \<^const>\<open>cls_substs\<close> product. In both branches the four
+  abstract conjuncts are checked, so the decision is exact (see \<open>clause_ok_iff\<close>).\<close>
 definition clause_ok :: "'c list \<Rightarrow> ('p, 'c) dl_ground_rule \<Rightarrow> ('p, 'x, 'c) clause \<Rightarrow> bool" where
   "clause_ok Ul r cl =
      (if clause_safe_exec cl
@@ -103,16 +117,18 @@ definition clause_ok :: "'c list \<Rightarrow> ('p, 'c) dl_ground_rule \<Rightar
              \<and> subst_atom (\<lambda>x. the (map_of al x)) (the_lh cl) = gr_head r
              \<and> set (map (subst_atom (\<lambda>x. the (map_of al x))) (cls_body_atoms cl)) = set (gr_body r))
            (body_join [] (cls_body_atoms cl) (gr_body r))
-      else list_ex (\<lambda>al.
-             list_ex (\<lambda>ws.
-               let \<sigma> = (\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x of Some c \<Rightarrow> c
-                                                                       | None \<Rightarrow> the (map_of al x))
-               in list_all (\<lambda>x. \<sigma> x \<in> set Ul) (cls_vars cl)
-                  \<and> list_all (eval_guard \<sigma>) (cls_guards cl)
-                  \<and> subst_atom \<sigma> (the_lh cl) = gr_head r
-                  \<and> set (map (subst_atom \<sigma>) (cls_body_atoms cl)) = set (gr_body r))
-             (List.n_lists (length (free_cls_vars cl)) Ul))
-           (body_join [] (cls_body_atoms cl) (gr_body r)))"
+      else (case match_atom_al [] (the_lh cl) (gr_head r) of
+              None \<Rightarrow> False
+            | Some al0 \<Rightarrow> list_ex (\<lambda>al.
+                list_ex (\<lambda>ws.
+                  let \<sigma> = (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x of Some c \<Rightarrow> c
+                                                                              | None \<Rightarrow> the (map_of al x))
+                  in list_all (\<lambda>x. \<sigma> x \<in> set Ul) (cls_vars cl)
+                     \<and> list_all (eval_guard \<sigma>) (cls_guards cl)
+                     \<and> subst_atom \<sigma> (the_lh cl) = gr_head r
+                     \<and> set (map (subst_atom \<sigma>) (cls_body_atoms cl)) = set (gr_body r))
+                (List.n_lists (length (guard_only_cls_vars cl)) Ul))
+              (body_join al0 (cls_body_atoms cl) (gr_body r))))"
 
 text \<open>The indexed checker: fact case (\<open>gr_body r = []\<close>) --- accept if the ground head atom is in the
   per-argument (or, for a nullary head, predicate-bucket) fact index, or some fallback empty-body
@@ -188,22 +204,32 @@ proof
     ultimately show ?thesis unfolding clause_oi_def by blast
   next
     case False
+    obtain al0 where
+      inner: "list_ex (\<lambda>al.
+                list_ex (\<lambda>ws.
+                  let \<sigma> = (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x of Some c \<Rightarrow> c
+                                                                              | None \<Rightarrow> the (map_of al x))
+                  in list_all (\<lambda>x. \<sigma> x \<in> set Ul) (cls_vars cl)
+                     \<and> list_all (eval_guard \<sigma>) (cls_guards cl)
+                     \<and> subst_atom \<sigma> (the_lh cl) = gr_head r
+                     \<and> set (map (subst_atom \<sigma>) (cls_body_atoms cl)) = set (gr_body r))
+                (List.n_lists (length (guard_only_cls_vars cl)) Ul))
+              (body_join al0 (cls_body_atoms cl) (gr_body r))"
+      using ok False unfolding clause_ok_def by (auto split: option.splits)
     obtain al ws where
-      alin: "al \<in> set (body_join [] (cls_body_atoms cl) (gr_body r))" and
-      wsin: "ws \<in> set (List.n_lists (length (free_cls_vars cl)) Ul)" and
-      cU: "list_all (\<lambda>x. (case map_of (zip (free_cls_vars cl) ws) x
+      cU: "list_all (\<lambda>x. (case map_of (zip (guard_only_cls_vars cl) ws) x
                             of Some c \<Rightarrow> c | None \<Rightarrow> the (map_of al x)) \<in> set Ul) (cls_vars cl)" and
-      cG: "list_all (eval_guard (\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x
+      cG: "list_all (eval_guard (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x
                             of Some c \<Rightarrow> c | None \<Rightarrow> the (map_of al x))) (cls_guards cl)" and
-      cH: "subst_atom (\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x
+      cH: "subst_atom (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x
                             of Some c \<Rightarrow> c | None \<Rightarrow> the (map_of al x)) (the_lh cl) = gr_head r" and
-      cB: "set (map (subst_atom (\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x
+      cB: "set (map (subst_atom (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x
                             of Some c \<Rightarrow> c | None \<Rightarrow> the (map_of al x))) (cls_body_atoms cl))
              = set (gr_body r)"
-      using ok False unfolding clause_ok_def by (auto simp: list_ex_iff Let_def)
+      using inner by (auto simp: list_ex_iff Let_def)
     show "clause_oi Ul r cl"
       unfolding clause_oi_def
-      by (intro exI[where x = "\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x
+      by (intro exI[where x = "\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x
                                      of Some c \<Rightarrow> c | None \<Rightarrow> the (map_of al x)"])
          (use cU cG cH cB in \<open>auto simp: list_all_iff\<close>)
   qed
@@ -266,43 +292,65 @@ next
     case False
     have bin: "\<forall>a \<in> set (cls_body_atoms cl). subst_atom \<sigma> a \<in> set (gr_body r)"
       using bsig by auto
-    have empty_cons: "\<forall>x d. map_of [] x = Some d \<longrightarrow> \<sigma> x = d" by simp
-    obtain al where alin: "al \<in> set (body_join [] (cls_body_atoms cl) (gr_body r))"
+    have hcons: "\<forall>x d. map_of [] x = Some d \<longrightarrow> \<sigma> x = d" by simp
+    obtain al0 where
+      m0: "match_atom_al [] (the_lh cl) (subst_atom \<sigma> (the_lh cl)) = Some al0" and
+      cons0: "\<forall>x d. map_of al0 x = Some d \<longrightarrow> \<sigma> x = d" and
+      bind0: "\<forall>x \<in> set (concat (map id_vars_list (snd (the_lh cl)))). map_of al0 x = Some (\<sigma> x)"
+      using match_atom_al_complete[OF hcons, of "the_lh cl"] by blast
+    have m0': "match_atom_al [] (the_lh cl) (gr_head r) = Some al0" using m0 hsig by simp
+    obtain al where alin: "al \<in> set (body_join al0 (cls_body_atoms cl) (gr_body r))"
+      and ext0: "\<forall>x d. map_of al0 x = Some d \<longrightarrow> map_of al x = Some d"
       and albind: "\<forall>a \<in> set (cls_body_atoms cl).
                      \<forall>x \<in> set (concat (map id_vars_list (snd a))). map_of al x = Some (\<sigma> x)"
-      using body_join_complete[OF bin empty_cons] by auto
-    define ws where "ws = map \<sigma> (free_cls_vars cl)"
-    define \<sigma>' where "\<sigma>' = (\<lambda>x. case map_of (zip (free_cls_vars cl) ws) x of Some c \<Rightarrow> c
+      using body_join_complete[OF bin cons0] by blast
+    define ws where "ws = map \<sigma> (guard_only_cls_vars cl)"
+    define \<sigma>' where "\<sigma>' = (\<lambda>x. case map_of (zip (guard_only_cls_vars cl) ws) x of Some c \<Rightarrow> c
                                                                       | None \<Rightarrow> the (map_of al x))"
     have wsU: "set ws \<subseteq> set Ul"
     proof
       fix y assume "y \<in> set ws"
-      then obtain x where x: "x \<in> set (free_cls_vars cl)" and yx: "y = \<sigma> x"
+      then obtain x where x: "x \<in> set (guard_only_cls_vars cl)" and yx: "y = \<sigma> x"
         unfolding ws_def by auto
-      have "x \<in> set (cls_vars cl)" using free_cls_vars_subset[of cl] x by blast
+      have "x \<in> set (cls_vars cl)" using guard_only_cls_vars_subset[of cl] x by blast
       then show "y \<in> set Ul" using rng yx by blast
     qed
-    have lenws: "length ws = length (free_cls_vars cl)" unfolding ws_def by simp
-    have wsin: "ws \<in> set (List.n_lists (length (free_cls_vars cl)) Ul)"
+    have lenws: "length ws = length (guard_only_cls_vars cl)" unfolding ws_def by simp
+    have wsin: "ws \<in> set (List.n_lists (length (guard_only_cls_vars cl)) Ul)"
       using wsU lenws by (simp add: set_n_lists)
-    have mapz: "map_of (zip (free_cls_vars cl) ws)
-                  = (\<lambda>x. if x \<in> set (free_cls_vars cl) then Some (\<sigma> x) else None)"
+    have mapz: "map_of (zip (guard_only_cls_vars cl) ws)
+                  = (\<lambda>x. if x \<in> set (guard_only_cls_vars cl) then Some (\<sigma> x) else None)"
       unfolding ws_def by (rule map_of_zip_map)
     have ag: "\<forall>x \<in> set (cls_vars cl). \<sigma>' x = \<sigma> x"
     proof
       fix x assume x: "x \<in> set (cls_vars cl)"
       show "\<sigma>' x = \<sigma> x"
-      proof (cases "x \<in> set (free_cls_vars cl)")
+      proof (cases "x \<in> set (guard_only_cls_vars cl)")
         case True
         then show ?thesis unfolding \<sigma>'_def mapz by simp
       next
-        case notfree: False
-        then have "map_of (zip (free_cls_vars cl) ws) x = None" unfolding mapz by simp
+        case notgo: False
+        then have "map_of (zip (guard_only_cls_vars cl) ws) x = None" unfolding mapz by simp
         then have step1: "\<sigma>' x = the (map_of al x)" unfolding \<sigma>'_def by simp
-        obtain a where a: "a \<in> set (cls_body_atoms cl)"
-          and xa: "x \<in> set (concat (map id_vars_list (snd a)))"
-          using non_free_body_var[OF x notfree] by blast
-        have "map_of al x = Some (\<sigma> x)" using albind a xa by blast
+        have "map_of al x = Some (\<sigma> x)"
+        proof (cases "x \<in> set (concat (map id_vars_list (snd (the_lh cl))))")
+          case inhead: True
+          then have "map_of al0 x = Some (\<sigma> x)" using bind0 by blast
+          then show ?thesis using ext0 by blast
+        next
+          case nothead: False
+          have xnf: "x \<notin> set (free_cls_vars cl)"
+          proof
+            assume "x \<in> set (free_cls_vars cl)"
+            then have "x \<in> set (guard_only_cls_vars cl)"
+              using nothead by (simp add: guard_only_cls_vars_def)
+            then show False using notgo by simp
+          qed
+          obtain a where a: "a \<in> set (cls_body_atoms cl)"
+            and xa: "x \<in> set (concat (map id_vars_list (snd a)))"
+            using non_free_body_var[OF x xnf] by blast
+          show ?thesis using albind a xa by blast
+        qed
         then show ?thesis using step1 by simp
       qed
     qed
@@ -320,7 +368,7 @@ next
     qed
     show ?thesis
       unfolding clause_ok_def
-      apply (simp only: if_not_P[OF False] list_ex_iff Let_def)
+      apply (simp only: if_not_P[OF False] m0' option.case list_ex_iff Let_def)
       apply (rule bexI[OF _ alin], rule bexI[OF _ wsin])
       using U[unfolded \<sigma>'_def] Gd[unfolded \<sigma>'_def] Hd[unfolded \<sigma>'_def] Bd[unfolded \<sigma>'_def] by simp
   qed
