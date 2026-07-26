@@ -173,6 +173,22 @@ definition dl_rule_valid_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list
             \<and> list_all (eval_guard_al al) (cls_guards cl))
        Pl"
 
+text \<open>\<^bold>\<open>Order-independent list-based rule validity\<close>: the abstract set-based \<^const>\<open>dl_rule_valid\<close>
+  presented on \<^emph>\<open>list\<close> arguments. The executable admissibility checks use this (in place of the
+  order-\<^emph>\<open>sensitive\<close> \<^const>\<open>dl_rule_valid_exec\<close>); its executable code equation is the indexed checker
+  in the downstream theory \<open>Datalog_Certificate_Code_Index\<close>. Being definitionally the abstract
+  check, it is order-independent and both sound \<^emph>\<open>and\<close> complete against it.\<close>
+definition dl_rule_valid_oi ::
+    "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_ground_rule \<Rightarrow> bool" where
+  "dl_rule_valid_oi Pl Ul r \<equiv>
+     (\<exists>cl \<in> set Pl. \<exists>\<sigma>. (\<forall>x \<in> set (cls_vars cl). \<sigma> x \<in> set Ul)
+        \<and> (\<forall>g \<in> set (cls_guards cl). eval_guard \<sigma> g)
+        \<and> gr_head r = subst_atom \<sigma> (the_lh cl)
+        \<and> set (gr_body r) = set (map (subst_atom \<sigma>) (cls_body_atoms cl)))"
+
+lemma dl_rule_valid_oi_eq: "dl_rule_valid_oi Pl Ul r = dl_rule_valid (set Pl) (set Ul) r"
+  unfolding dl_rule_valid_oi_def dl_rule_valid_def by (rule refl)
+
 definition match_facts_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p, 'c) dl_fact list \<Rightarrow> ('x \<times> 'c) list list" where
   "match_facts_al al a facts = List.map_filter (match_atom_al al a) facts"
 
@@ -206,7 +222,7 @@ definition dl_closure_check_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c l
 definition dl_admissible_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_admissible_exec Pl Ul c =
      (dl_positive_prog_exec Pl
-      \<and> list_all (dl_rule_valid_exec Pl Ul) (dl_rules c)
+      \<and> list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)
       \<and> dl_closure_check_exec Pl Ul c
       \<and> dl_founded_exec c)"
 
@@ -548,13 +564,13 @@ lemma dl_admissible_exec_imp:
   shows "dl_admissible (set Pl) (set Ul) c"
 proof -
   have pos: "dl_positive_prog_exec Pl"
-    and rv: "list_all (dl_rule_valid_exec Pl Ul) (dl_rules c)"
+    and rv: "list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)"
     and cc: "dl_closure_check_exec Pl Ul c"
     and fd: "dl_founded_exec c"
     using assms unfolding dl_admissible_exec_def by auto
   have "dl_positive_prog (set Pl)" using pos by (simp add: dl_positive_prog_exec_iff)
   moreover have "\<forall>r \<in> set (dl_rules c). dl_rule_valid (set Pl) (set Ul) r"
-    using rv by (auto simp: list_all_iff intro: dl_rule_valid_exec_imp)
+    using rv by (auto simp: list_all_iff dl_rule_valid_oi_eq)
   moreover have "dl_closure_check (set Pl) (set Ul) c"
     using cc by (rule dl_closure_check_exec_imp)
   moreover have "dl_founded c" using fd by (rule dl_founded_exec_imp_dl_founded)

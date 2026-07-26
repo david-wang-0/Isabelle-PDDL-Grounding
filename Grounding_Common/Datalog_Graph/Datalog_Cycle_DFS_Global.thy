@@ -1047,7 +1047,7 @@ text \<open>The executable admissibility check with its foundedness conjunct dis
 definition dl_admissible_gdfs :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_admissible_gdfs Pl Ul c =
      (dl_positive_prog_exec Pl
-      \<and> list_all (dl_rule_valid_exec Pl Ul) (dl_rules c)
+      \<and> list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)
       \<and> dl_closure_check_exec Pl Ul c
       \<and> dl_body_closed c
       \<and> dl_acyclic_dfs_global c)"
@@ -1057,14 +1057,14 @@ lemma dl_admissible_gdfs_imp:
   shows "dl_admissible (set Pl) (set Ul) c"
 proof -
   have pos: "dl_positive_prog_exec Pl"
-    and rv: "list_all (dl_rule_valid_exec Pl Ul) (dl_rules c)"
+    and rv: "list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)"
     and cc: "dl_closure_check_exec Pl Ul c"
     and bc: "dl_body_closed c"
     and ac: "dl_acyclic_dfs_global c"
     using assms unfolding dl_admissible_gdfs_def by auto
   have "dl_positive_prog (set Pl)" using pos by (simp add: dl_positive_prog_exec_iff)
   moreover have "\<forall>r \<in> set (dl_rules c). dl_rule_valid (set Pl) (set Ul) r"
-    using rv by (auto simp: list_all_iff intro: dl_rule_valid_exec_imp)
+    using rv by (auto simp: list_all_iff dl_rule_valid_oi_eq)
   moreover have "dl_closure_check (set Pl) (set Ul) c"
     using cc by (rule dl_closure_check_exec_imp)
   moreover have "dl_founded c" using dl_acyclic_dfs_global_imp_dl_founded[OF bc ac] .
