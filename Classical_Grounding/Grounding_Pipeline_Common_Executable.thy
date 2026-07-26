@@ -1,6 +1,7 @@
 theory Grounding_Pipeline_Common_Executable
   imports Grounding_Pipeline_STRIPS Code_Setup
     Datalog_Certification.Datalog_Certificate_Code
+    Datalog_Certification.Datalog_Certificate_Code_Index
     Datalog_Graph.Datalog_Certificate_Index
     Grounding_Classical_Common.PDDL_Orderings
     Classical_Reachability_Analysis.Classical_Cert_Ops_Index
