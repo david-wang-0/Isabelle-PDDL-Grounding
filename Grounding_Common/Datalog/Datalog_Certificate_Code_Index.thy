@@ -347,10 +347,18 @@ proof -
   with oi show ?thesis by simp
 qed
 
-text \<open>Code equation: \<^const>\<open>dl_rule_valid_oi\<close> executes through the indexed checker.\<close>
-lemma dl_rule_valid_oi_code [code]:
-  "dl_rule_valid_oi Pl Ul r = dl_rule_valid_exec_idx (mk_rulevalid_index Pl) Ul r"
-  by (rule dl_rule_valid_exec_idx_eq [symmetric])
+text \<open>Code equation for the whole-certificate check: build the fact/rule index \<^emph>\<open>once\<close> (the \<open>let\<close>)
+  and reuse it across all rules, executing each through the indexed \<^const>\<open>dl_rule_valid_exec_idx\<close>.
+  A per-rule \<open>[code]\<close> on \<^const>\<open>dl_rule_valid_oi\<close> would rebuild the index for every rule
+  (\<open>O(|rules| \<cdot> |Pl|)\<close>); hoisting the build here is what delivers the speed-up.\<close>
+lemma dl_rules_valid_oi_code [code]:
+  "dl_rules_valid_oi Pl Ul rs =
+     (let idx = mk_rulevalid_index Pl in list_all (\<lambda>r. dl_rule_valid_exec_idx idx Ul r) rs)"
+proof -
+  have "dl_rule_valid_oi Pl Ul = (\<lambda>r. dl_rule_valid_exec_idx (mk_rulevalid_index Pl) Ul r)"
+    by (rule ext) (rule dl_rule_valid_exec_idx_eq[symmetric])
+  then show ?thesis unfolding dl_rules_valid_oi_def Let_def by simp
+qed
 
 text \<open>The full soundness/completeness chain to the abstract set-based check.\<close>
 corollary dl_rule_valid_exec_idx_correct:

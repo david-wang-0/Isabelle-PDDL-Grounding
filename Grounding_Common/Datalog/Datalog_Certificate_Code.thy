@@ -189,6 +189,14 @@ definition dl_rule_valid_oi ::
 lemma dl_rule_valid_oi_eq: "dl_rule_valid_oi Pl Ul r = dl_rule_valid (set Pl) (set Ul) r"
   unfolding dl_rule_valid_oi_def dl_rule_valid_def by (rule refl)
 
+text \<open>The whole-certificate rule-validity check. The admissibility checks call this (rather than
+  \<open>list_all (dl_rule_valid_oi Pl Ul)\<close> directly) so its \<open>[code]\<close> equation --- in the downstream theory
+  \<open>Datalog_Certificate_Code_Index\<close> --- can build the fact/rule index \<^emph>\<open>once\<close> and reuse it across all
+  rules, rather than rebuilding it per rule.\<close>
+definition dl_rules_valid_oi ::
+    "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_ground_rule list \<Rightarrow> bool" where
+  "dl_rules_valid_oi Pl Ul rs = list_all (dl_rule_valid_oi Pl Ul) rs"
+
 definition match_facts_al :: "('x \<times> 'c) list \<Rightarrow> ('p, 'x, 'c) lh \<Rightarrow> ('p, 'c) dl_fact list \<Rightarrow> ('x \<times> 'c) list list" where
   "match_facts_al al a facts = List.map_filter (match_atom_al al a) facts"
 
@@ -222,7 +230,7 @@ definition dl_closure_check_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c l
 definition dl_admissible_exec :: "('p, 'x, 'c) clause list \<Rightarrow> 'c list \<Rightarrow> ('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_admissible_exec Pl Ul c =
      (dl_positive_prog_exec Pl
-      \<and> list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)
+      \<and> dl_rules_valid_oi Pl Ul (dl_rules c)
       \<and> dl_closure_check_exec Pl Ul c
       \<and> dl_founded_exec c)"
 
@@ -567,7 +575,7 @@ proof -
     and rv: "list_all (dl_rule_valid_oi Pl Ul) (dl_rules c)"
     and cc: "dl_closure_check_exec Pl Ul c"
     and fd: "dl_founded_exec c"
-    using assms unfolding dl_admissible_exec_def by auto
+    using assms unfolding dl_admissible_exec_def dl_rules_valid_oi_def by auto
   have "dl_positive_prog (set Pl)" using pos by (simp add: dl_positive_prog_exec_iff)
   moreover have "\<forall>r \<in> set (dl_rules c). dl_rule_valid (set Pl) (set Ul) r"
     using rv by (auto simp: list_all_iff dl_rule_valid_oi_eq)

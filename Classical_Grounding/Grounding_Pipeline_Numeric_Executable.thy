@@ -16,7 +16,7 @@ declare dl_admissible_dfs_def [code del]
 lemma dl_admissible_dfs_timed_code [code]:
   "dl_admissible_dfs Pl Ul c =
      (time_it (STR ''chk_positive'')   (\<lambda>_. dl_positive_prog_exec Pl)
-      \<and> time_it (STR ''chk_rulevalid'')  (\<lambda>_. list_all (dl_rule_valid_oi Pl Ul) (Datalog_Certificate.dl_rules c))
+      \<and> time_it (STR ''chk_rulevalid'')  (\<lambda>_. dl_rules_valid_oi Pl Ul (Datalog_Certificate.dl_rules c))
       \<and> time_it (STR ''chk_closure'')    (\<lambda>_. dl_closure_check_exec Pl Ul c)
       \<and> time_it (STR ''chk_bodyclosed'') (\<lambda>_. dl_body_closed c)
       \<and> time_it (STR ''chk_acyclic'')    (\<lambda>_. dl_acyclic_dfs c))"
@@ -27,7 +27,7 @@ declare dl_admissible_gdfs_def [code del]
 lemma dl_admissible_gdfs_timed_code [code]:
   "dl_admissible_gdfs Pl Ul c =
      (time_it (STR ''chk_positive'')   (\<lambda>_. dl_positive_prog_exec Pl)
-      \<and> time_it (STR ''chk_rulevalid'')  (\<lambda>_. list_all (dl_rule_valid_oi Pl Ul) (Datalog_Certificate.dl_rules c))
+      \<and> time_it (STR ''chk_rulevalid'')  (\<lambda>_. dl_rules_valid_oi Pl Ul (Datalog_Certificate.dl_rules c))
       \<and> time_it (STR ''chk_closure'')    (\<lambda>_. dl_closure_check_exec Pl Ul c)
       \<and> time_it (STR ''chk_bodyclosed'') (\<lambda>_. dl_body_closed c)
       \<and> time_it (STR ''chk_acyclic_global'') (\<lambda>_. dl_acyclic_dfs_global c))"
