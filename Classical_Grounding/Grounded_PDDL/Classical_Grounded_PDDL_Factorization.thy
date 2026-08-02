@@ -6,7 +6,7 @@ begin
 section \<open>Factorization: the one-shot grounder is variable-freeness followed by fact folding\<close>
 
 text \<open>The propositional grounder \<^const>\<open>grounder.ground_prob\<close> factors through the two pipeline
-  stages: the Variable_Freeness stage's \<^const>\<open>varfree.varfree_ground_prob\<close> (instantiate every
+  stages: the Variable_Freeness stage's \<^const>\<open>varfree.varfree_inst_prob\<close> (instantiate every
   reachable op into a nullary schema) followed by the fact folder's
   \<^const>\<open>fact_folder.fold_prob\<close> (collapse ground atoms and fluents onto fresh nullary
   predicate/function names). This theory proves the factorization: the folder's input obligations
@@ -31,18 +31,18 @@ proof -
     unfolding op_map_inv_def using ops_dist ops_len by simp
 qed
 
-text \<open>Every action of the variable-free domain is \<^term>\<open>varfree_ground_ac \<pi> n\<close> for an actual
+text \<open>Every action of the variable-free domain is \<^term>\<open>varfree_inst_ac \<pi> n\<close> for an actual
   zip pair, so the op\<open>\<rightarrow>\<close>name map pins its name.\<close>
 lemma vg_acs_obtain:
-  assumes "a \<in> set (actions varfree_ground_dom)"
-  obtains \<pi> n where "a = varfree_ground_ac \<pi> n" and "\<pi> \<in> set ops" and "op_map_inv \<pi> = Some n"
+  assumes "a \<in> set (actions varfree_inst_dom)"
+  obtains \<pi> n where "a = varfree_inst_ac \<pi> n" and "\<pi> \<in> set ops" and "op_map_inv \<pi> = Some n"
 proof -
   obtain i where
-    i: "i < length (actions varfree_ground_dom)"
-    and nth: "actions varfree_ground_dom ! i = a"
+    i: "i < length (actions varfree_inst_dom)"
+    and nth: "actions varfree_inst_dom ! i = a"
     using assms in_set_conv_nth by metis
   have il: "i < length ops" using i ops_len by simp
-  have "a = varfree_ground_ac (ops ! i) (op_names ! i)"
+  have "a = varfree_inst_ac (ops ! i) (op_names ! i)"
     using nth il ops_len by simp
   moreover have "ops ! i \<in> set ops" using il by simp
   moreover have "op_map_inv (ops ! i) = Some (op_names ! i)" using op_map_inv_nth[OF il] .
@@ -51,23 +51,23 @@ qed
 
 text \<open>The folder's nullary plan action of a variable-free grounded schema is exactly the
   grounder's \<^term>\<open>ground_pa \<pi>\<close> for the paired op, so \<open>res_inst\<close> transfers back to \<open>P\<close>.\<close>
-lemma ac_pa_varfree_ground_ac:
+lemma ac_pa_varfree_inst_ac:
   assumes "op_map_inv \<pi> = Some n"
-  shows "ac_pa (varfree_ground_ac \<pi> n) = ground_pa \<pi>"
+  shows "ac_pa (varfree_inst_ac \<pi> n) = ground_pa \<pi>"
   unfolding ac_pa_def ground_pa_def using assms by simp
 
 lemma resinst_ac_pa:
   assumes "\<pi> \<in> set ops"
       and "op_map_inv \<pi> = Some n"
-  shows "png.res_inst (ac_pa (varfree_ground_ac \<pi> n)) = res_inst \<pi>"
-  unfolding ac_pa_varfree_ground_ac[OF assms(2)] using resinst_varfree_ground_pa[OF assms(1)] .
+  shows "png.res_inst (ac_pa (varfree_inst_ac \<pi> n)) = res_inst \<pi>"
+  unfolding ac_pa_varfree_inst_ac[OF assms(2)] using resinst_varfree_inst_pa[OF assms(1)] .
 
 text \<open>The op-fluent enumeration only consumes \<^term>\<open>the (res_inst \<pi>)\<close>, so it transfers along
   the \<open>res_inst\<close> correspondence.\<close>
 lemma png_op_fluents_ac_pa:
   assumes "\<pi> \<in> set ops"
       and "op_map_inv \<pi> = Some n"
-  shows "png.op_fluents (ac_pa (varfree_ground_ac \<pi> n)) = op_fluents \<pi>"
+  shows "png.op_fluents (ac_pa (varfree_inst_ac \<pi> n)) = op_fluents \<pi>"
   unfolding png.op_fluents_def op_fluents_def resinst_ac_pa[OF assms] ..
 
 subsection \<open>Well-formedness of the derived fluents\<close>
@@ -129,14 +129,14 @@ end
 subsection \<open>The folder's covered obligations hold at the variable-free problem\<close>
 
 text \<open>Interpretation of the fact folder's covered assumption layer at
-  \<^const>\<open>varfree.varfree_ground_prob\<close> with the grounder's own \<open>facts\<close>/\<open>fluents\<close>: the folder's
+  \<^const>\<open>varfree.varfree_inst_prob\<close> with the grounder's own \<open>facts\<close>/\<open>fluents\<close>: the folder's
   obligations about the variable-free problem reduce to \<^locale>\<open>wf_grounder_cov\<close>'s own
   assumptions via the \<open>res_inst\<close> transfer, the \<open>png\<close> signature bridge, and the achievability
   transfer \<open>varfree_achievable_sub\<close>.\<close>
-sublocale wf_grounder_cov \<subseteq> ff: wf_fact_folder_cov varfree_ground_prob facts fluents
+sublocale wf_grounder_cov \<subseteq> ff: wf_fact_folder_cov varfree_inst_prob facts fluents
 proof (unfold_locales)
-  show "png.wf_classical_problem" using varfree_ground_prob_wf .
-  show "png.varfree_prob" using varfree_ground_prob_varfree .
+  show "png.wf_classical_problem" using varfree_inst_prob_wf .
+  show "png.varfree_prob" using varfree_inst_prob_varfree .
   show "distinct facts" using facts_dist .
   have "{a. png.achievable a} \<subseteq> {a. achievable a}" using varfree_achievable_sub by blast
   hence "fact_to_facty ` {a. png.achievable a} \<subseteq> fact_to_facty ` {a. achievable a}"
@@ -144,14 +144,14 @@ proof (unfold_locales)
   thus "fact_to_facty ` {a. png.achievable a} \<subseteq> set facts" using all_facts by blast
   show "\<forall>a \<in> set facts. png.wf_fmla_atom png.objT a"
     unfolding varfree_png_wf_fmla_atom varfree_png_objT using facts_wf .
-  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_ground_prob)).
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
       (let eff = effect (the (png.res_inst (ac_pa a))) in
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)"
   proof
-    fix a assume "a \<in> set (actions (ast_problem.domain varfree_ground_prob))"
-    hence "a \<in> set (actions varfree_ground_dom)" by simp
+    fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+    hence "a \<in> set (actions varfree_inst_dom)" by simp
     then obtain \<pi> n where
-      a: "a = varfree_ground_ac \<pi> n"
+      a: "a = varfree_inst_ac \<pi> n"
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
@@ -162,13 +162,13 @@ proof (unfold_locales)
     thus "(let eff = effect (the (png.res_inst (ac_pa a))) in
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" unfolding ri .
   qed
-  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_ground_prob)).
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
       covered (precondition (the (png.res_inst (ac_pa a)))) facts"
   proof
-    fix a assume "a \<in> set (actions (ast_problem.domain varfree_ground_prob))"
-    hence "a \<in> set (actions varfree_ground_dom)" by simp
+    fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+    hence "a \<in> set (actions varfree_inst_dom)" by simp
     then obtain \<pi> n where
-      a: "a = varfree_ground_ac \<pi> n"
+      a: "a = varfree_inst_ac \<pi> n"
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
@@ -176,17 +176,17 @@ proof (unfold_locales)
     show "covered (precondition (the (png.res_inst (ac_pa a)))) facts"
       unfolding ri using pres_covered pi by blast
   qed
-  show "covered (goal varfree_ground_prob) facts" using goal_covered by simp
+  show "covered (goal varfree_inst_prob) facts" using goal_covered by simp
   show "distinct fluents" unfolding fluents_def by simp
   show "\<forall>fl \<in> set fluents. png.wf_primitive_numeric_expression png.objT fl"
     unfolding varfree_png_wf_pne varfree_png_objT using fluents_wf_orig by blast
-  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_ground_prob)).
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
       set (png.op_fluents (ac_pa a)) \<subseteq> set fluents"
   proof
-    fix a assume "a \<in> set (actions (ast_problem.domain varfree_ground_prob))"
-    hence "a \<in> set (actions varfree_ground_dom)" by simp
+    fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+    hence "a \<in> set (actions varfree_inst_dom)" by simp
     then obtain \<pi> n where
-      a: "a = varfree_ground_ac \<pi> n"
+      a: "a = varfree_inst_ac \<pi> n"
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
@@ -206,29 +206,29 @@ text \<open>Pointwise: folding a variable-free grounded schema yields exactly th
   schema for the paired op --- the folder resolves the nullary plan action back to
   \<^term>\<open>the (res_inst \<pi>)\<close> (the \<open>res_inst\<close> transfer) and re-indexes with the \<^emph>\<open>same\<close>
   \<open>ga_pre\<close>/\<open>ga_eff\<close> at the same \<open>facts\<close>/\<open>fluents\<close>.\<close>
-lemma fold_ac_varfree_ground_ac:
+lemma fold_ac_varfree_inst_ac:
   assumes "\<pi> \<in> set ops"
       and "op_map_inv \<pi> = Some n"
-  shows "ff.fold_ac (varfree_ground_ac \<pi> n) = ground_ac \<pi> n"
+  shows "ff.fold_ac (varfree_inst_ac \<pi> n) = ground_ac \<pi> n"
   unfolding ff.fold_ac_def ground_ac_def Let_def resinst_ac_pa[OF assms] by simp
 
 lemma fold_acs_eq:
-  "map ff.fold_ac (map2 varfree_ground_ac ops op_names) = map2 ground_ac ops op_names"
+  "map ff.fold_ac (map2 varfree_inst_ac ops op_names) = map2 ground_ac ops op_names"
 proof (rule nth_equalityI)
-  show "length (map ff.fold_ac (map2 varfree_ground_ac ops op_names))
+  show "length (map ff.fold_ac (map2 varfree_inst_ac ops op_names))
       = length (map2 ground_ac ops op_names)" by simp
-  fix i assume "i < length (map ff.fold_ac (map2 varfree_ground_ac ops op_names))"
+  fix i assume "i < length (map ff.fold_ac (map2 varfree_inst_ac ops op_names))"
   hence i: "i < length ops" using ops_len by simp
   have "ops ! i \<in> set ops" using i by simp
-  hence "ff.fold_ac (varfree_ground_ac (ops ! i) (op_names ! i)) = ground_ac (ops ! i) (op_names ! i)"
-    using fold_ac_varfree_ground_ac op_map_inv_nth[OF i] by blast
-  thus "map ff.fold_ac (map2 varfree_ground_ac ops op_names) ! i = map2 ground_ac ops op_names ! i"
+  hence "ff.fold_ac (varfree_inst_ac (ops ! i) (op_names ! i)) = ground_ac (ops ! i) (op_names ! i)"
+    using fold_ac_varfree_inst_ac op_map_inv_nth[OF i] by blast
+  thus "map ff.fold_ac (map2 varfree_inst_ac ops op_names) ! i = map2 ground_ac ops op_names ! i"
     using i ops_len by simp
 qed
 
 theorem ground_dom_factors: "ff.fold_dom = ground_dom"
 proof -
-  have acts: "actions (ast_problem.domain varfree_ground_prob) = map2 varfree_ground_ac ops op_names"
+  have acts: "actions (ast_problem.domain varfree_inst_prob) = map2 varfree_inst_ac ops op_names"
     by simp
   show ?thesis
     unfolding ff.fold_dom_def ground_dom_def acts fold_acs_eq by simp
@@ -256,16 +256,16 @@ subsection \<open>The propositional folder layer\<close>
 text \<open>At \<^locale>\<open>wf_grounder\<close> strength the folder's two propositional obligations follow from
   \<open>init_props\<close> (the initial states coincide) and \<open>ops_no_num\<close> (via the \<open>res_inst\<close> transfer),
   refining the \<open>ff\<close> interpretation to \<^locale>\<open>wf_fact_folder\<close>.\<close>
-sublocale wf_grounder \<subseteq> ff: wf_fact_folder varfree_ground_prob facts fluents
+sublocale wf_grounder \<subseteq> ff: wf_fact_folder varfree_inst_prob facts fluents
 proof (unfold_locales)
-  show "\<forall>f \<in> set (init varfree_ground_prob). is_predAtom f" using init_props by simp
-  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_ground_prob)).
+  show "\<forall>f \<in> set (init varfree_inst_prob). is_predAtom f" using init_props by simp
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
       numeric_effects (effect (the (png.res_inst (ac_pa a)))) = []"
   proof
-    fix a assume "a \<in> set (actions (ast_problem.domain varfree_ground_prob))"
-    hence "a \<in> set (actions varfree_ground_dom)" by simp
+    fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+    hence "a \<in> set (actions varfree_inst_dom)" by simp
     then obtain \<pi> n where
-      a: "a = varfree_ground_ac \<pi> n"
+      a: "a = varfree_inst_ac \<pi> n"
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis

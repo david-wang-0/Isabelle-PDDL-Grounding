@@ -5,7 +5,7 @@ begin
 section \<open>The variable-freeness stage maintains numeric-freeness\<close>
 
 text \<open>Stage-local preservation property: if the input problem is numeric-free, so is the
-  variable-free grounded problem \<^const>\<open>varfree.varfree_ground_prob\<close> --- the nullary schemas'
+  variable-free grounded problem \<^const>\<open>varfree.varfree_inst_prob\<close> --- the nullary schemas'
   bodies are the instantiated originals under a \<^const>\<open>term.CONST\<close> lift, and neither
   instantiation nor the lift introduces a numeric atom or effect; types, predicates, functions,
   init and goal are kept verbatim.\<close>
@@ -40,7 +40,7 @@ lemma (in ast_classical_problem) resolve_schema_mem:
 text \<open>Every reachable op resolves (it is well-formed, by \<open>ops_wf\<close>) to a schema of a numeric-free
   domain, and instantiation is a \<^const>\<open>map_atom_fmla\<close>/\<^const>\<open>map_ast_effect\<close> term-substitution,
   so the instantiated ground action's body is numeric-free.\<close>
-lemma (in varfree_grounder) num_free_resinst:
+lemma (in varfree_instantiator) num_free_resinst:
   assumes "\<pi> \<in> set ops"
       and num_free_dom
   shows "num_free_fmla (precondition (the (res_inst \<pi>)))"
@@ -66,28 +66,28 @@ qed
 
 subsection \<open>The stage theorem\<close>
 
-theorem (in varfree_grounder) varfree_ground_prob_num_free:
+theorem (in varfree_instantiator) varfree_inst_prob_num_free:
   assumes num_free_prob
-  shows "ast_classical_problem.num_free_prob varfree_ground_prob"
+  shows "ast_classical_problem.num_free_prob varfree_inst_prob"
 proof -
   have nfd: num_free_dom using assms unfolding num_free_prob_def by blast
-  have dom: "ast_classical_domain.num_free_dom varfree_ground_dom"
+  have dom: "ast_classical_domain.num_free_dom varfree_inst_dom"
     unfolding ast_classical_domain.num_free_dom_def
   proof
-    fix a assume "a \<in> set (actions varfree_ground_dom)"
-    then obtain \<pi> n where a: "a = varfree_ground_ac \<pi> n" and pi: "\<pi> \<in> set ops"
-      unfolding varfree_ground_dom_sel using map2_obtain by metis
-    have "num_free_fmla (ac_pre (varfree_ground_ac \<pi> n))"
+    fix a assume "a \<in> set (actions varfree_inst_dom)"
+    then obtain \<pi> n where a: "a = varfree_inst_ac \<pi> n" and pi: "\<pi> \<in> set ops"
+      unfolding varfree_inst_dom_sel using map2_obtain by metis
+    have "num_free_fmla (ac_pre (varfree_inst_ac \<pi> n))"
       using num_free_resinst(1)[OF pi nfd] by simp
     moreover
-    have "num_free_eff (ac_eff (varfree_ground_ac \<pi> n))"
+    have "num_free_eff (ac_eff (varfree_inst_ac \<pi> n))"
       using num_free_resinst(2)[OF pi nfd] by simp
     ultimately
     show "num_free_ac a" unfolding a num_free_ac_def by blast
   qed
-  have goal: "num_free_fmla (goal varfree_ground_prob)"
+  have goal: "num_free_fmla (goal varfree_inst_prob)"
     using assms unfolding num_free_prob_def by simp
-  have init: "\<forall>f \<in> set (init varfree_ground_prob). num_free_fmla f"
+  have init: "\<forall>f \<in> set (init varfree_inst_prob). num_free_fmla f"
     using assms unfolding num_free_prob_def by simp
   show ?thesis
     unfolding ast_classical_problem.num_free_prob_def

@@ -181,19 +181,19 @@ text \<open>Numeric grounder: like the propositional grounder (\<open>grounder.g
   declarations --- only the action \<^emph>\<open>parameters\<close> are instantiated (via \<^const>\<open>res_inst\<close>), nothing is
   propositionalised. Grounds the un-relaxed \<open>P\<close> over the (over-approximated) reachable ops \<open>ops\<close>.\<close>
 
-definition varfree_ground_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
-  "varfree_ground_ac \<pi> n =
+definition varfree_inst_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
+  "varfree_inst_ac \<pi> n =
      SimpleActionSchema (ActionHead n [])
        (SimpleActionBody
           (map_atom_fmla term.CONST (precondition (the (res_inst \<pi>))))
           (map_ast_effect term.CONST (effect (the (res_inst \<pi>)))))"
 
-lemma varfree_ground_ac_sel [simp]:
-  "ac_name (varfree_ground_ac \<pi> n) = n"
-  "ac_params (varfree_ground_ac \<pi> n) = []"
-  "ac_pre (varfree_ground_ac \<pi> n) = map_atom_fmla term.CONST (precondition (the (res_inst \<pi>)))"
-  "ac_eff (varfree_ground_ac \<pi> n) = map_ast_effect term.CONST (effect (the (res_inst \<pi>)))"
-  unfolding varfree_ground_ac_def by simp_all
+lemma varfree_inst_ac_sel [simp]:
+  "ac_name (varfree_inst_ac \<pi> n) = n"
+  "ac_params (varfree_inst_ac \<pi> n) = []"
+  "ac_pre (varfree_inst_ac \<pi> n) = map_atom_fmla term.CONST (precondition (the (res_inst \<pi>)))"
+  "ac_eff (varfree_inst_ac \<pi> n) = map_ast_effect term.CONST (effect (the (res_inst \<pi>)))"
+  unfolding varfree_inst_ac_def by simp_all
 
 lemma ac_tsubst_Nil_CONST [simp]: "ac_tsubst [] [] (term.CONST c) = c"
   by simp
@@ -201,11 +201,11 @@ lemma ac_tsubst_Nil_CONST [simp]: "ac_tsubst [] [] (term.CONST c) = c"
 text \<open>\<^bold>\<open>The key correspondence.\<close> Instantiating the nullary numeric-grounded action at \<open>[]\<close> undoes the
   \<open>term.CONST\<close> lift and recovers exactly the original instantiated ground action \<^term>\<open>the (res_inst \<pi>)\<close>
   --- numerics and all. (Contrast the propositional grounder, whose \<open>ground_fmla\<close> re-indexes atoms.)\<close>
-lemma varfree_ground_ac_inst:
-  "instantiate_classical_action_schema (varfree_ground_ac \<pi> n) [] = the (res_inst \<pi>)"
+lemma varfree_inst_ac_inst:
+  "instantiate_classical_action_schema (varfree_inst_ac \<pi> n) [] = the (res_inst \<pi>)"
 proof -
   have hf: "subst_term f \<circ> term.CONST = id" for f :: "variable \<Rightarrow> object" by (rule ext) simp
-  have "instantiate_classical_action_schema (varfree_ground_ac \<pi> n) [] =
+  have "instantiate_classical_action_schema (varfree_inst_ac \<pi> n) [] =
     GroundAction (map_atom_fmla (ac_tsubst [] [] \<circ> term.CONST) (precondition (the (res_inst \<pi>))))
                  (map_ast_effect (ac_tsubst [] [] \<circ> term.CONST) (effect (the (res_inst \<pi>))))"
     by (simp add: instantiate_classical_action_schema_alt atom.map_comp formula.map_comp
@@ -234,42 +234,42 @@ text \<open>The grounded actions are nullary schemas whose bodies reference the 
   \<^emph>\<open>semantics-preserving\<close>: \<^term>\<open>objT\<close> is definitionally unchanged, since
   \<open>map_of (consts @ objects) = map_of objects ++ constT = objT\<close>.\<close>
 
-definition varfree_ground_dom :: ast_classical_domain where
-  "varfree_ground_dom =
+definition varfree_inst_dom :: ast_classical_domain where
+  "varfree_inst_dom =
      Domain (types (domain P)) (predicates (domain P)) (functions (domain P))
             (consts (domain P) @ objects P)
-            (map2 varfree_ground_ac ops op_names)"
+            (map2 varfree_inst_ac ops op_names)"
 
-definition varfree_ground_prob :: ast_classical_problem where
-  "varfree_ground_prob = Problem varfree_ground_dom [] (init P) (goal P)"
+definition varfree_inst_prob :: ast_classical_problem where
+  "varfree_inst_prob = Problem varfree_inst_dom [] (init P) (goal P)"
 
-lemma varfree_ground_dom_sel [simp]:
-  "types varfree_ground_dom = types (domain P)"
-  "predicates varfree_ground_dom = predicates (domain P)"
-  "functions varfree_ground_dom = functions (domain P)"
-  "consts varfree_ground_dom = consts (domain P) @ objects P"
-  "actions varfree_ground_dom = map2 varfree_ground_ac ops op_names"
-  unfolding varfree_ground_dom_def by simp_all
+lemma varfree_inst_dom_sel [simp]:
+  "types varfree_inst_dom = types (domain P)"
+  "predicates varfree_inst_dom = predicates (domain P)"
+  "functions varfree_inst_dom = functions (domain P)"
+  "consts varfree_inst_dom = consts (domain P) @ objects P"
+  "actions varfree_inst_dom = map2 varfree_inst_ac ops op_names"
+  unfolding varfree_inst_dom_def by simp_all
 
-lemma varfree_ground_prob_sel [simp]:
-  "domain varfree_ground_prob = varfree_ground_dom"
-  "objects varfree_ground_prob = []"
-  "init varfree_ground_prob = init P"
-  "goal varfree_ground_prob = goal P"
-  unfolding varfree_ground_prob_def by simp_all
+lemma varfree_inst_prob_sel [simp]:
+  "domain varfree_inst_prob = varfree_inst_dom"
+  "objects varfree_inst_prob = []"
+  "init varfree_inst_prob = init P"
+  "goal varfree_inst_prob = goal P"
+  unfolding varfree_inst_prob_def by simp_all
 
-lemma varfree_ground_dom_names:
-  "map ast_classical_action_schema_name (actions varfree_ground_dom) = op_names"
+lemma varfree_inst_dom_names:
+  "map ast_classical_action_schema_name (actions varfree_inst_dom) = op_names"
 proof -
-  have "map ast_classical_action_schema_name (map2 varfree_ground_ac xs ys) = ys"
+  have "map ast_classical_action_schema_name (map2 varfree_inst_ac xs ys) = ys"
     if "length xs = length ys" for xs ys
-    using that by (induction xs ys rule: list_induct2) (simp_all add: varfree_ground_ac_def)
+    using that by (induction xs ys rule: list_induct2) (simp_all add: varfree_inst_ac_def)
   thus ?thesis using ops_len by simp
 qed
 
-lemma varfree_ground_dom_names_dis:
-  "distinct (map ast_classical_action_schema_name (actions varfree_ground_dom))"
-  using varfree_ground_dom_names op_names_dis by simp
+lemma varfree_inst_dom_names_dis:
+  "distinct (map ast_classical_action_schema_name (actions varfree_inst_dom))"
+  using varfree_inst_dom_names op_names_dis by simp
 
 end
 
@@ -282,7 +282,7 @@ text \<open>The \<^emph>\<open>minimal\<close> reachability/well-formedness assu
   hence needs \<^emph>\<open>none\<close> of the coverage / \<open>facts\<close> assumptions --- those (and \<open>covered\<close>, which rejects
   numeric atoms outright) are what the \<^emph>\<open>propositional\<close> grounder needs, and they move to
   \<open>wf_grounder\<close> below.\<close>
-locale varfree_grounder = varfree +
+locale varfree_instantiator = varfree +
   assumes
     wf_problem: "wf_classical_problem" and
     ops_dist: "distinct ops" and
@@ -290,15 +290,15 @@ locale varfree_grounder = varfree +
     (* If "set ops = {\<pi>. applicable \<pi>}", this follows: *)
     ops_wf: "\<forall>\<pi> \<in> set ops. wf_classical_plan_action \<pi>"
 
-sublocale varfree_grounder \<subseteq> wf_ast_classical_problem P
+sublocale varfree_instantiator \<subseteq> wf_ast_classical_problem P
   apply (unfold_locales)
   using wf_problem unfolding wf_classical_problem_def by simp
 
-sublocale varfree_grounder \<subseteq> png: ast_classical_problem varfree_ground_prob .
+sublocale varfree_instantiator \<subseteq> png: ast_classical_problem varfree_inst_prob .
 
-context varfree_grounder begin
+context varfree_instantiator begin
 
-text \<open>Shared restore/reachability machinery, provable already in \<^locale>\<open>varfree_grounder\<close> (it needs
+text \<open>Shared restore/reachability machinery, provable already in \<^locale>\<open>varfree_instantiator\<close> (it needs
   only \<open>all_ops\<close> / \<open>ops_dist\<close> + the \<open>grounder\<close> name machinery \<open>op_map\<close>/\<open>op_map_inv\<close>, not the
   numeric-freeness assumptions).\<close>
 
@@ -508,30 +508,30 @@ proof -
     unfolding wf_ground_action_alt by simp_all
 qed
 
-lemma varfree_ground_ac_tyt: "png.ac_tyt (varfree_ground_ac \<pi> n) = ty_term Map.empty objT"
+lemma varfree_inst_ac_tyt: "png.ac_tyt (varfree_inst_ac \<pi> n) = ty_term Map.empty objT"
   unfolding png.ac_tyt_def varfree_png_constT by simp
 
-lemma varfree_ground_ac_wf:
+lemma varfree_inst_ac_wf:
   assumes "\<pi> \<in> set ops"
-  shows "png.wf_classical_action_schema (varfree_ground_ac \<pi> n)"
+  shows "png.wf_classical_action_schema (varfree_inst_ac \<pi> n)"
 proof (intro png.wf_classical_action_schemaI)
-  show "distinct (map fst (ac_params (varfree_ground_ac \<pi> n)))" by simp
+  show "distinct (map fst (ac_params (varfree_inst_ac \<pi> n)))" by simp
   have "wf_fmla (ty_term Map.empty objT) (map_atom_fmla term.CONST (precondition (the (res_inst \<pi>))))"
     using varfree_wf_resinst(1)[OF assms] by (rule wf_fmla_CONST)
-  thus "png.wf_fmla (png.ac_tyt (varfree_ground_ac \<pi> n)) (ac_pre (varfree_ground_ac \<pi> n))"
-    unfolding varfree_ground_ac_tyt varfree_png_wf_fmla by simp
+  thus "png.wf_fmla (png.ac_tyt (varfree_inst_ac \<pi> n)) (ac_pre (varfree_inst_ac \<pi> n))"
+    unfolding varfree_inst_ac_tyt varfree_png_wf_fmla by simp
   have "wf_effect (ty_term Map.empty objT) (map_ast_effect term.CONST (effect (the (res_inst \<pi>))))"
     using varfree_wf_resinst(2)[OF assms] by (rule wf_effect_CONST)
-  thus "png.wf_effect (png.ac_tyt (varfree_ground_ac \<pi> n)) (ac_eff (varfree_ground_ac \<pi> n))"
-    unfolding varfree_ground_ac_tyt varfree_png_wf_effect by simp
+  thus "png.wf_effect (png.ac_tyt (varfree_inst_ac \<pi> n)) (ac_eff (varfree_inst_ac \<pi> n))"
+    unfolding varfree_inst_ac_tyt varfree_png_wf_effect by simp
 qed
 
-lemma varfree_gr_acs_wf: "\<forall>a \<in> set (actions varfree_ground_dom). png.wf_classical_action_schema a"
+lemma varfree_gr_acs_wf: "\<forall>a \<in> set (actions varfree_inst_dom). png.wf_classical_action_schema a"
 proof
-  fix a assume "a \<in> set (actions varfree_ground_dom)"
-  then obtain \<pi> n where "a = varfree_ground_ac \<pi> n" "\<pi> \<in> set ops"
-    unfolding varfree_ground_dom_sel using map2_obtain by metis
-  thus "png.wf_classical_action_schema a" using varfree_ground_ac_wf by simp
+  fix a assume "a \<in> set (actions varfree_inst_dom)"
+  then obtain \<pi> n where "a = varfree_inst_ac \<pi> n" "\<pi> \<in> set ops"
+    unfolding varfree_inst_dom_sel using map2_obtain by metis
+  thus "png.wf_classical_action_schema a" using varfree_inst_ac_wf by simp
 qed
 
 subsubsection \<open>Well-formedness of the grounded domain and problem\<close>
@@ -560,32 +560,32 @@ text \<open>The grounded domain signature is well-formed: types / predicates / f
   and the promoted constants (\<open>consts (domain P) @ objects P\<close>) are distinct and well-typed
   because \<open>P\<close>'s problem signature says so.\<close>
 
-lemma varfree_ground_dom_wf_sig: "png.wf_domain_signature"
+lemma varfree_inst_dom_wf_sig: "png.wf_domain_signature"
   unfolding domain_signature.wf_domain_signature_def
 proof (intro conjI)
-  have tyeq: "types (ast_problem.domain varfree_ground_prob) = types (domain P)" by simp
+  have tyeq: "types (ast_problem.domain varfree_inst_prob) = types (domain P)" by simp
   show "png.wf_types"
     unfolding png.wf_types_def tyeq using wf_D_sig(1) unfolding wf_types_def by simp
-  show "distinct (map pred (predicates (ast_problem.domain varfree_ground_prob)))"
+  show "distinct (map pred (predicates (ast_problem.domain varfree_inst_prob)))"
     using wf_D_sig(2) by simp
-  show "\<forall>p \<in> set (predicates (ast_problem.domain varfree_ground_prob)). png.wf_predicate_decl p"
+  show "\<forall>p \<in> set (predicates (ast_problem.domain varfree_inst_prob)). png.wf_predicate_decl p"
     unfolding varfree_png_wf_pred_decl using wf_D_sig(3) by simp
-  show "distinct (map function_decl.func (functions (ast_problem.domain varfree_ground_prob)))"
+  show "distinct (map function_decl.func (functions (ast_problem.domain varfree_inst_prob)))"
     using wf_D_sig(4) by simp
-  show "\<forall>f \<in> set (functions (ast_problem.domain varfree_ground_prob)). png.wf_function_decl f"
+  show "\<forall>f \<in> set (functions (ast_problem.domain varfree_inst_prob)). png.wf_function_decl f"
     unfolding varfree_png_wf_func_decl using wf_D_sig(5) by simp
-  show "distinct (map fst (consts (ast_problem.domain varfree_ground_prob)))"
+  show "distinct (map fst (consts (ast_problem.domain varfree_inst_prob)))"
     using wf_P_sig(2) by (auto simp: distinct_append)
-  show "\<forall>(n,T) \<in> set (consts (ast_problem.domain varfree_ground_prob)). png.wf_type T"
+  show "\<forall>(n,T) \<in> set (consts (ast_problem.domain varfree_inst_prob)). png.wf_type T"
     unfolding varfree_png_wf_type using wf_D_sig(7) wf_P_sig(3) by auto
 qed
 
-theorem varfree_ground_dom_wf: "png.wf_classical_domain"
+theorem varfree_inst_dom_wf: "png.wf_classical_domain"
 proof (intro png.wf_classical_domainI)
-  show "png.wf_domain_signature" using varfree_ground_dom_wf_sig .
-  show "distinct (map ast_classical_action_schema_name (actions (ast_problem.domain varfree_ground_prob)))"
-    using varfree_ground_dom_names_dis by simp
-  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_ground_prob)). png.wf_classical_action_schema a"
+  show "png.wf_domain_signature" using varfree_inst_dom_wf_sig .
+  show "distinct (map ast_classical_action_schema_name (actions (ast_problem.domain varfree_inst_prob)))"
+    using varfree_inst_dom_names_dis by simp
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)). png.wf_classical_action_schema a"
     using varfree_gr_acs_wf by simp
 qed
 
@@ -605,26 +605,26 @@ qed
 text \<open>The problem signature is well-formed (domain sig + no objects), and the initial / goal
   facts transfer verbatim from \<open>P\<close>'s \<^const>\<open>wf_classical_problem\<close> because \<open>png\<close>'s \<^const>\<open>init\<close> /
   \<^const>\<open>goal\<close> are \<open>P\<close>'s and \<open>png.objT = objT\<close>.\<close>
-lemma varfree_ground_prob_wf_sig: "png.wf_problem_signature"
+lemma varfree_inst_prob_wf_sig: "png.wf_problem_signature"
   unfolding problem_signature.wf_problem_signature_def
 proof (intro conjI)
-  show "png.wf_domain_signature" using varfree_ground_dom_wf_sig .
-  show "distinct (map fst (objects varfree_ground_prob) @ map fst (consts (ast_problem.domain varfree_ground_prob)))"
-    using varfree_ground_dom_wf_sig
-    unfolding domain_signature.wf_domain_signature_def by (simp add: varfree_ground_prob_sel)
-  show "\<forall>(n,T) \<in> set (objects varfree_ground_prob). png.wf_type T" by simp
+  show "png.wf_domain_signature" using varfree_inst_dom_wf_sig .
+  show "distinct (map fst (objects varfree_inst_prob) @ map fst (consts (ast_problem.domain varfree_inst_prob)))"
+    using varfree_inst_dom_wf_sig
+    unfolding domain_signature.wf_domain_signature_def by (simp add: varfree_inst_prob_sel)
+  show "\<forall>(n,T) \<in> set (objects varfree_inst_prob). png.wf_type T" by simp
 qed
 
-theorem varfree_ground_prob_wf: "png.wf_classical_problem"
+theorem varfree_inst_prob_wf: "png.wf_classical_problem"
 proof (intro png.wf_classical_problemI)
-  show "png.wf_classical_domain" using varfree_ground_dom_wf .
-  show "png.wf_problem_signature" using varfree_ground_prob_wf_sig .
-  show "distinct (init varfree_ground_prob)"
+  show "png.wf_classical_domain" using varfree_inst_dom_wf .
+  show "png.wf_problem_signature" using varfree_inst_prob_wf_sig .
+  show "distinct (init varfree_inst_prob)"
     using wf_classical_problemD(3)[OF wf_problem] by simp
-  show "\<forall>f \<in> set (init varfree_ground_prob). png.wf_fmla_atom png.objT f \<or> png.wf_func_assign f"
+  show "\<forall>f \<in> set (init varfree_inst_prob). png.wf_fmla_atom png.objT f \<or> png.wf_func_assign f"
     using wf_classical_problemD(4)[OF wf_problem]
     unfolding varfree_png_wf_fmla_atom varfree_png_wf_func_assign varfree_png_objT by simp
-  show "png.wf_fmla png.objT (goal varfree_ground_prob)"
+  show "png.wf_fmla png.objT (goal varfree_inst_prob)"
     using wf_classical_problemD(5)[OF wf_problem]
     unfolding varfree_png_wf_fmla varfree_png_objT by simp
 qed
@@ -673,17 +673,17 @@ end
 
 context varfree begin
 
-lemma varfree_ground_dom_varfree: "ast_classical_domain.varfree_dom varfree_ground_dom"
+lemma varfree_inst_dom_varfree: "ast_classical_domain.varfree_dom varfree_inst_dom"
 proof (rule ast_classical_domain.varfree_domI)
-  fix a assume "a \<in> set (actions varfree_ground_dom)"
-  then obtain \<pi> n where "a = varfree_ground_ac \<pi> n"
-    unfolding varfree_ground_dom_sel using map2_obtain by metis
+  fix a assume "a \<in> set (actions varfree_inst_dom)"
+  then obtain \<pi> n where "a = varfree_inst_ac \<pi> n"
+    unfolding varfree_inst_dom_sel using map2_obtain by metis
   thus "ac_params a = []" by simp
 qed
 
-lemma varfree_ground_prob_varfree: "ast_classical_problem.varfree_prob varfree_ground_prob"
+lemma varfree_inst_prob_varfree: "ast_classical_problem.varfree_prob varfree_inst_prob"
   by (rule ast_classical_problem.varfree_probI)
-     (simp_all add: varfree_ground_dom_varfree)
+     (simp_all add: varfree_inst_dom_varfree)
 
 end
 

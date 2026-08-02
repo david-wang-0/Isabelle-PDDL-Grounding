@@ -22,15 +22,15 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 - **DONE (fully verified, 0 `sorry`) — STRIPS grounder rebased on the variable-freeness stage.** The
   former `Numeric_Grounder` is now its own pipeline stage `Classical_Grounding/Variable_Freeness/`
-  (session `Classical_Variable_Freeness`, constants `varfree_ground_ac/dom/prob`, locale ladder
-  `varfree` → `varfree_grounder`, output predicates `varfree_dom`/`varfree_prob`). The propositional
+  (session `Classical_Variable_Freeness`, constants `varfree_inst_ac/dom/prob`, locale ladder
+  `varfree` → `varfree_instantiator`, output predicates `varfree_dom`/`varfree_prob`). The propositional
   grounder factors through it: `locale fact_folder` (`Classical_Grounded_PDDL_Locales.thy`) takes a
   variable-free problem plus **both** the reachable-facts and reachable-fluents lists and folds them
   to nullary predicates/functions (`fold_ac`/`fold_dom`/`fold_prob`, action names kept verbatim, so
   plan restore is the identity); `wf_fact_folder_cov`/`wf_fact_folder` carry the folder's wf +
   plan-equivalence (`fold_prob_wf`, `fold_valid_classical_plan_iff`).
   `Classical_Grounded_PDDL_Factorization.thy` proves `ground_prob_factors`:
-  `fact_folder.fold_prob varfree_ground_prob facts fluents = ground_prob` (syntactic equality — the
+  `fact_folder.fold_prob varfree_inst_prob facts fluents = ground_prob` (syntactic equality — the
   one-shot definition doubles as the fused code path, so exported SML is unchanged), interprets the
   folder layers from `wf_grounder_cov`/`wf_grounder` (prefix `ff`), and re-derives the grounder's
   interface theorems as `factored_*` from the two stages composed. The old `grounder` locale is now

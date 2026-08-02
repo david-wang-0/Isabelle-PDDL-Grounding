@@ -27,7 +27,7 @@ structure GroundedPddlPrinter :> sig
   (* Memory-optimized streaming variant: instead of a fully-built grounded problem,
      take the normalized problem `ptp` (= P_T of the input) plus the small materialized
      ops list, and expand + emit each ground action schema one at a time
-     (`E.numeric_ground_ac ptp op name`), so only a single schema is ever live. The
+     (`E.varfree_inst_ac ptp op name`), so only a single schema is ever live. The
      emitted bytes are IDENTICAL to `problemToStream` on the fully-built problem. *)
   val problemToStreamOps :
     TextIO.outstream ->
@@ -249,7 +249,7 @@ end = struct
      list. `ptp` is the normalized problem (= P_T of the input): its domain carries the
      grounded task's predicates/functions and its problem part the init/goal (the built
      grounded problem copies exactly these). `ops` is the small `canon`-ed reachable-op
-     list; each op expands to a schema via `E.numeric_ground_ac ptp op name`, printed and
+     list; each op expands to a schema via `E.varfree_inst_ac ptp op name`, printed and
      dropped one at a time. Action names are the verified `E.op_names ops` (readable
      `<schema>_<args>_<index>`). Header, objects (init/goal then per-action, first-occurrence order),
      init, and goal are emitted with the identical logic as `problemToStream`, so the
@@ -275,7 +275,7 @@ end = struct
 
       (* Verified readable action names: `E.op_names ops` (the grounder-locale
          `op_names`) = `readable_pa <op> ^ "_" ^ <index>`, one per reachable op. This is
-         the SAME function the fully-built domain uses (`numeric_ground_dom` calls
+         the SAME function the fully-built domain uses (`varfree_inst_dom` calls
          `op_names ops`), so the streamed bytes match the built path exactly. *)
       val opNames = E.op_names ops
     in
@@ -289,7 +289,7 @@ end = struct
       (* actions joined by "\n", built one at a time from (op, name) and dropped after
          emission; objects accumulated exactly as the built-list path would. *)
       ListPair.app (fn (oper, name) =>
-        let val a = E.numeric_ground_ac ptp oper name in
+        let val a = E.varfree_inst_ac ptp oper name in
           (if !firstAction then firstAction := false else w "\n");
           w (actionStr a);
           List.app addObj (actionObjs a)

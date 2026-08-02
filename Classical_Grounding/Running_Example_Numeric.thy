@@ -106,7 +106,7 @@ subsection \<open>The two-stage grounding path, concretely\<close>
 text \<open>The propositional grounder factors into the two pipeline stages
   (\<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization\<close>,
   theorem \<open>ground_prob_factors\<close>): first the Variable_Freeness stage
-  \<^const>\<open>varfree.varfree_ground_prob\<close> instantiates every certified-reachable op into a
+  \<^const>\<open>varfree.varfree_inst_prob\<close> instantiates every certified-reachable op into a
   \<^emph>\<open>nullary schema\<close> (parameters gone, but the ground atoms and the \<open>fuel(c)\<close> numerics still
   there), then the fact folder \<^const>\<open>fact_folder.fold_prob\<close> collapses the ground atoms onto fresh
   nullary predicates and the ground fluents onto fresh nullary functions. The numeric grounder run
@@ -118,7 +118,7 @@ text \<open>The propositional grounder factors into the two pipeline stages
 definition "my_cert_facts \<equiv> cert_facts_of_exec my_P\<^sub>T_num (fst my_cert_num)"
 definition "my_cert_ops \<equiv> canon (cert_ops_of_exec_fast my_P\<^sub>T_num (fst my_cert_num))"
 definition "my_fluents \<equiv> grounder.fluents my_P\<^sub>T_num my_cert_ops"
-definition "my_varfree \<equiv> varfree.varfree_ground_prob my_P\<^sub>T_num my_cert_ops"
+definition "my_varfree \<equiv> varfree.varfree_inst_prob my_P\<^sub>T_num my_cert_ops"
 definition "my_folded \<equiv> fact_folder.fold_prob my_varfree my_cert_facts my_fluents"
 
 text \<open>The reachable fluents enumerated off the certified ops: the three ground \<open>fuel(c)\<close> PNEs, one
@@ -126,7 +126,7 @@ text \<open>The reachable fluents enumerated off the certified ops: the three gr
 value "my_fluents"
 
 text \<open>Stage one's output is literally the numeric grounder's output: the error monad's \<^const>\<open>Inr\<close>
-  payload \<^emph>\<open>is\<close> \<^const>\<open>varfree.varfree_ground_prob\<close> at the same ops list (\<^const>\<open>True\<close>).\<close>
+  payload \<^emph>\<open>is\<close> \<^const>\<open>varfree.varfree_inst_prob\<close> at the same ops list (\<^const>\<open>True\<close>).\<close>
 value "my_grounded_num = Inr my_varfree"
 
 text \<open>Stage two's output: everything is nullary --- the predicates are the fresh names of the

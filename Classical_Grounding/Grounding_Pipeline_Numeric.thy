@@ -21,7 +21,7 @@ subsection \<open> Grounding preserves normalization \<close>
 text \<open>Numeric-freeness preservation is proven \<^emph>\<open>stage-locally\<close>, adjacent to each stage: the fact
   folder's \<open>fold_prob_num_free\<close> lives in
   \<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Num_Free\<close>, the variable-freeness
-  stage's \<open>varfree_ground_prob_num_free\<close> in \<^verbatim>\<open>Classical_Variable_Freeness_Num_Free\<close>, and the
+  stage's \<open>varfree_inst_prob_num_free\<close> in \<^verbatim>\<open>Classical_Variable_Freeness_Num_Free\<close>, and the
   one-shot grounder's \<open>ground_prob_num_free\<close> derives compositionally from the folder's theorem in
   \<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization\<close>. Here we keep only the
   \<^emph>\<open>normalization\<close> covariance: the grounded problem is typeless, and precondition-normalized
@@ -582,15 +582,15 @@ subsection \<open>Grounding against a certified reachability model (numeric)\<cl
 
 text \<open>The numeric analogue of the propositional certificate-grounding block above: the same certified
   reachability model
-  \<open>(M, dc)\<close> now drives the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>varfree.varfree_ground_prob\<close>
+  \<open>(M, dc)\<close> now drives the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>varfree.varfree_inst_prob\<close>
   instead of the propositional \<^const>\<open>grounder.ground_prob\<close>. Well-formedness and plan-preservation
-  are inherited from \<open>varfree_grounder.varfree_ground_prob_wf\<close> /
-  \<open>varfree_grounder.varfree_valid_classical_plan_iff\<close> via the \<open>cr.vfg\<close> interpretation of the
+  are inherited from \<open>varfree_instantiator.varfree_inst_prob_wf\<close> /
+  \<open>varfree_instantiator.varfree_valid_classical_plan_iff\<close> via the \<open>cr.vfi\<close> interpretation of the
   \<^emph>\<open>weaker\<close> \<^locale>\<open>certified_reachability_num\<close> --- which requires only
   \<open>numeric_grounding_checks\<close> (the five coverage obligations), \<^emph>\<open>not\<close> the numeric-freeness checks
   \<open>init_props\<close>/\<open>ops_no_num\<close> that the propositional \<^locale>\<open>certified_reachability\<close> imposes. This is
   what lets a task with genuine numeric effects (whose reachable ops carry \<open>NumericEffect\<close>s) pass the
-  re-check and be grounded with those effects retained. (Note \<^const>\<open>varfree.varfree_ground_prob\<close>
+  re-check and be grounded with those effects retained. (Note \<^const>\<open>varfree.varfree_inst_prob\<close>
   takes only \<open>P\<close> and \<open>ops\<close> --- the grounder's \<open>facts\<close> parameter is unused, so the locale drops it
   from the constant's signature.)\<close>
 
@@ -634,7 +634,7 @@ context
       and grounding_cert_num: "normalized_problem_rx.numeric_grounding_checks P\<^sub>T M"
 begin
 
-definition "numeric_P\<^sub>G_cert \<equiv> varfree.varfree_ground_prob P\<^sub>T
+definition "numeric_P\<^sub>G_cert \<equiv> varfree.varfree_inst_prob P\<^sub>T
   (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 lemma numeric_wf_ground_cert_problem:
@@ -643,12 +643,12 @@ lemma numeric_wf_ground_cert_problem:
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
-  have pg_eq: "numeric_P\<^sub>G_cert = cr.vfg.varfree_ground_prob"
+  have pg_eq: "numeric_P\<^sub>G_cert = cr.vfi.varfree_inst_prob"
     unfolding numeric_P\<^sub>G_cert_def cr.cert_ops'_def by simp
-  show ?thesis unfolding pg_eq using cr.vfg.varfree_ground_prob_wf by simp
+  show ?thesis unfolding pg_eq using cr.vfi.varfree_inst_prob_wf by simp
 qed
 
-lemma varfree_ground_cert_plan_valid_iff:
+lemma varfree_inst_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
   shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
 proof -
@@ -661,7 +661,7 @@ proof -
     unfolding P\<^sub>T_def by simp
   also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
     unfolding numeric_P\<^sub>G_cert_def
-    using cr.vfg.varfree_valid_classical_plan_iff[unfolded cr.cert_ops'_def] by simp
+    using cr.vfi.varfree_valid_classical_plan_iff[unfolded cr.cert_ops'_def] by simp
   finally show ?thesis .
 qed
 
@@ -673,7 +673,7 @@ text \<open>Plan restoration: a valid plan of the numeric grounded problem resto
   plan of the original \<open>P\<close> (undo grounding \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization). Numeric twin of
   \<open>ground_cert_plan_reconstruct\<close>, using the numeric grounder's constructive restore
   \<open>varfree_valid_plan_left\<close> (\<^const>\<open>varfree.restore_ground_plan\<close>).\<close>
-lemma varfree_ground_cert_plan_reconstruct:
+lemma varfree_inst_cert_plan_reconstruct:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s \<Longrightarrow>
     valid_classical_plan2 (numeric_reconstruct_plan_ground_cert \<pi>s)"
@@ -683,7 +683,7 @@ proof -
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
   let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
-    using p[unfolded numeric_P\<^sub>G_cert_def] cr.vfg.varfree_valid_plan_left[unfolded cr.cert_ops'_def] by simp
+    using p[unfolded numeric_P\<^sub>G_cert_def] cr.vfi.varfree_valid_plan_left[unfolded cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
     unfolding P\<^sub>T_def .
   hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"

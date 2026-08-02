@@ -183,12 +183,12 @@ end
 
 text \<open>Some of these may follow from one another\<close>
 
-text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>varfree_grounder\<close> plus a reachable \<open>facts\<close> list that is
+text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>varfree_instantiator\<close> plus a reachable \<open>facts\<close> list that is
   well-formed and covers every op's precondition/effect predicate atoms and the goal, so the shared
   \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing of \<^emph>\<open>predicate\<close> atoms onto nullary \<open>predAtm\<close>s
   is faithful. Numeric atoms/effects are \<^emph>\<open>allowed\<close> here (they re-index onto nullary fluents); this
   is the layer at which the nullary-fluent-retaining grounded problem \<open>ground_prob\<close> lives.\<close>
-locale wf_grounder_cov = grounder + varfree_grounder +
+locale wf_grounder_cov = grounder + varfree_instantiator +
   assumes
     facts_dist: "distinct facts" and
     all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
