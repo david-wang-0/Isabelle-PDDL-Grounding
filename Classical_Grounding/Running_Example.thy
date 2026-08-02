@@ -186,17 +186,63 @@ lemma "ast_problem.valid_plan my_problem my_plan"
   by (intro valid_plan_intro[OF wf_p1]) eval *)
 
 
-subsection \<open>Pipeline normalization to \<open>P\<^sub>T\<close>\<close>
+subsection \<open>Pipeline normalization to \<open>P\<^sub>T\<close>, stage by stage\<close>
 
 text \<open>The verified grounding pipeline normalizes via
-  detype \<rightarrow> degoal \<rightarrow> explicate-definedness \<rightarrow> split \<rightarrow> def-translate.
-  Since this problem has no numeric functions, the definedness steps are essentially identity.
-  The code-generation setup needed to evaluate \<open>P\<^sub>T\<close>/\<open>P\<^sub>R\<close> now lives in
-  \<^theory>\<open>Classical_Grounding.Code_Setup\<close> (imported above).\<close>
+  detype \<rightarrow> degoal \<rightarrow> explicate-definedness \<rightarrow> split \<rightarrow> def-translate, which
+  \<^const>\<open>ast_classical_problem.P\<^sub>T\<close> composes into a single constant. Below, each intermediate
+  problem is named and evaluated as well, so the effect of every stage is visible in isolation
+  (the numeric twin \<open>Running_Example_Numeric\<close> threads the same chain, with the definedness
+  stages doing real work there). Since this problem has no numeric functions,
+  the definedness steps here are essentially identity. The code-generation setup needed to evaluate
+  the stages lives in \<^theory>\<open>Classical_Grounding.Code_Setup\<close> (imported above).\<close>
 
+text \<open>\<^bold>\<open>Stage 1 --- type normalization\<close> (\<open>P2\<close>,
+  \<^const>\<open>ast_classical_problem.detype_classical_prob\<close>). The type hierarchy is compiled away into
+  unary predicates: each type \<open>t\<close> gains a predicate \<open>type_t\<close>, every parameter's declared type
+  becomes a \<open>type_t ?x\<close> precondition guard, and the supertype closure of each constant/object is
+  asserted in the initial state --- so \<open>batmobile\<close>, being both a \<open>Car\<close> and a \<open>Train\<close>, gets both
+  chains, and the circular \<open>R\<close>/\<open>L\<close> pair contributes nothing.\<close>
+definition "my_P2 \<equiv> ast_classical_problem.detype_classical_prob my_problem"
+value "my_P2"
+
+text \<open>\<^bold>\<open>Stage 2 --- goal normalization\<close> (\<open>P3\<close>, \<^const>\<open>ast_classical_problem.degoal_prob\<close>). The
+  goal formula becomes the precondition of one fresh nullary \<open>Goal\<close> action whose effect is a fresh
+  nullary \<open>Goal\<close> atom, and that atom is the new goal. The problem's objects are absorbed into the
+  domain's constants (\<open>consts = objects @ consts\<close>, \<open>objects = []\<close>), so the domain becomes
+  self-contained from here on.\<close>
+definition "my_P3 \<equiv> ast_classical_problem.degoal_prob my_P2"
+value "my_P3"
+
+text \<open>\<^bold>\<open>Stage 3 --- definedness normalization\<close> (the pipeline's \<open>P\<^sub>X\<close>,
+  \<^const>\<open>ast_classical_problem.explicate_def_prob\<close>): every numeric-fluent read is made explicitly
+  conditional on that fluent being defined. With \<^const>\<open>my_funcs\<close> empty there is nothing to guard,
+  so this stage passes the problem through unchanged.\<close>
+definition "my_P\<^sub>X \<equiv> ast_classical_problem.explicate_def_prob my_P3"
+value "my_P\<^sub>X"
+
+text \<open>\<^bold>\<open>Stage 4 --- precondition normalization\<close> (\<open>P4\<close>,
+  \<^const>\<open>ast_classical_problem.split_prob\<close>). Preconditions are brought into DNF and each disjunct
+  becomes its \<^emph>\<open>own\<close> action schema, so every schema's precondition is a plain conjunction.
+  \<open>drive\<close>'s \<open>road from to \<or> road to from\<close> thus splits into two \<open>drive\<close> copies (and \<open>choochoo\<close>
+  likewise over \<open>rails\<close>) --- this is the copy index that later prefixes each grounded action name.\<close>
+definition "my_P\<^sub>N \<equiv> ast_classical_problem.split_prob my_P\<^sub>X"
+value "my_P\<^sub>N"
+
+text \<open>\<^bold>\<open>Stage 5 --- definedness translation\<close> (\<^const>\<open>ast_classical_problem.def_translate_prob\<close>),
+  yielding the fully normalized \<open>P\<^sub>T\<close>: the definedness conditions of stage 3 are compiled into
+  ordinary propositional \<open>def(f, ...)\<close> predicates, which is what keeps the reachability datalog
+  numeric-free. Another no-op here for want of functions. The last \<^const>\<open>value\<close> probe confirms the
+  composed \<^const>\<open>ast_classical_problem.P\<^sub>T\<close> is exactly the stage-by-stage chain above.\<close>
 definition "my_P\<^sub>T \<equiv> ast_classical_problem.P\<^sub>T my_problem"
 value "my_P\<^sub>T"
+value "my_P\<^sub>T = ast_classical_problem.def_translate_prob my_P\<^sub>N"
 
+text \<open>\<^bold>\<open>Relaxation\<close> (\<^const>\<open>ast_classical_problem.relax_prob\<close>): the delete-relaxed
+  over-approximation \<open>P\<^sub>R\<close>, on which the monotone reachability datalog runs --- delete lists are
+  dropped and negative preconditions relaxed away (visible on \<open>lay_tracks\<close> were it in
+  \<^const>\<open>my_actions\<close>). Grounding itself targets \<open>P\<^sub>T\<close>, i.e.\ the problem \<^emph>\<open>with\<close> its real deletes;
+  \<open>P\<^sub>R\<close> only supplies the reachable-fact/operator over-approximation.\<close>
 definition "my_P\<^sub>R \<equiv> ast_classical_problem.relax_prob my_P\<^sub>T"
 value "my_P\<^sub>R"
 
@@ -272,6 +318,8 @@ value "dl_founded_exec (snd my_cert)"
 value "dl_certified_model_exec my_dl_rules my_const_names (fst my_cert) (snd my_cert)"
 value "grounding_checks_exec my_P\<^sub>T (fst my_cert)"
 
+value "my_P\<^sub>T"
+
 text \<open>The fully grounded problem: first the raw nullary propositional PDDL (\<^const>\<open>ground_by_cert\<close>),
   then via the guarded DFS-founded, error-monad entry point \<^const>\<open>ground_via_cert_prop_dfs_e\<close> --- an
   \<^const>\<open>Inl\<close> diagnostic would mean the certificate failed the kernel re-checks, while \<^const>\<open>Inr\<close>
@@ -279,6 +327,32 @@ text \<open>The fully grounded problem: first the raw nullary propositional PDDL
 value "ground_by_cert my_problem (fst my_cert)"
 definition "my_grounded \<equiv> ground_via_cert_prop_dfs_e (\<lambda>_. my_cert) my_problem"
 value "my_grounded"
+
+text \<open>The grounded problem's components, projected out of the \<^const>\<open>Inr\<close> with \<^const>\<open>map_sum\<close> (an
+  \<^const>\<open>Inl\<close> diagnostic would pass through unchanged) --- the propositional counterpart of the
+  numeric twin's probe. Where the numeric grounder \<^emph>\<open>keeps\<close> object-carrying atoms (\<open>at c1 A\<close>, arity
+  2), the propositional grounder turns every reachable ground fact into its \<^bold>\<open>own nullary\<close>
+  predicate: \<open>fact_names\<close> names fact \<open>i\<close> by its index \<open>i\<close> and \<open>ground_fmla\<close> rewrites each ground
+  atom to \<open>predAtm name []\<close>. So the predicate list below is one nullary \<open>PredDecl\<close> per reachable
+  fact, and the grounded domain keeps no types, no constants and no objects whatsoever.\<close>
+value "map_sum id (\<lambda>P. predicates (ast_problem.domain P)) my_grounded"
+
+text \<open>The grounded action schemas: one nullary schema per certified-reachable operator, its
+  precondition and effect referring to those nullary fact predicates only. The names carry the
+  splitting copy index, the schema name, its arguments and a disambiguating counter.\<close>
+value "map_sum id (\<lambda>P. actions (ast_problem.domain P)) my_grounded"
+
+text \<open>Initial state and goal after grounding --- both nullary atom lists over the same fact
+  predicates; the goal is the single \<open>Goal\<close> atom introduced by stage 2 above.\<close>
+value "map_sum id (\<lambda>P. init P) my_grounded"
+value "map_sum id (\<lambda>P. goal P) my_grounded"
+
+text \<open>The residue of the erased typing: the grounded domain's types, constants and objects are all
+  empty (all three \<^const>\<open>True\<close>), which is exactly what makes the result a purely propositional
+  task, ready for the STRIPS conversion.\<close>
+value "map_sum id (\<lambda>P. (types (ast_problem.domain P) = [],
+                        consts (ast_problem.domain P) = [],
+                        objects P = [])) my_grounded"
 
 subsection \<open>The real (untrusted) oracle: Nemo via the SML driver\<close>
 

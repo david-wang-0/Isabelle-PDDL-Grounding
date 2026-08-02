@@ -698,6 +698,16 @@ lemma rhs_pnes_eff_dt:
   "rhs_pnes_eff (ac_eff (def_translate_ac def_prefix a)) = rhs_pnes_eff (ac_eff a)"
   by (cases "ac_eff a") (simp add: dt_ac_eff)
 
+text \<open>\<open>numeric_effects_defined\<close> depends only on the numeric effects, so it transfers
+  across the translation (which changes only the propositional adds).\<close>
+
+lemma numeric_effects_defined_eff_cong:
+  assumes "numeric_effects (ground_action.effect g') = numeric_effects (ground_action.effect g)"
+  shows "numeric_effects_defined [g'] w \<longleftrightarrow> numeric_effects_defined [g] w"
+  unfolding numeric_effects_defined_def action_list_numeric_update_function_def
+            action_numeric_update_function_def
+  by (simp add: assms lvalues_def image_image)
+
 lemma enabled_iff:
   assumes rel: "def_state_rel M MT"
   shows "pt.plan_action_enabled \<pi> MT \<longleftrightarrow> plan_action_enabled \<pi> M"
@@ -734,13 +744,16 @@ proof (cases \<pi>)
       unfolding effO effT
       by (simp add: rhs_pnes_eff_eq[symmetric] rhs_pnes_eff_map rhs_pnes_eff_dt)
     have snd_eq: "snd MT = snd M" using rel unfolding def_state_rel_def by simp
+    have ned: "numeric_effects_defined [the (pt.res_inst (SimplePlanAction n args))] (snd M)
+             = numeric_effects_defined [the (res_inst (SimplePlanAction n args))] (snd M)"
+      by (rule numeric_effects_defined_eff_cong[OF ne_eq])
     have pre: "(valuation MT \<Turnstile>\<^sub>m precondition (the (pt.res_inst (SimplePlanAction n args))))
              \<longleftrightarrow> (set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect (the (res_inst (SimplePlanAction n args))))) \<subseteq> dom (snd M)
                 \<and> valuation M \<Turnstile>\<^sub>m precondition (the (res_inst (SimplePlanAction n args))))"
       by (rule pt_pre_iff[OF rel res ina pm])
     show ?thesis
       unfolding SimplePlanAction pt.plan_action_enabled_def plan_action_enabled_def Let_def o_apply
-      by (simp only: wf_classical_plan_action_iff nint_eq rhs_eq snd_eq pre) argo
+      by (simp only: wf_classical_plan_action_iff nint_eq rhs_eq snd_eq pre ned) argo
   qed
 qed
 
@@ -751,51 +764,152 @@ text \<open>Executing the (translated) action preserves the relation: numeric up
   the LHS PNEs, which is exactly how \<open>dom (snd M)\<close> grows (an assignment makes its
   LHS defined and deletes nothing).\<close>
 
-text \<open>Domain growth of the numeric update: applying a single (Assign-only-tracked)
-  numeric effect with a defined right-hand side adds exactly its \<open>Assign\<close> lhs to the
-  domain, and removes nothing.\<close>
+text \<open>Domain growth of the numeric update: with division by zero undefined, an
+  effect's right-hand side must actually evaluate (\<open>\<noteq> None\<close>) for its \<open>Assign\<close> lhs
+  to become defined, and previously-defined fluents must survive
+  (\<open>numeric_effects_defined\<close>, part of enabledness). Under these premises the
+  domain grows by exactly the \<open>Assign\<close> lhs PNEs.\<close>
 
-lemma dom_numeric_update_function_eq:
-  assumes "set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N"
-  shows "dom (numeric_update_function e N w) = dom w \<union> set (lhs_pnes_num_eff e)"
+lemma dom_numeric_update_function_subset:
+  "dom (numeric_update_function e N w) \<subseteq> dom w \<union> set (lhs_pnes_num_eff e)"
 proof (cases e)
   case (NumericEffect opr l r)
-  with assms have "set (enumerate_primitive_numeric_expressions r) \<subseteq> dom N" by simp
-  then obtain v where v: "r\<lbrakk>N\<rbrakk> = Some v"
-    using numeric_expression_eq_SomeI' by blast
-  show ?thesis
-    using NumericEffect v
-    by (cases opr; cases "w l")
-       (auto simp: lhs_pnes_num_eff_def dom_def split: if_splits)
+  show ?thesis unfolding NumericEffect
+    by (cases opr)
+       (auto simp: lhs_pnes_num_eff_def dom_def elim: map_two_options.elims divide_option.elims
+             split: if_splits)
 qed
 
-lemma dom_numeric_update_fold:
-  assumes "\<forall>e \<in> set es. set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N"
-  shows "dom (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) es) id w)
-       = dom w \<union> set (concat (map lhs_pnes_num_eff es))"
-  using assms
+lemma dom_numeric_update_fold_subset:
+  "dom (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) es) id w)
+     \<subseteq> dom w \<union> set (concat (map lhs_pnes_num_eff es))"
 proof (induction es arbitrary: w)
   case Nil thus ?case by simp
 next
   case (Cons e es)
-  hence preme: "set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N"
-    and prem_es: "\<forall>e \<in> set es. set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N" by simp_all
   have "dom (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) (e # es)) id w)
       = dom (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) es) id (numeric_update_function e N w))"
     by (simp add: fold_of_comp'[of "map (\<lambda>u. numeric_update_function u N) es" "numeric_update_function e N" w])
-  also have "\<dots> = dom (numeric_update_function e N w) \<union> set (concat (map lhs_pnes_num_eff es))"
-    by (rule Cons.IH[OF prem_es])
-  also have "\<dots> = dom w \<union> set (lhs_pnes_num_eff e) \<union> set (concat (map lhs_pnes_num_eff es))"
-    by (simp add: dom_numeric_update_function_eq[OF preme])
-  also have "\<dots> = dom w \<union> set (concat (map lhs_pnes_num_eff (e # es)))" by auto
+  also have "\<dots> \<subseteq> dom (numeric_update_function e N w) \<union> set (concat (map lhs_pnes_num_eff es))"
+    using Cons.IH by blast
+  also have "\<dots> \<subseteq> dom w \<union> set (concat (map lhs_pnes_num_eff (e # es)))"
+    using dom_numeric_update_function_subset[of e N w] by auto
   finally show ?case .
 qed
 
+lemma fold_update_no_lhs_unchanged:
+  assumes "\<forall>u \<in> set es. numeric_effect.lhs u \<noteq> l"
+  shows "fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) es) id w l = w l"
+  using assms
+proof (induction es arbitrary: w)
+  case Nil thus ?case by simp
+next
+  case (Cons u es)
+  have peel: "fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) (u # es)) id w
+      = fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) es) id (numeric_update_function u N w)"
+    by (simp add: fold_of_comp'[of "map (\<lambda>v. numeric_update_function v N) es" "numeric_update_function u N" w])
+  have IH': "fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) es) id (numeric_update_function u N w) l
+           = numeric_update_function u N w l"
+    using Cons.prems by (intro Cons.IH) simp
+  have lne: "l \<noteq> numeric_effect.lhs u" using Cons.prems by auto
+  have "numeric_update_function u N w l = w l"
+    by (rule numeric_update_function_only_changes_lvalue[OF lne])
+  thus ?case unfolding peel using IH' by simp
+qed
+
+text \<open>Non-interference makes an \<open>Assign\<close> the unique writer of its lhs, so the
+  updated value at an \<open>Assign\<close> lhs is exactly the right-hand side's value.\<close>
+
+lemma fold_update_assign_value:
+  assumes "e \<in> set es"
+    and "numeric_effect.op e = numeric_effect_op.Assign"
+    and "count_list es e = 1"
+    and "\<forall>u \<in> set es. numeric_effect.lhs u = numeric_effect.lhs e \<longrightarrow> u = e"
+  shows "fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) es) id w (numeric_effect.lhs e)
+       = (numeric_effect.rhs e)\<lbrakk>N\<rbrakk>"
+  using assms
+proof (induction es arbitrary: w)
+  case Nil thus ?case by simp
+next
+  case (Cons u es)
+  have peel: "fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) (u # es)) id w
+      = fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) es) id (numeric_update_function u N w)"
+    by (simp add: fold_of_comp'[of "map (\<lambda>v. numeric_update_function v N) es" "numeric_update_function u N" w])
+  show ?case
+  proof (cases "u = e")
+    case True
+    have notin: "e \<notin> set es" using Cons.prems(3) True by (auto simp: count_list_0_iff)
+    have nolhs: "\<forall>v \<in> set es. numeric_effect.lhs v \<noteq> numeric_effect.lhs e"
+      using Cons.prems(4) notin by auto
+    obtain l r where er: "e = NumericEffect numeric_effect_op.Assign l r"
+      using Cons.prems(2) by (cases e) simp
+    have at_e: "numeric_update_function e N w (numeric_effect.lhs e) = (numeric_effect.rhs e)\<lbrakk>N\<rbrakk>"
+      unfolding er by simp
+    have unch: "fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) es) id (numeric_update_function e N w) (numeric_effect.lhs e)
+              = numeric_update_function e N w (numeric_effect.lhs e)"
+      by (rule fold_update_no_lhs_unchanged[OF nolhs])
+    show ?thesis unfolding True peel[unfolded True] using unch at_e by simp
+  next
+    case False
+    have ein: "e \<in> set es" using Cons.prems(1) False by simp
+    have cnt: "count_list es e = 1" using Cons.prems(3) False by simp
+    have uniq: "\<forall>v \<in> set es. numeric_effect.lhs v = numeric_effect.lhs e \<longrightarrow> v = e"
+      using Cons.prems(4) by simp
+    have IH': "fold (\<circ>) (map (\<lambda>v. numeric_update_function v N) es) id (numeric_update_function u N w) (numeric_effect.lhs e)
+             = (numeric_effect.rhs e)\<lbrakk>N\<rbrakk>"
+      by (rule Cons.IH[OF ein Cons.prems(2) cnt uniq])
+    show ?thesis unfolding peel using IH' by simp
+  qed
+qed
+
 lemma dom_action_numeric_update_function_eq:
-  assumes "\<forall>e \<in> set (numeric_effects (effect a)). set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N"
+  assumes rhs_eval: "\<forall>e \<in> set (numeric_effects (effect a)). (numeric_effect.rhs e)\<lbrakk>N\<rbrakk> \<noteq> None"
+    and effdef: "numeric_effects_defined [a] N"
+    and nintrf: "numeric_effects_non_intrf a"
   shows "dom (action_numeric_update_function a N) = dom N \<union> set (lhs_pnes_eff (effect a))"
-  using dom_numeric_update_fold[OF assms, of N]
-  by (cases "effect a") (simp add: action_numeric_update_function_def)
+proof -
+  obtain ads dls nes where eff: "effect a = Effect ads dls nes" by (cases "effect a")
+  have upd: "action_numeric_update_function a N
+      = fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) nes) id N"
+    unfolding action_numeric_update_function_def eff by simp
+  have lhs_concat: "lhs_pnes_eff (effect a) = concat (map lhs_pnes_num_eff nes)"
+    unfolding eff by simp
+  have sub: "dom (action_numeric_update_function a N) \<subseteq> dom N \<union> set (lhs_pnes_eff (effect a))"
+    unfolding upd lhs_concat by (rule dom_numeric_update_fold_subset)
+  have domN: "dom N \<subseteq> dom (action_numeric_update_function a N)"
+  proof
+    fix l assume "l \<in> dom N"
+    hence "action_list_numeric_update_function [a] N l \<noteq> None"
+      using effdef unfolding numeric_effects_defined_def by blast
+    hence "action_numeric_update_function a N l \<noteq> None"
+      unfolding action_list_numeric_update_function_def by simp
+    thus "l \<in> dom (action_numeric_update_function a N)" by blast
+  qed
+  have assigns: "l \<in> dom (action_numeric_update_function a N)"
+    if lin: "l \<in> set (lhs_pnes_eff (effect a))" for l
+  proof -
+    obtain e where ein: "e \<in> set nes" and line: "l \<in> set (lhs_pnes_num_eff e)"
+      using lin unfolding lhs_concat by auto
+    obtain opr p r where er: "e = NumericEffect opr p r" by (cases e)
+    have opassign: "opr = numeric_effect_op.Assign"
+      and lp: "l = p"
+      using line unfolding er by (auto simp: lhs_pnes_num_eff_def split: numeric_effect_op.splits)
+    have ein': "e \<in> set (numeric_effects (effect a))" using ein eff by simp
+    have nonintrf_e: "count_list (numeric_effects (effect a)) e = 1
+        \<and> (\<forall>f \<in> set (numeric_effects (effect a)). f = e \<or> numeric_effect.lhs f \<noteq> numeric_effect.lhs e)"
+      using in_non_intrf_numeric_effects_then[OF nintrf ein'] opassign er by simp
+    have cnt: "count_list nes e = 1" using nonintrf_e eff by simp
+    have uniq: "\<forall>u \<in> set nes. numeric_effect.lhs u = numeric_effect.lhs e \<longrightarrow> u = e"
+      using nonintrf_e eff by auto
+    have ope: "numeric_effect.op e = numeric_effect_op.Assign" using er opassign by simp
+    have "action_numeric_update_function a N (numeric_effect.lhs e) = (numeric_effect.rhs e)\<lbrakk>N\<rbrakk>"
+      unfolding upd by (rule fold_update_assign_value[OF ein ope cnt uniq])
+    hence "action_numeric_update_function a N l \<noteq> None"
+      using bspec[OF rhs_eval ein'] er lp by simp
+    thus ?thesis by blast
+  qed
+  show ?thesis using sub domN assigns by blast
+qed
 
 lemma execute_preserves_rel:
   assumes rel: "def_state_rel M MT" and en: "plan_action_enabled \<pi> M"
@@ -806,22 +920,12 @@ proof -
   then obtain a where res: "resolve_classical_action_schema n = Some a"
     and pm: "action_params_match (ac_head a) args"
     unfolding pi wf_classical_plan_action_simple by (auto split: option.splits)
-  have ina: "a \<in> set (actions D)" using res res_aux by simp
   have effa: "effect (the (res_inst \<pi>)) = map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a)"
     unfolding pi using res_inst_alt[of "SimplePlanAction n args"] res
     by (simp add: instantiate_classical_action_schema_alt)
   have effaT: "effect (the (pt.res_inst \<pi>)) = map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff (def_translate_ac def_prefix a))"
     unfolding pi using pt_res_inst_alt[OF res]
     by (simp add: instantiate_classical_action_schema_alt dt_ac_params)
-  have rhs_sel: "set (rhs_pnes_num_eff e) = set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e))" for e
-    by (cases e) (simp add: rhs_pnes_num_eff_def)
-  have rhsset: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions E)
-    = (\<Union>e\<in>set (numeric_effects E). set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)))" for E :: "object ast_effect"
-    by (cases E) (auto simp: rhs_pnes_eff_eq[symmetric] rhs_sel)
-  have ndom: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect (the (res_inst \<pi>)))) \<subseteq> dom (snd M)"
-    using plan_action_enabled_props(3)[OF en] by simp
-  have ndom_e: "\<forall>e \<in> set (numeric_effects (effect (the (res_inst \<pi>)))). set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom (snd M)"
-    using ndom rhsset[of "effect (the (res_inst \<pi>))"] by auto
   obtain L N where MLN: "M = (L, N)" by (cases M)
   with rel have MTeq: "MT = (L \<union> defined_atoms N, N)"
     unfolding def_state_rel_def by (cases MT) auto
@@ -846,10 +950,14 @@ proof -
   have sndM: "snd M = N" by (simp add: MLN)
   have snd_eq: "snd (pt.execute_plan_action \<pi> MT) = snd (execute_plan_action \<pi> M)"
     unfolding exec execT snd_conv by (simp only: action_numeric_update_function_def ne_eq)
-  have ndom_eN: "\<forall>e\<in>set (numeric_effects (effect (the (res_inst \<pi>)))). set (enumerate_primitive_numeric_expressions (numeric_effect.rhs e)) \<subseteq> dom N"
-    using ndom_e sndM by simp
+  have effdefN: "numeric_effects_defined [the (res_inst \<pi>)] N"
+    using plan_action_enabled_props(5)[OF en] sndM by simp
+  have nintrfN: "numeric_effects_non_intrf (the (res_inst \<pi>))"
+    using plan_action_enabled_props(2)[OF en] by simp
+  have rhs_evalN: "\<forall>e \<in> set (numeric_effects (effect (the (res_inst \<pi>)))). (numeric_effect.rhs e)\<lbrakk>N\<rbrakk> \<noteq> None"
+    using numeric_effects_defined_rhs_defined[OF effdefN nintrfN] by blast
   have domexec: "dom (action_numeric_update_function (the (res_inst \<pi>)) N) = dom N \<union> set (lhs_pnes_eff (effect (the (res_inst \<pi>))))"
-    by (rule dom_action_numeric_update_function_eq[OF ndom_eN])
+    by (rule dom_action_numeric_update_function_eq[OF rhs_evalN effdefN nintrfN])
   have newadds_set:
     "set (map (map_atom_fmla (ac_tsubst (ac_params a) args)) (map Atom (map (pne_to_def_atom def_prefix) (remdups (lhs_pnes_eff (ac_eff a))))))
      = (\<lambda>p. Atom (pne_to_def_atom def_prefix p)) ` set (lhs_pnes_eff (effect (the (res_inst \<pi>))))"

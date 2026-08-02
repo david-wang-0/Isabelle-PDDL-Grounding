@@ -276,12 +276,18 @@ proof -
   have ri: "?ga = GroundAction (ga_pre ?a) (ga_eff ?a)" using resinst_ground_pa[OF assms(2)] .
   have num1: "numeric_effects (effect ?a) = []" using assms(2) ops_no_num by blast
   have num2: "numeric_effects (effect ?ga) = []" unfolding ri by (simp add: ga_eff_sel num1)
+  have ned1: "numeric_effects_defined [?a] (snd M)"
+    using num1 by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+        action_numeric_update_function_def lvalues_def dom_def)
+  have ned2: "numeric_effects_defined [?ga] (snd M)"
+    using num2 by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+        action_numeric_update_function_def lvalues_def dom_def)
   have pre: "valuation M \<Turnstile>\<^sub>m precondition ?a \<longleftrightarrow> valuation ?gM \<Turnstile>\<^sub>m precondition ?ga"
     unfolding ri ground_action.sel ga_pre_alt
     using ground_fmla_sem[OF _ assms(1)] pres_covered assms(2) by simp
   show ?thesis
     unfolding plan_action_enabled_def pg.plan_action_enabled_def Let_def
-    using ops_wf assms(2) ground_pa_wf[OF assms(2)] num1 num2 pre
+    using ops_wf assms(2) ground_pa_wf[OF assms(2)] num1 num2 pre ned1 ned2
       numeric_effects_non_intrf_no_numeric_effects enumerate_rhs_pnes_no_numeric_effects
     by simp
 qed

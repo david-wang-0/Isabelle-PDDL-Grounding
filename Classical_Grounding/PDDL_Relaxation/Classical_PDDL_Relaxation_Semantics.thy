@@ -160,9 +160,16 @@ proof (cases \<pi>)
     "valuation M' \<Turnstile>\<^sub>m ground_action.precondition ((the o px.res_inst) \<pi>)"
     using relax_conj_map[OF pre_conj] unfolding rx_inst ground_action.sel by metis
 
+  \<comment> \<open>Goal 5: with no numeric effects the numeric update function is the identity, so
+      definedness of the numeric effects is trivial.\<close>
+  have effdef_rx: "numeric_effects_defined [(the o px.res_inst) \<pi>] (snd M')"
+    using rx_ne_empty
+    by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+        action_numeric_update_function_def lvalues_def dom_def)
+
   show ?thesis
     unfolding px.plan_action_enabled_def Let_def
-    using wf_rx nint_rx ndom_rx sat_rx by simp
+    using wf_rx nint_rx ndom_rx sat_rx effdef_rx by simp
 qed
 
 lemma (in -) map_effect_alt:

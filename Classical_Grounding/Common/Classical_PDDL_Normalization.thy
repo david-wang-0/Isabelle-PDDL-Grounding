@@ -173,20 +173,48 @@ definition "is_def_explicated_conj f \<equiv>
   \<forall>p \<in> set (formula_enumerate_primitive_numeric_expressions f).
     numericEqAtm (FunctionExpr p) (FunctionExpr p) \<in> set (conj_atom_prefix f)"
 
+text \<open> The divisor twin: with division by zero undefined, each divisor \<open>y\<close> occurring in \<open>f\<close>
+  must carry a nonzero witness \<open>\<^bold>\<not>(y = 0)\<close> in the conjunctive prefix. The witnesses are
+  \<^emph>\<open>literals\<close> (negated atoms), so the prefix scanner accepts both polarities; keeping the
+  \<open>f = f\<close> equalities \<^emph>\<open>before\<close> the disequalities preserves \<open>conj_atom_prefix\<close> untouched. \<close>
+
+fun conj_literal_prefix :: "'a formula \<Rightarrow> 'a formula list" where
+  "conj_literal_prefix (Atom a \<^bold>\<and> f) = Atom a # conj_literal_prefix f"
+| "conj_literal_prefix (\<^bold>\<not>(Atom a) \<^bold>\<and> f) = \<^bold>\<not>(Atom a) # conj_literal_prefix f"
+| "conj_literal_prefix _ = []"
+
+lemma conj_literal_prefix_foldr_and_Atom:
+  "conj_literal_prefix (foldr (\<^bold>\<and>) (map Atom as) f) = map Atom as @ conj_literal_prefix f"
+  by (induction as) auto
+
+lemma conj_literal_prefix_foldr_and_NotAtom:
+  "conj_literal_prefix (foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) as) f)
+     = map (\<lambda>a. \<^bold>\<not>(Atom a)) as @ conj_literal_prefix f"
+  by (induction as) auto
+
+definition "is_div_explicated_conj f \<equiv>
+  \<forall>y \<in> set (formula_enumerate_divisor_expressions f).
+    \<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0))) \<in> set (conj_literal_prefix f)"
+
 definition (in ast_classical_domain) "def_explicated_conj_dom \<equiv>
   \<forall>a \<in> set (actions D). is_def_explicated_conj (ac_pre a)"
 
+definition (in ast_classical_domain) "div_explicated_conj_dom \<equiv>
+  \<forall>a \<in> set (actions D). is_div_explicated_conj (ac_pre a)"
+
 locale def_explicated_conj_domain = wf_ast_classical_domain +
   assumes def_explicated_conj_dom: def_explicated_conj_dom
+      and div_explicated_conj_dom: div_explicated_conj_dom
 
 definition (in ast_classical_problem) "def_explicated_conj_prob \<equiv>
-  def_explicated_conj_dom \<and> is_def_explicated_conj (goal P)"
+  def_explicated_conj_dom \<and> is_def_explicated_conj (goal P)
+  \<and> div_explicated_conj_dom \<and> is_div_explicated_conj (goal P)"
 
 locale def_explicated_conj_problem = wf_ast_classical_problem +
   assumes def_explicated_conj_prob: def_explicated_conj_prob
 
 sublocale def_explicated_conj_problem \<subseteq> def_explicated_conj_domain D
-  using def_explicated_conj_prob def_explicated_conj_prob_def by (unfold_locales) blast
+  using def_explicated_conj_prob def_explicated_conj_prob_def by (unfold_locales; blast)
 
 text \<open> Precondition normalization: all action preconditions are normalized. \<close>
 

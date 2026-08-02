@@ -123,7 +123,7 @@ proof -
   also have "... \<longleftrightarrow> valuation (sf_substate, x) \<Turnstile>\<^sub>m \<^bold>\<Or>(map (type_atom n) T)"
   proof -
     have "\<forall>f \<in> set (map (type_atom n) T). atoms f \<subseteq> dom (valuation (sf_substate, x))"
-      by auto
+      by (auto simp: dom_valuation_iff)
     thus ?thesis by auto
   qed
   finally show ?thesis by auto
@@ -483,6 +483,7 @@ proof -
       and entail: "valuation s \<Turnstile>\<^sub>m precondition ((the o res_inst) ?pi)"
       and nintrf: "numeric_effects_non_intrf ((the o res_inst) ?pi)"
       and pnesdef: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o res_inst) ?pi))) \<subseteq> dom (snd s)"
+      and effdef: "numeric_effects_defined [(the o res_inst) ?pi] (snd s)"
       using plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
@@ -564,7 +565,13 @@ proof -
       by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
          (simp add: numeric_effects_non_intrf_def t_ents_names)
 
-    from nintrf2 wf2 entail2 pnesdef2 have "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
+    have effdef2: "numeric_effects_defined [(the o p2.res_inst) ?pi] (snd s)"
+      using effdef res res2 res_inst_alt p2.res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: numeric_effects_defined_def action_list_numeric_update_function_def
+                    action_numeric_update_function_def lvalues_def image_image t_ents_names)
+
+    from nintrf2 wf2 entail2 pnesdef2 effdef2 have "p2.plan_action_enabled ?pi (fst s \<union> sf_substate, snd s)"
       by (simp add: p2.plan_action_enabled_def Let_def)
   }
   moreover {
@@ -573,6 +580,7 @@ proof -
       and entail2: "valuation (fst s \<union> sf_substate, snd s) \<Turnstile>\<^sub>m precondition ((the o p2.res_inst) ?pi)"
       and nintrf2: "numeric_effects_non_intrf ((the o p2.res_inst) ?pi)"
       and pnesdef2: "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the o p2.res_inst) ?pi))) \<subseteq> dom (snd s)"
+      and effdef2: "numeric_effects_defined [(the o p2.res_inst) ?pi] (snd s)"
       using p2.plan_action_enabled_def by (auto simp: Let_def)
 
     (* actions *)
@@ -654,7 +662,13 @@ proof -
       using res res_inst_alt
       by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac") simp
 
-    from entail wf nintrf pnesdef have "plan_action_enabled ?pi s"
+    have effdef: "numeric_effects_defined [(the o res_inst) ?pi] (snd s)"
+      using effdef2 res res2 res_inst_alt p2.res_inst_alt
+      by (cases ac rule: ast_classical_action_schema_cases_unfold; cases "ac_eff ac")
+         (simp add: numeric_effects_defined_def action_list_numeric_update_function_def
+                    action_numeric_update_function_def lvalues_def image_image t_ents_names)
+
+    from entail wf nintrf pnesdef effdef have "plan_action_enabled ?pi s"
       by (simp add: plan_action_enabled_def Let_def)
   }
   ultimately show ?thesis using pi by auto

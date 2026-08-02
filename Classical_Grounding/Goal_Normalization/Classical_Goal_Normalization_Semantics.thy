@@ -1,4 +1,4 @@
-theory Classical_Goal_Normalization_Semantics
+  theory Classical_Goal_Normalization_Semantics
   imports Classical_Goal_Normalization
 begin
 
@@ -25,10 +25,13 @@ lemma g_goal_sem_right:
     "p3.plan_action_enabled \<pi>\<^sub>g M"
     "valuation (p3.execute_plan_action \<pi>\<^sub>g M) \<Turnstile>\<^sub>m goal P3"
 proof -
+    have effdef: "numeric_effects_defined [GroundAction (goal P) goal_effect] (snd M)"
+    by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+                   action_numeric_update_function_def lvalues_def domD)
   from assms show "p3.plan_action_enabled \<pi>\<^sub>g M"
     using resinst_goal_ac wf_goal_pa p3.plan_action_enabled_def
           numeric_effects_non_intrf_no_numeric_effects
-          enumerate_rhs_pnes_no_numeric_effects by simp
+          enumerate_rhs_pnes_no_numeric_effects effdef by simp
 
   from assms(1) this
   have basic: "lwm_basic (fst (p3.execute_plan_action \<pi>\<^sub>g M))"
@@ -290,7 +293,7 @@ lemma g_goal_sem_left:
   assumes "p3.plan_action_enabled \<pi>\<^sub>g M"
   shows "valuation M \<Turnstile>\<^sub>m goal P"
 using assms p3.plan_action_enabled_def wf_goal_pa
-    resinst_goal_ac by auto
+    resinst_goal_ac by (auto simp: Let_def)
 
 lemma g_exec_left:
   assumes "p3.wf_classical_plan_action \<pi>" "\<pi> \<noteq> \<pi>\<^sub>g"

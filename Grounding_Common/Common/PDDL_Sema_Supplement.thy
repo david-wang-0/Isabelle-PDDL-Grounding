@@ -576,8 +576,13 @@ next
 qed
 
 lemma formula_atoms_in_dom_valuation_iff:
-  "atoms F \<subseteq> dom (valuation M) \<longleftrightarrow> set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)"
-  by (induction M; induction F; use dom_valuation_iff in simp)
+  "atoms F \<subseteq> dom (valuation M) \<longleftrightarrow>
+     set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)
+     \<and> (\<forall>d \<in> set (formula_enumerate_divisor_expressions F). d\<lbrakk>snd M\<rbrakk> \<noteq> Some 0)"
+  by (induction M)
+     (auto simp: dom_valuation_iff subset_iff
+       set_formula_enumerate_primitive_numeric_expressions_conv
+       set_formula_enumerate_divisor_expressions_conv)
 
 subsection \<open>Formula predicates\<close>
 

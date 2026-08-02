@@ -71,7 +71,8 @@ wf_classical_plan_action a
      a' = (the o res_inst) a
   in numeric_effects_non_intrf a' 
    \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
-   \<and> valuation M \<Turnstile>\<^sub>m precondition a')"
+   \<and> valuation M \<Turnstile>\<^sub>m precondition a'
+   \<and> numeric_effects_defined [a'] (snd M))"
 
 definition "execute_plan_action a M \<equiv>
   apply_ground_actions [(the o res_inst) a] M"
@@ -83,7 +84,7 @@ fun valid_classical_plan_alt where
 \<and> valid_classical_plan_alt (execute_plan_action a M) as M'
 )"
 
-lemmas plan_action_enabled_props = conj_split_4[OF plan_action_enabled_def[THEN meta_eq_to_obj_eq, THEN iffD1, simplified Let_def]]
+lemmas plan_action_enabled_props = conj_split_5[OF plan_action_enabled_def[THEN meta_eq_to_obj_eq, THEN iffD1, simplified Let_def]]
 lemmas plan_action_enabled_elims = plan_action_enabled_props[elim_format]
 
 
@@ -101,7 +102,8 @@ next
     \<and> classical_plan_happ_path (apply_ground_actions [a'] M) as M'
     \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
     \<and> numeric_effects_non_intrf a' 
-    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a')" 
+    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a'
+    \<and> numeric_effects_defined [a'] (snd M))" 
     by (auto simp: Let_def Cons.IH
         wf_classical_plan_def execute_plan_action_def plan_action_enabled_def)
   also have "... = (wf_classical_plan (a#as) \<and> 
@@ -109,7 +111,8 @@ next
     in classical_plan_happ_path (apply_ground_actions [a'] M) as M'
     \<and> set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect a')) \<subseteq> dom (snd M)
     \<and> numeric_effects_non_intrf a' 
-    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a'))" by (simp add: Let_def)
+    \<and> valuation M \<Turnstile>\<^sub>m ground_action.precondition a'
+    \<and> numeric_effects_defined [a'] (snd M)))" by (simp add: Let_def)
   also have "... = (wf_classical_plan (a#as) \<and> classical_plan_happ_path M (a#as) M')"
     unfolding classical_plan_happ_path_alt 
     by (auto simp: Let_def classical_plan_happ_path_alt)

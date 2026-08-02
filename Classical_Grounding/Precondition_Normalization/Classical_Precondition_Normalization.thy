@@ -108,6 +108,89 @@ proof
     using conj_atom_prefix_dnf_list by fast
 qed
 
+text \<open>The divisor twins: \<open>dnf_list\<close> also propagates a leftmost \<^emph>\<open>negated\<close>-atom conjunct
+  (the divisor-nonzero witnesses \<open>\<^bold>\<not>(y = 0)\<close>) into every output clause. Note there is no
+  divisor analogue of \<open>formula_enum_pnes_dnf_list_def_explicated\<close> (set \<^emph>\<open>equality\<close>): the
+  witness atom \<open>y = 0\<close> contributes only \<open>y\<close>'s inner divisors, not \<open>y\<close> itself, so a clause
+  may enumerate strictly fewer divisors than the source formula. The semantic argument
+  only needs the witnesses' \<^emph>\<open>survival\<close>, not divisor-set equality.\<close>
+
+lemma dnf_list_NotAtom_And:
+  "dnf_list (\<^bold>\<not>(Atom a) \<^bold>\<and> f) = map (\<lambda>c. \<^bold>\<not>(Atom a) \<^bold>\<and> c) (dnf_list f)"
+proof -
+  have CL: "cnf_lists (nnf (\<^bold>\<not> (\<^bold>\<not>(Atom a) \<^bold>\<and> f)))
+          = map (\<lambda>g. a\<^sup>+ # g) (cnf_lists (nnf (\<^bold>\<not> f)))"
+    by simp
+  have nc: "neg_conj_of_clause (a\<^sup>+ # c) = \<^bold>\<not>(Atom a) \<^bold>\<and> neg_conj_of_clause c" for c
+    unfolding neg_conj_of_clause_def by simp
+  have "dnf_list (\<^bold>\<not>(Atom a) \<^bold>\<and> f)
+      = map neg_conj_of_clause (map (\<lambda>g. a\<^sup>+ # g) (cnf_lists (nnf (\<^bold>\<not> f))))"
+    unfolding dnf_list_def by (subst CL) rule
+  also have "... = map (\<lambda>g. \<^bold>\<not>(Atom a) \<^bold>\<and> neg_conj_of_clause g) (cnf_lists (nnf (\<^bold>\<not> f)))"
+    by (simp add: nc)
+  also have "... = map (\<lambda>c. \<^bold>\<not>(Atom a) \<^bold>\<and> c) (map neg_conj_of_clause (cnf_lists (nnf (\<^bold>\<not> f))))"
+    by simp
+  finally show ?thesis unfolding dnf_list_def .
+qed
+
+lemma conj_literal_prefix_dnf_list:
+  assumes "c \<in> set (dnf_list f)" "l \<in> set (conj_literal_prefix f)"
+  shows "l \<in> set (conj_literal_prefix c)"
+  using assms
+proof (induction f arbitrary: c rule: conj_literal_prefix.induct)
+  case (1 a' f)
+  from "1.prems"(1) obtain c' where c': "c' \<in> set (dnf_list f)" "c = Atom a' \<^bold>\<and> c'"
+    unfolding dnf_list_Atom_And by auto
+  from "1.prems"(2) consider "l = Atom a'" | "l \<in> set (conj_literal_prefix f)" by auto
+  thus ?case
+  proof cases
+    case 1 thus ?thesis using c'(2) by simp
+  next
+    case 2
+    hence "l \<in> set (conj_literal_prefix c')"
+      using "1.IH" c'(1) by blast
+    thus ?thesis using c'(2) by simp
+  qed
+next
+  case (2 a' f)
+  from "2.prems"(1) obtain c' where c': "c' \<in> set (dnf_list f)" "c = \<^bold>\<not>(Atom a') \<^bold>\<and> c'"
+    unfolding dnf_list_NotAtom_And by auto
+  from "2.prems"(2) consider "l = \<^bold>\<not>(Atom a')" | "l \<in> set (conj_literal_prefix f)" by auto
+  thus ?case
+  proof cases
+    case 1 thus ?thesis using c'(2) by simp
+  next
+    case 2
+    hence "l \<in> set (conj_literal_prefix c')"
+      using "2.IH" c'(1) by blast
+    thus ?thesis using c'(2) by simp
+  qed
+qed simp_all
+
+lemma formula_enum_divisors_dnf_list_subset:
+  assumes "c \<in> set (dnf_list f)"
+  shows "set (formula_enumerate_divisor_expressions c)
+       \<subseteq> set (formula_enumerate_divisor_expressions f)"
+proof -
+  have "atoms c \<subseteq> atoms f" using assms dnf_list_atoms by fast
+  thus ?thesis
+    by (auto simp: set_formula_enumerate_divisor_expressions_conv)
+qed
+
+lemma is_div_explicated_conj_dnf_list:
+  assumes "is_div_explicated_conj f" "c \<in> set (dnf_list f)"
+  shows "is_div_explicated_conj c"
+  unfolding is_div_explicated_conj_def
+proof
+  fix y assume "y \<in> set (formula_enumerate_divisor_expressions c)"
+  hence "y \<in> set (formula_enumerate_divisor_expressions f)"
+    using formula_enum_divisors_dnf_list_subset[OF assms(2)] by blast
+  hence "\<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0))) \<in> set (conj_literal_prefix f)"
+    using assms(1) unfolding is_div_explicated_conj_def by blast
+  thus "\<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0))) \<in> set (conj_literal_prefix c)"
+    using conj_literal_prefix_dnf_list assms(2) by fast
+qed
+
 subsection \<open> Action splitting properties \<close>
 
 lemma (in ast_classical_domain) split_ac_names_length:
@@ -343,15 +426,29 @@ proof (intro ballI)
     using is_def_explicated_conj_dnf_list split_ac_sel(3)[OF a(2)] by blast
 qed
 
+lemma (in wf_ast_classical_domain4) div_explicated_conj_split_dom:
+  "ast_classical_domain.div_explicated_conj_dom D4"
+  unfolding ast_classical_domain.div_explicated_conj_dom_def
+proof (intro ballI)
+  fix a' assume "a' \<in> set (actions D4)"
+  then obtain a where a: "a \<in> set (actions D)" "a' \<in> set (split_ac a)"
+    using p_ac by auto
+  from a(1) have "is_div_explicated_conj (ac_pre a)"
+    using div_explicated_conj_dom unfolding div_explicated_conj_dom_def by blast
+  thus "is_div_explicated_conj (ac_pre a')"
+    using is_div_explicated_conj_dnf_list split_ac_sel(3)[OF a(2)] by blast
+qed
+
 lemma (in wf_ast_classical_problem4) def_explicated_conj_split_prob:
   "ast_classical_problem.def_explicated_conj_prob P4"
   unfolding ast_classical_problem.def_explicated_conj_prob_def
-  using def_explicated_conj_split_dom
+  using def_explicated_conj_split_dom div_explicated_conj_split_dom
         def_explicated_conj_prob[unfolded def_explicated_conj_prob_def]
   by simp
 
 sublocale wf_ast_classical_domain4 \<subseteq> p4_de: def_explicated_conj_domain D4
-  by unfold_locales (rule def_explicated_conj_split_dom)
+  by unfold_locales
+     (rule def_explicated_conj_split_dom, rule div_explicated_conj_split_dom)
 
 sublocale wf_ast_classical_problem4 \<subseteq> p4_de: def_explicated_conj_problem P4
   by unfold_locales (rule def_explicated_conj_split_prob)

@@ -54,7 +54,7 @@ proof -
   have "goal P\<^sub>X = explicate_def_fmla (goal (ast_classical_problem.degoal_prob detype_classical_prob))"
     unfolding P\<^sub>X_def by (simp add: ast_classical_problem.explicate_def_prob_sel(4))
   also have "\<dots> = Atom (predAtm gp [])"
-    unfolding g3 explicate_def_fmla_def definedness_atoms_def by simp
+    unfolding g3 explicate_def_fmla_def definedness_atoms_def divisor_zero_atoms_def by simp
   finally have gX: "goal P\<^sub>X = Atom (predAtm gp [])" .
   hence gN: "goal P\<^sub>N = Atom (predAtm gp [])"
     unfolding P\<^sub>N_def using ast_classical_problem.split_prob_sel(4) by metis

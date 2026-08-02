@@ -128,6 +128,50 @@ proof (intro ballI)
     unfolding comp_def conj_atom_prefix_map_formula by force
 qed
 
+text \<open> Likewise \<open>is_div_explicated_conj\<close> is preserved by atom substitution: divisor
+  enumeration commutes with the substitution, and the conj-literal-prefix structure
+  is preserved by \<open>map_formula\<close>. \<close>
+
+lemma enumerate_divisor_expressions_map:
+  "enumerate_divisor_expressions (map_numeric_expression m e)
+    = map (map_numeric_expression m) (enumerate_divisor_expressions e)"
+  by (induction e) auto
+
+lemma atom_enumerate_divisor_expressions_map:
+  "atom_enumerate_divisor_expressions (map_atom m a)
+    = map (map_numeric_expression m) (atom_enumerate_divisor_expressions a)"
+  by (cases a) (auto simp: enumerate_divisor_expressions_map)
+
+lemma formula_enumerate_divisor_expressions_map:
+  "formula_enumerate_divisor_expressions (map_formula (map_atom m) F)
+    = map (map_numeric_expression m) (formula_enumerate_divisor_expressions F)"
+  by (induction F) (auto simp: atom_enumerate_divisor_expressions_map)
+
+lemma conj_literal_prefix_map_formula:
+  "conj_literal_prefix (map_formula h f) = map (map_formula h) (conj_literal_prefix f)"
+  by (induction f rule: conj_literal_prefix.induct) auto
+
+lemma is_div_explicated_conj_map_atom_fmla:
+  assumes "is_div_explicated_conj f"
+  shows "is_div_explicated_conj (map_atom_fmla m f)"
+  unfolding is_div_explicated_conj_def
+proof (intro ballI)
+  fix y' assume "y' \<in> set (formula_enumerate_divisor_expressions (map_atom_fmla m f))"
+  then obtain y where y:
+    "y \<in> set (formula_enumerate_divisor_expressions f)"
+    "y' = map_numeric_expression m y"
+    using formula_enumerate_divisor_expressions_map[of m f]
+    by (auto simp: comp_def)
+  have prefix_f: "\<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0))) \<in> set (conj_literal_prefix f)"
+    using y(1) assms unfolding is_div_explicated_conj_def by blast
+  have "map_atom_fmla m (\<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0))))
+        = \<^bold>\<not>(Atom (numericEqAtm y' (ConstantExpr 0)))"
+    using y(2) by simp
+  thus "\<^bold>\<not>(Atom (numericEqAtm y' (ConstantExpr 0)))
+         \<in> set (conj_literal_prefix (map_atom_fmla m f))"
+    using prefix_f unfolding comp_def conj_literal_prefix_map_formula by force
+qed
+
 text \<open> \<open>dnf_list\<close> under \<open>map_formula_semantics\<close>. Unlike the total-valuation version, this
   needs every atom of \<open>F\<close> to be in the domain of \<open>\<A>\<close>: \<open>\<Turnstile>\<^sub>m\<close> is \<open>False\<close> on
   atoms outside the domain, and an individual DNF clause may mention fewer atoms than \<open>F\<close>. \<close>
@@ -166,14 +210,39 @@ lemma in_dom_snd_iff_valuation_eq:
   shows "x \<in> dom (snd M) \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m eq_expr"
   unfolding assms valuation_def by (cases "snd M x") auto
 
-text \<open> Under \<open>is_def_explicated_conj F\<close>, the semantic equivalence between \<open>F\<close>
-  and its DNF clauses extends to \<open>map_formula_semantics\<close> (no separate
-  definedness-domain side condition needed): every clause of \<open>dnf_list F\<close>
-  enumerates the same PNEs as \<open>F\<close>, so satisfying a clause already forces
-  every PNE of \<open>F\<close> to be defined. \<close>
+text \<open> A literal from the conj-literal prefix of a satisfied conjunction is itself
+  satisfied. \<close>
+
+lemma conj_literal_prefix_map_semantics:
+  assumes "\<A> \<Turnstile>\<^sub>m c"
+      and "l \<in> set (conj_literal_prefix c)"
+  shows "\<A> \<Turnstile>\<^sub>m l"
+  using assms by (induction c rule: conj_literal_prefix.induct) auto
+
+text \<open> A satisfied disequality witness \<open>\<^bold>\<not>(y = 0)\<close> forces the divisor \<open>y\<close> to
+  evaluate to something other than \<open>Some 0\<close>. \<close>
+
+lemma valuation_sat_neg_numericEq_zero:
+  assumes "valuation M \<Turnstile>\<^sub>m \<^bold>\<not>(Atom (numericEqAtm y (ConstantExpr 0)))"
+  shows "y\<lbrakk>snd M\<rbrakk> \<noteq> Some 0"
+proof
+  assume "y\<lbrakk>snd M\<rbrakk> = Some 0"
+  hence "valuation M (numericEqAtm y (ConstantExpr 0)) = Some True"
+    unfolding valuation_def by simp
+  thus False using assms by auto
+qed
+
+text \<open> Under \<open>is_def_explicated_conj F\<close> and \<open>is_div_explicated_conj F\<close>, the semantic
+  equivalence between \<open>F\<close> and its DNF clauses extends to \<open>map_formula_semantics\<close>
+  (no separate definedness-domain side condition needed): every clause of
+  \<open>dnf_list F\<close> enumerates the same PNEs as \<open>F\<close>, so satisfying a clause already
+  forces every PNE of \<open>F\<close> to be defined, and the clause inherits \<open>F\<close>'s
+  divisor-nonzero witnesses in its conj-literal prefix, so every divisor of \<open>F\<close>
+  is also forced away from zero. \<close>
 
 lemma is_def_explicated_conj_dnf_list_map_semantics:
   assumes "is_def_explicated_conj F"
+      and "is_div_explicated_conj F"
   shows "valuation M \<Turnstile>\<^sub>m F \<longleftrightarrow> (\<exists>c\<in>set (dnf_list F). valuation M \<Turnstile>\<^sub>m c)"
 proof
   assume "valuation M \<Turnstile>\<^sub>m F"
@@ -185,9 +254,22 @@ next
   have atoms_c: "atoms c \<subseteq> dom (valuation M)" using c(2) by blast
   have pnes_eq: "set (formula_enumerate_primitive_numeric_expressions c)
               = set (formula_enumerate_primitive_numeric_expressions F)"
-    using formula_enum_pnes_dnf_list_def_explicated[OF assms c(1)] .
-  have "atoms F \<subseteq> dom (valuation M)"
+    using formula_enum_pnes_dnf_list_def_explicated[OF assms(1) c(1)] .
+  have pnes: "set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)"
     using atoms_c pnes_eq formula_atoms_in_dom_valuation_iff by metis
+  have divs: "d\<lbrakk>snd M\<rbrakk> \<noteq> Some 0"
+    if "d \<in> set (formula_enumerate_divisor_expressions F)" for d
+  proof -
+    have "\<^bold>\<not>(Atom (numericEqAtm d (ConstantExpr 0))) \<in> set (conj_literal_prefix F)"
+      using assms(2) that unfolding is_div_explicated_conj_def by blast
+    hence "\<^bold>\<not>(Atom (numericEqAtm d (ConstantExpr 0))) \<in> set (conj_literal_prefix c)"
+      using conj_literal_prefix_dnf_list c(1) by blast
+    hence "valuation M \<Turnstile>\<^sub>m \<^bold>\<not>(Atom (numericEqAtm d (ConstantExpr 0)))"
+      using conj_literal_prefix_map_semantics c(2) by blast
+    thus ?thesis using valuation_sat_neg_numericEq_zero by blast
+  qed
+  have "atoms F \<subseteq> dom (valuation M)"
+    using pnes divs formula_atoms_in_dom_valuation_iff by blast
   thus "valuation M \<Turnstile>\<^sub>m F" using c dnf_list_map_semantics by metis
 qed
 
@@ -263,6 +345,10 @@ proof -
     using is_def_explicated_conj_map_atom_fmla
           def_explicated_conj_dom[unfolded def_explicated_conj_dom_def] assms by blast
 
+  have inst_div: "is_div_explicated_conj (?inst_fmla (ac_pre a))"
+    using is_div_explicated_conj_map_atom_fmla
+          div_explicated_conj_dom[unfolded div_explicated_conj_dom_def] assms by blast
+
   have map_dnf: "dnf_list (?inst_fmla (ac_pre a))
       = map ?inst_fmla (dnf_list (ac_pre a))"
     using dnf_list_map[of "map_atom ?h" "ac_pre a"] by (simp add: comp_def)
@@ -271,7 +357,7 @@ proof -
       \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a)"
     by (simp add: pre_eq)
   also have "... \<longleftrightarrow> (\<exists>c\<in>set (dnf_list (?inst_fmla (ac_pre a))). valuation M \<Turnstile>\<^sub>m c)"
-    by (rule is_def_explicated_conj_dnf_list_map_semantics[OF inst_def])
+    by (rule is_def_explicated_conj_dnf_list_map_semantics[OF inst_def inst_div])
   also have "... \<longleftrightarrow> (\<exists>c\<in>set (dnf_list (ac_pre a)). valuation M \<Turnstile>\<^sub>m ?inst_fmla c)"
     unfolding map_dnf by simp
   also have "... \<longleftrightarrow> (\<exists>a'\<in>set (split_ac a). valuation M \<Turnstile>\<^sub>m ?inst_fmla (ac_pre a'))"
@@ -338,7 +424,14 @@ proof (cases \<pi>)
   hence non_int': "numeric_effects_non_intrf ((the o p4.res_inst) ?pi')"
     using numeric_effects_non_intrf_def effs_same by auto
 
-  from wf' sat' non_int' effs_defined' have enab': "p4.plan_action_enabled ?pi' M"
+  have "numeric_effects_defined [(the o res_inst) \<pi>] (snd M)"
+    using assms plan_action_enabled_props by blast
+  hence effdef': "numeric_effects_defined [(the o p4.res_inst) ?pi'] (snd M)"
+    using effs_same
+    by (simp add: numeric_effects_defined_def action_list_numeric_update_function_def
+                  action_numeric_update_function_def lvalues_def image_image)
+
+  from wf' sat' non_int' effs_defined' effdef' have enab': "p4.plan_action_enabled ?pi' M"
     using p4.plan_action_enabled_def by presburger
   thus ?thesis using p_exec a'(1) a(1) res' by auto
 qed
@@ -444,6 +537,7 @@ proof (induction \<pi>')
     and non_int': "numeric_effects_non_intrf ((the \<circ> p4.res_inst) (SimplePlanAction n' args))"
     and effs_def': "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ((the \<circ> p4.res_inst) (SimplePlanAction n' args)))) \<subseteq> dom (snd M)"
     and pre_sat': "valuation M \<Turnstile>\<^sub>m ground_action.precondition ((the \<circ> p4.res_inst) (SimplePlanAction n' args))"
+    and effdef': "numeric_effects_defined [(the \<circ> p4.res_inst) (SimplePlanAction n' args)] (snd M)"
     using p4.plan_action_enabled_props[OF SimplePlanAction(1)] by blast+
 
   obtain ac' where
@@ -493,8 +587,13 @@ proof (induction \<pi>')
     using inst_pre_iff_split[OF in_acts]
     using ac_split by blast
 
+  have effdef: "numeric_effects_defined [(the o res_inst) \<pi>] (snd M)"
+    using effdef' effs_same
+    by (simp add: numeric_effects_defined_def action_list_numeric_update_function_def
+                  action_numeric_update_function_def lvalues_def image_image)
+
   show "plan_action_enabled \<pi> M" unfolding plan_action_enabled_def
-    using wf effs_same non_int effs_def pre_sat by presburger
+    using wf effs_same non_int effs_def pre_sat effdef by presburger
 qed
 
 lemma restore_plan_split_valid_from:

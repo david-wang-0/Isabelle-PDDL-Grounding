@@ -17,6 +17,17 @@ lemma foldr_and_if:
     shows "\<A> \<Turnstile>\<^sub>m foldr (\<^bold>\<and>) (map Atom as) F"
   using assms by (induction as) auto
 
+lemma foldr_and_Not_imp_orig:
+  assumes "\<A> \<Turnstile>\<^sub>m foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) as) F"
+  shows "\<A> \<Turnstile>\<^sub>m F"
+  using assms by (induction as) auto
+
+lemma foldr_and_Not_if:
+  assumes "\<A> \<Turnstile>\<^sub>m F"
+      and "\<forall>a \<in> set as. \<A> a = Some False"
+    shows "\<A> \<Turnstile>\<^sub>m foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) as) F"
+  using assms by (induction as) auto
+
 subsection \<open>Definedness atoms under a defined-PNE valuation\<close>
 
 lemma definedness_atom_valuation:
@@ -38,6 +49,39 @@ lemma definedness_atoms_subset_dom_valuation:
   shows "set (definedness_atoms F) \<subseteq> dom (valuation M)"
   using definedness_atom_valuation[OF assms] by (auto simp: domIff)
 
+subsection \<open>Divisor-nonzero witness atoms under a defined-divisor valuation\<close>
+
+text \<open>The divisor-zero witness atoms are truth-neutral: whenever the original
+  formula's atoms are in the valuation's domain, every divisor evaluates to a
+  defined, nonzero value, so each witness atom \<open>y = 0\<close> evaluates to
+  \<open>Some False\<close> — exactly what the negated literals in
+  \<open>explicate_def_fmla\<close> require.\<close>
+
+lemma divisor_zero_atom_valuation:
+  assumes "atoms F \<subseteq> dom (valuation M)"
+      and "a \<in> set (divisor_zero_atoms F)"
+    shows "valuation M a = Some False"
+proof -
+  obtain y where
+    y: "y \<in> set (formula_enumerate_divisor_expressions F)"
+    and a: "a = numericEqAtm y (ConstantExpr 0)"
+    using assms(2) by (rule divisor_zero_atoms_form)
+  have PN: "set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)"
+   and DV: "\<forall>d \<in> set (formula_enumerate_divisor_expressions F). d\<lbrakk>snd M\<rbrakk> \<noteq> Some 0"
+    using assms(1) formula_atoms_in_dom_valuation_iff by blast+
+  have "set (enumerate_primitive_numeric_expressions y) \<subseteq> dom (snd M)"
+    using formula_divisor_pnes_subset[OF y] PN by blast
+  moreover
+  have "\<forall>d \<in> set (enumerate_divisor_expressions y). d\<lbrakk>snd M\<rbrakk> \<noteq> Some 0"
+    using formula_enumerate_divisor_expressions_closed[OF y] DV by blast
+  ultimately
+  have "y\<lbrakk>snd M\<rbrakk> \<noteq> None"
+    using numeric_expression_valuation_neq_None_iff by blast
+  then obtain v where v: "y\<lbrakk>snd M\<rbrakk> = Some v" by blast
+  hence "v \<noteq> 0" using DV y by fastforce
+  thus ?thesis unfolding a valuation_def using v by simp
+qed
+
 subsection \<open>Key semantic equivalence\<close>
 
 theorem explicate_def_fmla_semantics:
@@ -45,13 +89,18 @@ theorem explicate_def_fmla_semantics:
 proof
   assume "valuation M \<Turnstile>\<^sub>m explicate_def_fmla f"
   thus "valuation M \<Turnstile>\<^sub>m f"
-    unfolding explicate_def_fmla_def using foldr_and_imp_orig by blast
+    unfolding explicate_def_fmla_def
+    using foldr_and_imp_orig foldr_and_Not_imp_orig by blast
 next
   assume sat: "valuation M \<Turnstile>\<^sub>m f"
   hence atoms_in: "atoms f \<subseteq> dom (valuation M)" by blast
+  have div_sat: "valuation M \<Turnstile>\<^sub>m foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) (divisor_zero_atoms f)) f"
+    by (rule foldr_and_Not_if[OF sat], rule ballI,
+        rule divisor_zero_atom_valuation[OF atoms_in])
   show "valuation M \<Turnstile>\<^sub>m explicate_def_fmla f"
     unfolding explicate_def_fmla_def
-    by (rule foldr_and_if[OF sat], rule ballI, rule definedness_atom_valuation[OF atoms_in])
+    by (rule foldr_and_if[OF div_sat], rule ballI,
+        rule definedness_atom_valuation[OF atoms_in])
 qed
 
 subsection \<open>Substitution commutes with explication\<close>
@@ -67,16 +116,42 @@ lemma definedness_atoms_map:
   unfolding definedness_atoms_def Let_def
   by (simp add: formula_enumerate_primitive_numeric_expressions_map comp_def)
 
+lemma enumerate_divisor_expressions_map:
+  "enumerate_divisor_expressions (map_numeric_expression m e)
+    = map (map_numeric_expression m) (enumerate_divisor_expressions e)"
+  by (induction e) auto
+
+lemma atom_enumerate_divisor_expressions_map:
+  "atom_enumerate_divisor_expressions (map_atom m a)
+    = map (map_numeric_expression m) (atom_enumerate_divisor_expressions a)"
+  by (cases a) (auto simp: enumerate_divisor_expressions_map)
+
+lemma formula_enumerate_divisor_expressions_map:
+  "formula_enumerate_divisor_expressions (map_formula (map_atom m) F)
+    = map (map_numeric_expression m) (formula_enumerate_divisor_expressions F)"
+  by (induction F) (auto simp: atom_enumerate_divisor_expressions_map)
+
+lemma divisor_zero_atoms_map:
+  "divisor_zero_atoms (map_formula (map_atom m) F)
+    = map (map_atom m) (divisor_zero_atoms F)"
+  unfolding divisor_zero_atoms_def
+  by (simp add: formula_enumerate_divisor_expressions_map comp_def)
+
 lemma foldr_and_map:
   "map_formula (map_atom m) (foldr (\<^bold>\<and>) (map Atom as) f)
     = foldr (\<^bold>\<and>) (map Atom (map (map_atom m) as)) (map_formula (map_atom m) f)"
+  by (induction as) auto
+
+lemma foldr_and_Not_map:
+  "map_formula (map_atom m) (foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) as) f)
+    = foldr (\<^bold>\<and>) (map (\<lambda>a. \<^bold>\<not>(Atom a)) (map (map_atom m) as)) (map_formula (map_atom m) f)"
   by (induction as) auto
 
 lemma explicate_def_fmla_map:
   "map_formula (map_atom m) (explicate_def_fmla f)
     = explicate_def_fmla (map_formula (map_atom m) f)"
   unfolding explicate_def_fmla_def
-  by (simp add: foldr_and_map definedness_atoms_map)
+  by (simp add: foldr_and_map foldr_and_Not_map definedness_atoms_map divisor_zero_atoms_map)
 
 subsection \<open>Plan-action enabledness is preserved\<close>
 
@@ -109,6 +184,13 @@ text \<open>Explication only modifies precondition formulas: action names, param
 lemma map_of_pair_map: 
   "map_of (map (\<lambda>x. (f x, g x)) xs) n = map_option g (map_of (map (\<lambda>x. (f x, x)) xs) n)"
   by (induction xs) auto
+
+lemma numeric_effects_defined_cong:
+  assumes "ground_action.effect g' = ground_action.effect g"
+  shows "numeric_effects_defined [g'] w \<longleftrightarrow> numeric_effects_defined [g] w"
+  unfolding numeric_effects_defined_def action_list_numeric_update_function_def
+            action_numeric_update_function_def
+  by (simp add: assms lvalues_def image_image)
 
 context ast_classical_problem_de begin
 
@@ -211,10 +293,12 @@ next
     using eff by simp
   have pre_sem: "valuation M \<Turnstile>\<^sub>m precondition g' \<longleftrightarrow> valuation M \<Turnstile>\<^sub>m precondition g"
     unfolding pre by (rule explicate_def_fmla_semantics)
+  have ned: "numeric_effects_defined [g'] (snd M) \<longleftrightarrow> numeric_effects_defined [g] (snd M)"
+    using numeric_effects_defined_cong[OF eff] .
   show ?thesis
     unfolding plan_action_enabled_def p_de.plan_action_enabled_def
     unfolding g g' comp_apply option.sel Let_def
-    by (simp add: ne rhs pre_sem)
+    by (simp add: ne rhs pre_sem ned)
 qed
 
 lemma p_de_res_inst_effect:

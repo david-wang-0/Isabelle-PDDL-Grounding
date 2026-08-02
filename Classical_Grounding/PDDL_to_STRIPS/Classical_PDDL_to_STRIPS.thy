@@ -1605,6 +1605,9 @@ proof -
   have a': "the (res_inst a) = instantiate_classical_action_schema ac args" using aeq res by simp
   have num: "numeric_effects (ground_action.effect (the (res_inst a))) = []"
     unfolding a' by (rule inst_no_numeric[OF mem])
+  have ned: "numeric_effects_defined [the (res_inst a)] (snd M)"
+    using num by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+        action_numeric_update_function_def lvalues_def dom_def)
   have pre: "valuation M \<Turnstile>\<^sub>m ground_action.precondition (the (res_inst a))"
     using enabled_applicable[OF assms(1)] assms(2) by simp
   have nintf: "numeric_effects_non_intrf (the (res_inst a))"
@@ -1619,7 +1622,7 @@ proof -
   qed
   show ?thesis
     unfolding plan_action_enabled_def Let_def
-    using assms(1) pre nintf rhs by simp
+    using assms(1) pre nintf rhs ned by simp
 qed
 
 text \<open>Every STRIPS operator of the encoded task is the encoding of some well-formed plan action.\<close>

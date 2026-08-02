@@ -393,7 +393,8 @@ theorem normalization_normalizes:
     Classical_Definedness_Normalization_Locales.ast_classical_problem.explicate_def_prob_sel(4)
     Classical_Goal_Normalization_Locales.ast_classical_problem.degoal_prob_sel(4))
   apply (unfold explicate_def_fmla_def)
-  apply (unfold Definedness_Normalization.definedness_atoms_def)
+  apply (unfold Definedness_Normalization.definedness_atoms_def
+    Definedness_Normalization.divisor_zero_atoms_def)
   by simp
   
 

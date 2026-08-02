@@ -1107,6 +1107,10 @@ proof -
       using enumerate_rhs_pnes_no_numeric_effects[OF numeff0] by simp
     show "valuation M2 \<Turnstile>\<^sub>m precondition ((the \<circ> res_inst) a)"
       unfolding pre_eq by (rule valuation_pos_conj_mono[OF pos sub val1[unfolded pre_eq]])
+    show "numeric_effects_defined [(the \<circ> res_inst) a] (snd M2)"
+      using numeff0
+      by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+          action_numeric_update_function_def lvalues_def dom_def)
   qed
 qed
 
@@ -1248,6 +1252,10 @@ proof -
     show "set (ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ?a')) \<subseteq> dom (snd M)"
       using enumerate_rhs_pnes_no_numeric_effects[OF numeff0] by simp
     show "valuation M \<Turnstile>\<^sub>m precondition ?a'" unfolding pre_eq using val_pre .
+    show "numeric_effects_defined [?a'] (snd M)"
+      using numeff0
+      by (auto simp: numeric_effects_defined_def action_list_numeric_update_function_def
+          action_numeric_update_function_def lvalues_def dom_def)
   qed
 qed
 
