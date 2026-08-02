@@ -8,29 +8,10 @@ text \<open>The numeric-free specialization of the grounding pipeline: it import
 
 subsection \<open>The grounder's predicate names are nonempty\<close>
 
-text \<open>The grounder draws fresh predicate names from \<^const>\<open>distinct_strings_lit\<close>, i.e. the decimal
-  representations \<^term>\<open>show (i :: nat)\<close>, which are always nonempty. This discharges the
-  \<open>nonempty_pred_names\<close> side-condition for the grounded problem.\<close>
-
-lemma show_nat_nonemp: "show (m :: nat) \<noteq> []"
-  using nat_show_len_nonzero by auto
-
-lemma distinct_strings_nonempty: "s \<in> set (distinct_strings n) \<Longrightarrow> s \<noteq> []"
-by (auto simp: distinct_strings_def show_nat_nonemp)
-
-lemma dsl_nonempty:
-  assumes "x \<in> set (distinct_strings_lit n)"
-  shows "x \<noteq> STR ''''"
-proof -
-  from assms obtain s where s: "s \<in> set (distinct_strings n)" "x = String.implode s"
-    unfolding distinct_strings_lit_eq by auto
-  from s(1) have "\<forall>c \<in> set s. \<not> digit7 c"
-    unfolding distinct_strings_def using show_no_digit7 by auto
-  hence ex: "String.explode x = s"
-    using s(2) by (simp add: String.ascii_of_idem list.map_ident_strong)
-  with distinct_strings_nonempty[OF s(1)] have "String.explode x \<noteq> []" by simp
-  thus "x \<noteq> STR ''''" by (metis String.explode_inverse zero_literal.rep_eq)
-qed
+text \<open>The folded predicate names carry a trailing \<open>_<index>\<close> suffix
+  (\<^const>\<open>fact_folder.fact_names\<close>, built with \<^const>\<open>idx_name\<close>), hence are nonempty
+  unconditionally (\<open>fact_names_nonempty\<close>). This discharges the \<open>nonempty_pred_names\<close>
+  side-condition for the grounded problem.\<close>
 
 context ast_classical_problem begin
 
@@ -130,8 +111,8 @@ proof -
   finally show ?thesis by blast
 qed
 
-text \<open>Every well-formed predicate of the grounded problem has a nonempty name: the grounder draws
-  predicate names from \<^const>\<open>distinct_strings_lit\<close> (\<open>dsl_nonempty\<close>).\<close>
+text \<open>Every well-formed predicate of the grounded problem has a nonempty name: the grounder's
+  fact names end in an underscore-separated index (\<open>fact_names_nonempty\<close>).\<close>
 lemma pg_cert_pred_nonempty:
   assumes "restrict_prob" "wf_classical_problem"
     and "ast_classical_domain.wf_pred (ast_problem.domain (P\<^sub>G_cert M)) n"
@@ -147,9 +128,7 @@ proof -
   hence "PredDecl n [] \<in> set (map (\<lambda>p. PredDecl p []) cr.wfg.fact_names)"
     unfolding pg_eq using cr.wfg.ground_prob_sel(1) cr.wfg.ground_dom_sel(2) by simp
   hence nfn: "n \<in> set cr.wfg.fact_names" by auto
-  have "\<forall>m \<in> set cr.wfg.fact_names. predicate.name m \<noteq> STR ''''"
-    unfolding cr.wfg.fact_names_def using dsl_nonempty by auto
-  thus ?thesis using nfn by blast
+  thus ?thesis using cr.wfg.fact_names_nonempty by blast
 qed
 
 lemma strips_encodable_P\<^sub>G_cert:

@@ -35,9 +35,6 @@ declare domain_signature.detype_simple_action_body.simps[code]
 text \<open>Missing executable equations: def_translate code bundle + lifted string ops.\<close>
 declare ast_classical_domain.def_translate_dom_def[code]
 declare ast_classical_problem.def_translate_prob_def[code]
-lemma padl_lit_code[code]: "padl_lit n s = String.implode (padl n (String.explode s))"
-  by (metis padl_lit.rep_eq String.implode_explode_eq)
-declare distinct_strings_lit_eq[code]
 
 text \<open>Numeric expression valuation is not code-generable: the Formal-PDDL-Semantics
   \<^const>\<open>numeric_expression_valuation\<close> covers transcendental constructors (\<open>SinExpr\<close>/\<open>CosExpr\<close>/

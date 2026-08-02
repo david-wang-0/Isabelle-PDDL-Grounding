@@ -2,39 +2,9 @@ theory String_Utils
 imports Main Nat_Show_Utils "HOL-Library.Sublist" Grounding_Utils
 begin
 
-abbreviation max_length :: "'a list list \<Rightarrow> nat" where
-  "max_length xss \<equiv> Max (length ` set xss)"
-
 lemma inj_prepend: "inj ((+) (s::String.literal))"
   apply (rule injI)
   by (metis String.implode_explode_eq plus_literal.rep_eq same_append_eq)
-
-definition safe_prefix :: "String.literal list \<Rightarrow> String.literal" where
-  "safe_prefix ss \<equiv>
-    String.implode (replicate (max_length (map literal.explode ss) + 1) (CHR ''_''))"
-
-lemma safe_prefix_explode:
-  "literal.explode (safe_prefix xs)
-     = replicate (max_length (map literal.explode xs) + 1) (CHR ''_'')"
-  unfolding safe_prefix_def
-  by (simp add: String.explode_implode_eq String.ascii_of_idem map_replicate_const)
-
-lemma safe_prefix_correct: "safe_prefix xs + x \<notin> set xs"
-proof
-  assume "safe_prefix xs + x \<in> set xs"
-  hence "length (literal.explode (safe_prefix xs + x))
-           \<le> max_length (map literal.explode xs)" by force
-  moreover have "length (literal.explode (safe_prefix xs + x))
-                   = length (literal.explode (safe_prefix xs)) + length (literal.explode x)"
-    by (simp add: plus_literal.rep_eq)
-  moreover have "length (literal.explode (safe_prefix xs))
-                   = max_length (map literal.explode xs) + 1"
-    using safe_prefix_explode by simp
-  ultimately show False by simp
-qed
-
-lemma dist_prefix: "distinct xs \<Longrightarrow> distinct (map (\<lambda>x. safe_prefix ys + x) xs)"
-  by (simp add: distinct_map inj_on_def inj_prepend[unfolded inj_def])
 
 lemma inj_append_lit: "inj (\<lambda>x. x + (p::String.literal))"
   by (rule injI) (metis String.implode_explode_eq plus_literal.rep_eq append_same_eq)
@@ -53,7 +23,7 @@ lemma append_eq_append_conv_lit:
 lemma implode_inj_on:
   "inj_on String.implode {s. \<forall>n \<in> set s. \<not>digit7 n}"
 proof -
-  have 1: "String.implode x \<noteq> String.implode y" 
+  have 1: "String.implode x \<noteq> String.implode y"
     if "\<forall>n \<in> set x. \<not>digit7 n"
     and "\<forall>n \<in> set y. \<not>digit7 n"
     and "x \<noteq> y" for x y
@@ -74,7 +44,7 @@ qed
 
 function (domintros) safe_suffix'::"String.literal list \<Rightarrow> String.literal \<Rightarrow> nat \<Rightarrow> String.literal" where
 "safe_suffix' S s n = (
-  let s' = s + String.implode (show n) 
+  let s' = s + String.implode (show n)
   in if (s' \<in> set S) then safe_suffix' S s (Suc n) else s')"
   by pat_completeness auto
 
@@ -153,99 +123,162 @@ lemma safe_suffix_correct:
   using safe_suffix'_correct
   by simp
 
-(* padding *)
+(* fresh generated names: a token decorated with the least free decimal index *)
 
-definition pad :: "nat \<Rightarrow> string \<Rightarrow> string" where
-  "pad n s \<equiv> s @ replicate (n - length s) (CHR ''_'')"
+text \<open>Two entry points onto the single least-index search \<^const>\<open>safe_suffix\<close>:
+  \<^item> \<^const>\<open>safe_suffix\<close> itself (aliased \<open>fresh_name\<close>) decorates a token so that the result is
+    not a member of a given name list --- for a *complete* generated name;
+  \<^item> \<open>fresh_prefix\<close> runs the same search over the prefix-closure \<open>all_prefixes\<close> of the name
+    list and appends a separator, so that the result is not a *prefix* of any existing name
+    --- for a namespace under which arbitrarily many names are minted.
 
-definition padl :: "nat \<Rightarrow> string \<Rightarrow> string" where
-  "padl n s \<equiv> replicate (n - length s) (CHR ''_'') @ s"
+  In the common case no index is emitted at all (\<open>type_\<close>, \<open>Goal\<close>, \<open>Defined_\<close>); an index
+  appears only on a genuine clash (\<open>type0_\<close>, \<open>Goal0\<close>, \<open>Defined0_\<close>). The prefix test is mildly
+  over-conservative --- an existing name \<open>typeof\<close> bumps the token to \<open>type0_\<close> even though no
+  \<open>type_*\<close> name exists --- which is cosmetic and accepted.\<close>
 
-lemma pad_length:
-  "n \<ge> length s \<Longrightarrow> length (pad n s) = n"
-  "length (pad n s) \<ge> n"
-  "length (pad n s) \<ge> length s"
-  unfolding pad_def by simp_all
+definition prefixes_lit :: "String.literal \<Rightarrow> String.literal list" where
+  "prefixes_lit s \<equiv> map String.implode (prefixes (String.explode s))"
 
-lemma padl_length:
-  "n \<ge> length s \<Longrightarrow> length (padl n s) = n"
-  "length (padl n s) \<ge> n"
-  "length (padl n s) \<ge> length s"
-  unfolding padl_def by simp_all
+definition all_prefixes :: "String.literal list \<Rightarrow> String.literal list" where
+  "all_prefixes ns \<equiv> concat (map prefixes_lit ns)"
 
-lemma count_replicate: "count_list (replicate n x) x = n"
-  by (induction n) simp_all
+abbreviation fresh_name :: "String.literal list \<Rightarrow> String.literal \<Rightarrow> String.literal" where
+  "fresh_name ns t \<equiv> safe_suffix ns t"
 
-lemma count_pad:
-  assumes "CHR ''_'' \<notin> set xs"
-  shows "count_list (pad n xs) (CHR ''_'') = n - length xs"
-  unfolding pad_def using assms count_replicate by fastforce
+definition fresh_prefix :: "String.literal list \<Rightarrow> String.literal \<Rightarrow> String.literal" where
+  "fresh_prefix ns t \<equiv> safe_suffix (all_prefixes ns) t + STR ''_''"
 
-lemma count_padl:
-  assumes "CHR ''_'' \<notin> set xs"
-  shows "count_list (padl n xs) (CHR ''_'') = n - length xs"
-  unfolding padl_def using assms count_replicate by fastforce
-
-(* Omitting "n \<ge> length xs" "n \<ge> length ys" from assumptions because it's unnecessary*)
-lemma pad_neq:
-  assumes "(CHR ''_'') \<notin> set xs" "CHR ''_'' \<notin> set ys" "xs \<noteq> ys"
-  shows "pad n xs \<noteq> pad n ys"
-proof (cases "length xs = length ys")
-  case False
-  from False consider
-      (neq) "n - length xs \<noteq> n - length ys" |
-      (zero) "n - length xs = 0 \<and> n - length ys = 0"
-    by linarith
-  then show ?thesis
-  proof (cases)
-    case neq
-    moreover have "count_list (pad n ys) (CHR ''_'') = n - length ys" using assms(2) count_pad by simp
-    moreover have "count_list (pad n xs) (CHR ''_'') = n - length xs" using assms(1) count_pad by simp
-    ultimately show ?thesis by metis
-  next
-    case zero
-    thus ?thesis using False pad_def by auto
-  qed
-qed (simp add: pad_def assms(3))
-
-lemma padl_neq:
-  assumes "(CHR ''_'') \<notin> set xs" "CHR ''_'' \<notin> set ys" "xs \<noteq> ys"
-  shows "padl n xs \<noteq> padl n ys"
-proof (cases "length xs = length ys")
-  case False
-  from False consider
-      (neq) "n - length xs \<noteq> n - length ys" |
-      (zero) "n - length xs = 0 \<and> n - length ys = 0"
-    by linarith
-  then show ?thesis
-  proof (cases)
-    case neq
-    moreover have "count_list (padl n ys) (CHR ''_'') = n - length ys" using assms(2) count_padl by simp
-    moreover have "count_list (padl n xs) (CHR ''_'') = n - length xs" using assms(1) count_padl by simp
-    ultimately show ?thesis by metis
-  next
-    case zero
-    thus ?thesis using False padl_def by auto
-  qed
-qed (simp add: padl_def assms(3))
-
-definition make_unique :: "string list \<Rightarrow> string \<Rightarrow> string" where
-  "make_unique ss s \<equiv> pad (max_length ss + 1) s"
-
-lemma made_unique: "make_unique ss x \<notin> set ss"
+lemma prefixes_litI [intro]:
+  assumes "n = u + x"
+  shows "u \<in> set (prefixes_lit n)"
 proof -
-  have "\<forall>s \<in> set ss. length s \<le> max_length ss"
-    by simp
-  moreover have "max_length ss + 1 \<le> length (make_unique ss x)"
-    using make_unique_def pad_length(2) by simp
-  ultimately have "\<forall>s \<in> set ss. length s < length (make_unique ss x)"
-    by (meson add_le_mono1 le_trans less_iff_succ_less_eq)
-  thus ?thesis by auto
+  have "String.explode n = String.explode u @ String.explode x"
+    using assms by (simp add: plus_literal.rep_eq)
+  hence "String.explode u \<in> set (prefixes (String.explode n))" by simp
+  thus ?thesis unfolding prefixes_lit_def
+    using String.implode_explode_eq by (metis image_eqI list.set_map)
 qed
 
+lemma all_prefixesI [intro]:
+  assumes "n \<in> set ns"
+    and "n = u + x"
+  shows "u \<in> set (all_prefixes ns)"
+  unfolding all_prefixes_def using assms prefixes_litI by fastforce
 
-definition pad_strings :: "string list \<Rightarrow> string list" where
-  "pad_strings ss \<equiv> map (pad (max_length ss + 1)) ss"
+lemma set_subset_all_prefixes: "set ns \<subseteq> set (all_prefixes ns)"
+proof
+  fix n :: String.literal
+  assume a: "n \<in> set ns"
+  have "String.explode n \<in> set (prefixes (String.explode n))" by simp
+  hence "n \<in> set (prefixes_lit n)"
+    unfolding prefixes_lit_def
+    using String.implode_explode_eq by (metis image_eqI list.set_map)
+  thus "n \<in> set (all_prefixes ns)" using a unfolding all_prefixes_def by auto
+qed
+
+lemma fresh_name_correct: "fresh_name ns t \<notin> set ns"
+  by (rule safe_suffix_correct)
+
+lemma fresh_prefix_correct: "fresh_prefix ns t + x \<notin> set ns"
+proof
+  assume a: "fresh_prefix ns t + x \<in> set ns"
+  have eq: "fresh_prefix ns t + x = safe_suffix (all_prefixes ns) t + (STR ''_'' + x)"
+    unfolding fresh_prefix_def by (simp add: add.assoc)
+  have "safe_suffix (all_prefixes ns) t \<in> set (all_prefixes ns)"
+    using all_prefixesI[OF a eq] .
+  thus False using safe_suffix_correct by blast
+qed
+
+lemma fresh_prefix_notin: "fresh_prefix ns t \<notin> set ns"
+proof
+  assume a: "fresh_prefix ns t \<in> set ns"
+  have eq: "fresh_prefix ns t = safe_suffix (all_prefixes ns) t + STR ''_''"
+    by (simp add: fresh_prefix_def)
+  have "safe_suffix (all_prefixes ns) t \<in> set (all_prefixes ns)"
+    using all_prefixesI[OF a eq] .
+  thus False using safe_suffix_correct by blast
+qed
+
+lemma dist_fresh_prefix:
+  assumes "distinct xs"
+  shows "distinct (map (\<lambda>x. fresh_prefix ns t + x) xs)"
+  using assms by (simp add: distinct_map inj_on_def inj_prepend[unfolded inj_def])
+
+(* indexed generated names: a base string with a trailing decimal index *)
+
+text \<open>A base name decorated with a trailing \<open>_<decimal index>\<close>, and the matching strip.
+  Since \<open>_\<close> never occurs inside \<^term>\<open>show (i :: nat)\<close> (\<open>notin_show_nat\<close>), the last \<open>_\<close>
+  of an \<open>idx_name\<close> is exactly the separator: \<open>strip_idx\<close> recovers the base
+  unconditionally (the base may itself contain underscores; no width bound is needed), and
+  equal encodings force both equal bases and equal indices.\<close>
+
+definition idx_name :: "String.literal \<Rightarrow> nat \<Rightarrow> String.literal" where
+  "idx_name s i \<equiv> s + STR ''_'' + String.implode (show i)"
+
+definition strip_idx :: "String.literal \<Rightarrow> String.literal" where
+  "strip_idx s \<equiv> String.implode
+     (rev (drop 1 (dropWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (String.explode s)))))"
+
+lemma strip_idx_idx_name [simp]: "strip_idx (idx_name s i) = s"
+proof -
+  have expl_us: "String.explode (STR ''_'') = [CHR ''_'']" by code_simp
+  have expl_show: "String.explode (String.implode (show (n::nat))) = show n" for n
+    using show_no_digit7
+    by (simp add: String.ascii_of_idem list.map_ident_strong)
+  have e: "rev (String.explode (idx_name s i))
+             = rev (show i) @ ([CHR ''_''] @ rev (String.explode s))"
+    unfolding idx_name_def
+    by (simp add: plus_literal.rep_eq expl_us expl_show del: String.explode_implode_eq)
+  have dw: "dropWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (String.explode (idx_name s i)))
+              = [CHR ''_''] @ rev (String.explode s)"
+  proof -
+    have "dropWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (show i) @ ([CHR ''_''] @ rev (String.explode s)))
+            = dropWhile (\<lambda>c. c \<noteq> CHR ''_'') ([CHR ''_''] @ rev (String.explode s))"
+      using notin_show_nat[of i] by (intro dropWhile_append2) auto
+    thus ?thesis using e by simp
+  qed
+  show ?thesis unfolding strip_idx_def
+    by (simp add: dw)
+qed
+
+lemma idx_name_inj_base:
+  assumes "idx_name a d = idx_name b e"
+  shows "a = b"
+  using assms[THEN arg_cong[where f = strip_idx]] by simp
+
+lemma idx_name_inj_idx:
+  assumes "idx_name a d = idx_name b e"
+  shows "d = e"
+proof -
+  have ab: "a = b" using idx_name_inj_base[OF assms] .
+  have "a + STR ''_'' + String.implode (show d) = a + STR ''_'' + String.implode (show e)"
+    using assms ab unfolding idx_name_def by simp
+  thus ?thesis using inj_show_prepend[of "a + STR ''_''"] by (auto simp: inj_def)
+qed
+
+lemma inj_idx_name: "inj (idx_name s)"
+  by (rule injI) (rule idx_name_inj_idx)
+
+lemma distinct_idx_names:
+  assumes "distinct is"
+  shows "distinct (map (idx_name s) is)"
+  using assms by (simp add: distinct_map inj_on_def inj_idx_name[unfolded inj_def])
+
+text \<open>Every name carrying an underscore-joined infix is nonempty; in particular every
+  \<^const>\<open>idx_name\<close> is, which discharges the nonempty-name side conditions structurally.\<close>
+
+lemma underscore_infix_nonempty: "a + STR ''_'' + b \<noteq> STR ''''"
+proof -
+  have expl_us: "String.explode (STR ''_'') = [CHR ''_'']" by code_simp
+  have "String.explode (a + STR ''_'' + b) = String.explode a @ [CHR ''_''] @ String.explode b"
+    by (simp add: plus_literal.rep_eq expl_us)
+  hence "String.explode (a + STR ''_'' + b) \<noteq> []" by simp
+  thus ?thesis by (metis zero_literal.rep_eq)
+qed
+
+corollary idx_name_nonempty: "idx_name s i \<noteq> STR ''''"
+  unfolding idx_name_def by (rule underscore_infix_nonempty)
 
 
 (* nat upto *)
@@ -329,124 +362,18 @@ lemma distinct_strings_dist:
   "distinct (distinct_strings n)"
   using unique_str_bij distinct_conv_nth by fastforce
 
-(* not sure how important those are *)
-
-lemma distinct_strings_max_len:
-  assumes "m \<le> n"
-  shows "\<forall>x \<in> set (distinct_strings m). length x \<le> length (show n)"
-  unfolding distinct_strings_def
-using assms proof (induction n arbitrary: m)
-  case (Suc n)
-  have "set (distinct_strings (Suc n)) = insert (show n) (set (distinct_strings n))"
-    unfolding distinct_strings_def nat_range_simps by force
-  moreover have "length (show n) \<le> length (show (Suc n))"
-    using nat_show_len_mono
-    by (metis Suc_n_not_le_n nat_le_linear)
-  ultimately show ?case using Suc (* TODO simplify *)
-    by (metis (mono_tags, lifting) Suc_le_mono distinct_strings_def dual_order.trans insertE le_SucE)
-qed simp
-
 lemma distinct_strings_prefix: "prefix (distinct_strings n) (distinct_strings (n+k))"
   using distinct_strings_def nat_range_prefix map_mono_prefix by metis
 
-lemma pad_show_neq:
-  fixes i j :: nat
-  assumes "i \<noteq> j"
-  shows "padl k (show i) \<noteq> padl k (show j)"
-  using assms padl_neq notin_show_nat show_nat_inj by simp
 
-(* TODO pull inner if i \<noteq> j out to generalize for when map isn't explicitly used *)
-lemma distinct_strings_padded:
-  shows "distinct (map (padl k) (distinct_strings n))"
-proof -
-  let ?d = "distinct_strings n"
-  have "map (padl k) ?d ! i \<noteq> map (padl k) ?d ! j"
-    if "i < length ?d" "j < length ?d" "i \<noteq> j" for i j
-    using that distinct_strings_dist distinct_conv_nth list_ball_nth
-  proof -
-    (* TODO simplify with pad_show_neq *)
-    from that have notin: "CHR ''_'' \<notin> set (?d ! i)" "CHR ''_'' \<notin> set (?d ! j)"
-      using distinct_strings_def notin_show_nat list_ball_nth by simp_all
-    from that have  "?d ! i \<noteq> ?d ! j" using distinct_strings_dist distinct_conv_nth by metis
-    hence "padl k (?d ! i) \<noteq> padl k (?d ! j)" using padl_neq notin by simp
-    thus ?thesis using that by auto
-  qed
-  thus ?thesis using distinct_conv_nth by force
-qed
-
-
-context includes literal.lifting 
+context includes literal.lifting
 begin
-lift_definition pad_lit::"nat \<Rightarrow> String.literal \<Rightarrow> String.literal" is pad
-  by (auto simp: pad_def)
 
-lift_definition padl_lit::"nat \<Rightarrow> String.literal \<Rightarrow> String.literal" is padl
-  by (auto simp: padl_def)
-                                                                              
 lift_definition distinct_strings_lit :: "nat \<Rightarrow> String.literal list" is distinct_strings
   by (simp add: distinct_strings_def list_all_iff show_no_digit7)
 
-lift_definition drop_lit :: "nat \<Rightarrow> String.literal \<Rightarrow> String.literal" is drop
-  by (auto dest: in_set_dropD)
-
-lemma pad_lit_length:
-  "n \<ge> length (String.explode s) \<Longrightarrow> length (String.explode (pad_lit n s)) = n"
-  "length (String.explode (pad_lit n s)) \<ge> n"
-  "length (String.explode (pad_lit n s)) \<ge> length (String.explode s)"
-  by (simp_all add: pad_lit.rep_eq pad_length)
-
-lemma padl_lit_length:
-  "n \<ge> length (String.explode s) \<Longrightarrow> length (String.explode (padl_lit n s)) = n"
-  "length (String.explode (padl_lit n s)) \<ge> n"
-  "length (String.explode (padl_lit n s)) \<ge> length (String.explode s)"
-  by (simp_all add: padl_lit.rep_eq padl_length)
-
-lemma pad_lit_size:
-  "n \<ge> size s \<Longrightarrow> size (pad_lit n s) = n"
-  "size (pad_lit n s) \<ge> n"
-  "size (pad_lit n s) \<ge> size s"
-  by (simp_all add: size_literal.rep_eq pad_lit.rep_eq pad_length)
-
-lemma padl_lit_size:
-  "n \<ge> size s \<Longrightarrow> size (padl_lit n s) = n"
-  "size (padl_lit n s) \<ge> n"
-  "size (padl_lit n s) \<ge> size s"
-  by (simp_all add: size_literal.rep_eq padl_lit.rep_eq padl_length)
-
-lemma count_pad_lit:
-  assumes "CHR ''_'' \<notin> set (String.explode xs)"
-  shows "count_list (String.explode (pad_lit n xs)) (CHR ''_'') = n - length (String.explode xs)"
-  using assms by (simp add: pad_lit.rep_eq count_pad)
-
-lemma count_padl_lit:
-  assumes "CHR ''_'' \<notin> set (String.explode xs)"
-  shows "count_list (String.explode (padl_lit n xs)) (CHR ''_'') = n - length (String.explode xs)"
-  using assms by (simp add: padl_lit.rep_eq count_padl)
-
-lemma pad_lit_neq:
-  assumes "CHR ''_'' \<notin> set (String.explode xs)" "CHR ''_'' \<notin> set (String.explode ys)" "xs \<noteq> ys"
-  shows "pad_lit n xs \<noteq> pad_lit n ys"
-  using assms by transfer (rule pad_neq)
-
-lemma padl_lit_neq:
-  assumes "CHR ''_'' \<notin> set (String.explode xs)" "CHR ''_'' \<notin> set (String.explode ys)" "xs \<noteq> ys"
-  shows "padl_lit n xs \<noteq> padl_lit n ys"
-  using assms by transfer (rule padl_neq)
-
-lemma distinct_padl_lit:
-  assumes "distinct xs"
-    and "\<forall>x \<in> set xs. CHR ''_'' \<notin> set (String.explode x)"
-  shows "distinct (map (padl_lit k) xs)"
-proof -
-  have "inj_on (padl_lit k) (set xs)"
-  proof (rule inj_onI)
-    fix x y assume "x \<in> set xs" "y \<in> set xs" "padl_lit k x = padl_lit k y"
-    thus "x = y" using assms(2) padl_lit_neq by metis
-  qed
-  thus ?thesis using assms(1) by (simp add: distinct_map)
-qed
-
-lemma distinct_strings_lit_eq: "distinct_strings_lit n = map String.implode (distinct_strings n)"
+lemma distinct_strings_lit_eq [code]:
+  "distinct_strings_lit n = map String.implode (distinct_strings n)"
 proof -
   have "list_all (\<lambda>cs. \<forall>c\<in>set cs. \<not> digit7 c) (distinct_strings n)"
     by (simp add: distinct_strings_def list_all_iff show_no_digit7)
@@ -472,64 +399,10 @@ proof -
     using distinct_strings_dist by (simp add: distinct_map)
 qed
 
-lemma distinct_strings_lit_max_len:
-  assumes "m \<le> n"
-  shows "\<forall>x \<in> set (distinct_strings_lit m). length (String.explode x) \<le> length (show n)"
-proof
-  fix x assume "x \<in> set (distinct_strings_lit m)"
-  then obtain s where s: "s \<in> set (distinct_strings m)" "x = String.implode s"
-    unfolding distinct_strings_lit_eq by auto
-  from s(1) have "\<forall>c \<in> set s. \<not> digit7 c"
-    unfolding distinct_strings_def using show_no_digit7 by auto
-  hence "String.explode x = s"
-    using s(2) by (simp add: String.ascii_of_idem list.map_ident_strong)
-  thus "length (String.explode x) \<le> length (show n)"
-    using s(1) assms distinct_strings_max_len by metis
-qed
-
-lemma distinct_strings_lit_max_size:
-  assumes "m \<le> n"
-  shows "\<forall>x \<in> set (distinct_strings_lit m). size x \<le> length (show n)"
-  using distinct_strings_lit_max_len[OF assms] by (simp add: size_literal.rep_eq)
-
 lemma distinct_strings_lit_prefix:
   "prefix (distinct_strings_lit n) (distinct_strings_lit (n+k))"
   unfolding distinct_strings_lit_eq
   using distinct_strings_prefix map_mono_prefix by metis
-
-lemma distinct_strings_padl_lit:
-  "distinct (map (padl_lit k) (distinct_strings_lit n))"
-proof (rule distinct_padl_lit)
-  show "distinct (distinct_strings_lit n)" by (rule distinct_strings_lit_dist)
-  show "\<forall>x \<in> set (distinct_strings_lit n). CHR ''_'' \<notin> set (String.explode x)"
-  proof
-    fix x assume "x \<in> set (distinct_strings_lit n)"
-    then obtain s where s: "s \<in> set (distinct_strings n)" "x = String.implode s"
-      unfolding distinct_strings_lit_eq by auto
-    from s(1) have nds: "\<forall>c \<in> set s. \<not> digit7 c"
-      unfolding distinct_strings_def using show_no_digit7 by auto
-    have ex: "String.explode x = s"
-      using s(2) nds by (simp add: String.ascii_of_idem list.map_ident_strong)
-    have "CHR ''_'' \<notin> set s"
-      unfolding distinct_strings_def using s(1)[unfolded distinct_strings_def] notin_show_nat by auto
-    thus "CHR ''_'' \<notin> set (String.explode x)" using ex by simp
-  qed
-qed
-
-lemma padl_lit_implode:
-  shows "String.implode (padl n s) = padl_lit n (String.implode s)" 
-  using literal.explode_inject padl_def padl_lit.rep_eq by fastforce
-
-lemma drop_lit_explode: "drop_lit n s = String.implode (drop n (literal.explode s))"
-  by (metis String.implode_explode_eq drop_lit.rep_eq)
-
-lemma drop_lit_prefix: 
-  assumes "size s = n" shows "drop_lit n (s + ys) = ys"
-  apply (subst drop_lit_explode)
-  apply (subst plus_literal.rep_eq)
-  apply (subst drop_prefix)
-  using size_literal.rep_eq assms apply simp
-  using String.implode_explode_eq by simp
 
 end
 

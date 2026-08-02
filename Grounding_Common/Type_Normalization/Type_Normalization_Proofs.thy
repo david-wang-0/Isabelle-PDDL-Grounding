@@ -85,11 +85,8 @@ text \<open> pred_for_type \<close>
   proof (rule injI)
     fix t1 t2 :: name
     assume "pred_for_type t1 = pred_for_type t2"
-    hence "safe_prefix pred_names + (STR ''type_'' + t1)
-         = safe_prefix pred_names + (STR ''type_'' + t2)"
+    hence "type_pfx + t1 = type_pfx + t2"
       unfolding pred_for_type_def by simp
-    hence "STR ''type_'' + t1 = STR ''type_'' + t2"
-      using inj_prepend by (simp add: inj_eq)
     thus "t1 = t2"
       using inj_prepend by (simp add: inj_eq)
   qed
@@ -108,7 +105,7 @@ text \<open> type_preds \<close>
   lemma type_pred_notin: "pred_for_type t \<notin> pred ` set predicates"
   proof -
     have "predicate.name (pred_for_type t) \<notin> set pred_names"
-      using safe_prefix_correct[of pred_names "STR ''type_'' + t"]
+      using fresh_prefix_correct[of pred_names "STR ''type''" t]
       unfolding pred_for_type_def by simp
     thus ?thesis by force
   qed

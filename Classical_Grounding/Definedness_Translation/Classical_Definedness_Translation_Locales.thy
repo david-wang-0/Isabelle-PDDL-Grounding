@@ -13,9 +13,9 @@ text \<open>Convert numeric definedness into propositional predicates.
   makes it defined, and requiring a PNE on the RHS of an assignment requires
   it to be defined.
 
-  The generated predicate names carry a \<open>Defined_\<close> token but are prefixed by a
-  domain-fresh \<open>safe_prefix\<close> of the existing predicate names, so they cannot
-  collide with declared predicates. The name-generating functions are therefore
+  The generated predicate names sit under a \<open>Defined_\<close> namespace token that
+  \<open>fresh_prefix\<close> guarantees is not a prefix of any existing predicate name, so they
+  cannot collide with declared predicates. The name-generating functions are therefore
   parameterised by this prefix \<open>pfx\<close>, which is instantiated to \<open>def_prefix\<close> in
   the domain/problem context.\<close>
 

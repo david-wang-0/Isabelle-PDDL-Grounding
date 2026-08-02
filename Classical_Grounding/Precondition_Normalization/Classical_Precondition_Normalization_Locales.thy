@@ -19,18 +19,17 @@ definition "n_clauses ac \<equiv> length (dnf_list (ac_pre ac))"
 
 context ast_classical_domain begin
 
-definition "max_n_clauses \<equiv> Max (set (map n_clauses (actions D)))"
-(* Technically, (max_n_clauses - 1) would be enough.*)
-definition "split_pre_pad \<equiv> length (show max_n_clauses)"
-
 fun (in -) set_n_pre ::
   "ast_classical_action_schema \<Rightarrow> name \<Rightarrow> term atom formula \<Rightarrow> ast_classical_action_schema" where
   "set_n_pre (SimpleActionSchema (ActionHead _ params) (SimpleActionBody _ eff)) n pre
   = SimpleActionSchema (ActionHead n params) (SimpleActionBody pre eff)"
 
-definition "split_ac_names ac \<equiv>
-  map (\<lambda>prefix. (padl_lit split_pre_pad prefix) + ac_name ac)
-    (distinct_strings_lit (n_clauses ac))"
+text \<open>The DNF copies of an action schema are named by decorating the schema's own name with
+  a decimal clause index, \<open>ac_name ac + STR ''_'' + show i\<close> (see \<open>idx_name\<close>). Since a decimal
+  numeral contains no underscore, the last underscore of a generated name is exactly the
+  separator, so the original name is recovered by \<open>strip_idx\<close> --- no fixed-width padding and
+  no global bound on the clause count are needed.\<close>
+definition "split_ac_names ac \<equiv> map (idx_name (ac_name ac)) [0 ..< n_clauses ac]"
 
 
 definition split_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema list" where
@@ -59,7 +58,7 @@ definition (in ast_classical_problem) split_prob :: ast_classical_problem where
   The other direction is probably (hopefully?) not important. *)
 fun restore_pa_split where
   "restore_pa_split (SimplePlanAction n args)
-    = SimplePlanAction (drop_lit split_pre_pad n) args"
+    = SimplePlanAction (strip_idx n) args"
 abbreviation "restore_plan_split \<pi>s \<equiv> map restore_pa_split \<pi>s"
 
 (* prec_normed_dom taken from here *)

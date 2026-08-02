@@ -19,8 +19,17 @@ text \<open>The AST-agnostic part of type normalization: the detyping helper fun
 context domain_signature
 begin
 
+  text \<open>Namespace token for the generated type predicates: the token \<open>type\<close>, decorated with the
+    least decimal index that makes it a non-prefix of every declared predicate name, and terminated
+    by a single \<open>_\<close> separator (so it composes with a type name without any further glue). Typically
+    this is just \<open>type_\<close>, giving readable names such as \<open>type_car\<close>. It is an \<^theory_text>\<open>abbreviation\<close> rather
+    than a \<^theory_text>\<open>definition\<close> so that no code setup is needed for it.\<close>
+
+  abbreviation type_pfx :: "name" where
+    "type_pfx \<equiv> fresh_prefix pred_names (STR ''type'')"
+
   definition pred_for_type :: "name \<Rightarrow> predicate" where
-      "pred_for_type t \<equiv> Pred (safe_prefix pred_names + (STR ''type_'' + t))"
+      "pred_for_type t \<equiv> Pred (type_pfx + t)"
 
   fun type_pred :: "name \<Rightarrow> predicate_decl" where
       "type_pred t = PredDecl (pred_for_type t) [\<omega>]"

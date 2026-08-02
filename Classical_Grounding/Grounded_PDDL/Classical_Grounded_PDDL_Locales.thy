@@ -23,26 +23,52 @@ subsection \<open>The fact folder: folding ground atoms and fluents to nullary f
 text \<open>The second stage of the propositional grounder, parameterised by the achievable-facts list
   \<open>facts\<close> \<^bold>\<open>and\<close> the reachable ground-fluent list \<open>fluents\<close> --- both supplied by whatever provides
   the reachable actions (in the pipeline, the datalog certificate stage; the grounder below derives
-  its fluents from the reachable ops). It re-indexes ground predicate atoms onto fresh nullary
-  predicates (\<open>fact_names\<close>) and ground fluents onto fresh nullary functions (\<open>fluent_names\<close>);
+  its fluents from the reachable ops). It re-indexes ground predicate atoms onto readable,
+  index-tagged nullary predicates (\<open>fact_names\<close>) and ground fluents onto readable, index-tagged
+  nullary functions (\<open>fluent_names\<close>);
   \<open>fold_prob\<close> folds an entire \<^emph>\<open>variable-free\<close> problem (the Variable_Freeness stage's output
   shape \<^const>\<open>ast_classical_problem.varfree_prob\<close>) into the fully grounded, nullary-predicate
   form.\<close>
+
+text \<open>Readable string encoders for ground facts and fluents, mirroring \<^const>\<open>readable_pa\<close> of
+  the Variable_Freeness stage: the original predicate / function name with each argument object's
+  name appended, all joined by underscores. Total --- every non-\<^const>\<open>predAtm\<close> shape (equality,
+  numeric atom, compound formula) falls through to the empty string. Those shapes never occur under
+  \<open>facts_wf\<close>, and the index suffix added by \<open>fact_names\<close> below keeps the generated names distinct
+  even if they did, so the encoders themselves need not be injective. They live at theory level, not
+  inside the folder: the names must not depend on the problem parameter, or the factorization
+  equality \<open>ff.fold_dom = ground_dom\<close> would no longer be a syntactic identity.\<close>
+
+fun readable_fact :: "facty \<Rightarrow> String.literal" where
+  "readable_fact (Atom (predAtm p args)) =
+     foldl (\<lambda>s ob. s + STR ''_'' + obj_str ob) (predicate.name p) args"
+| "readable_fact _ = STR ''''"
+
+fun readable_fluent :: "object primitive_numeric_expression \<Rightarrow> String.literal" where
+  "readable_fluent (PNE f args) =
+     foldl (\<lambda>s ob. s + STR ''_'' + obj_str ob) (func.name f) args"
 
 locale fact_folder = ast_classical_problem +
   fixes facts :: "facty list" and fluents :: "object primitive_numeric_expression list"
 begin
 
-text \<open>Fresh, distinct nullary predicate names for the achievable facts and fresh nullary function
-  names for the reachable fluents, via the \<^const>\<open>distinct_strings_lit\<close> machinery of
-  \<^theory>\<open>Grounding_Utils.String_Utils\<close> (\<^const>\<open>name\<close> is now \<^typ>\<open>String.literal\<close>, so the old
-  \<open>char list\<close> padding/\<open>show\<close> mangling is replaced by the \<open>String.literal\<close>-native unique-name
-  helpers). Predicate and function names live in separate namespaces (\<^const>\<open>Pred\<close> vs
-  \<^const>\<open>Func\<close>), so reusing the \<open>distinct_strings_lit\<close> pool is clash-free.\<close>
-definition "fact_names \<equiv> map Pred (distinct_strings_lit (length facts))"
+text \<open>Readable nullary predicate names for the achievable facts and readable nullary function
+  names for the reachable fluents: each folded fact / fluent is named by its \<^emph>\<open>original\<close>
+  predicate / function name with the argument objects' names appended, underscore-separated, plus a
+  trailing decimal index via \<^const>\<open>idx_name\<close> (\<open>at(c1, rooma) \<mapsto> at_c1_rooma_7\<close>,
+  \<open>fuel(c1) \<mapsto> fuel_c1_2\<close>) --- the \<^const>\<open>readable_pa\<close> / \<open>op_names\<close> idiom of the
+  Variable_Freeness stage. Since \<open>_\<close> never occurs inside a decimal numeral the index is recoverable
+  from the encoding (\<^const>\<open>strip_idx\<close>), so equal names force equal indices
+  (\<open>idx_name_inj_idx\<close>) and pairwise distinctness is a \<^emph>\<open>theorem\<close> (\<open>fact_names_dis\<close> /
+  \<open>fluent_names_dis\<close>), not an assumption: the readable encodings need not be injective. Predicate
+  and function names live in separate namespaces (\<^const>\<open>Pred\<close> vs \<^const>\<open>Func\<close>), so sharing the
+  encoding is clash-free.\<close>
+definition "fact_names \<equiv>
+  map2 (\<lambda>f i. Pred (idx_name (readable_fact f) i)) facts [0..<length facts]"
 definition "fact_map \<equiv> map_of (zip facts fact_names)"
 
-definition "fluent_names \<equiv> map Func (distinct_strings_lit (length fluents))"
+definition "fluent_names \<equiv>
+  map2 (\<lambda>fl i. Func (idx_name (readable_fluent fl) i)) fluents [0..<length fluents]"
 definition "fluent_map \<equiv> map_of (zip fluents fluent_names)"
 
 text \<open>Re-index a ground fluent / numeric expression / numeric effect to nullary form

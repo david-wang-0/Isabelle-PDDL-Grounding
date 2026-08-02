@@ -10,13 +10,9 @@ text \<open>The goal predicate is fresh.\<close>
 
 lemma goal_pred_fresh: "goal_pred \<notin> pred ` set (predicates D)"
 proof -
-  have "safe_prefix pred_names + STR ''Goal'' \<notin> set pred_names"
-    using safe_prefix_correct by blast
-  hence "safe_prefix pred_names + STR ''Goal''
-            \<notin> predicate.name ` (pred ` set (predicates D))"
-    by auto
-  thus ?thesis unfolding goal_pred_def
-    by (metis image_iff predicate.sel)
+  have "predicate.name goal_pred \<notin> set pred_names"
+    unfolding goal_pred_def predicate.sel using fresh_name_correct by blast
+  thus ?thesis by force
 qed
 
 lemma g_preds_dist: "distinct (map pred (predicates D3))"
@@ -60,14 +56,14 @@ lemma g_consts_wf: "\<forall>(n, T) \<in> set (consts D3). p3.wf_type T"
 text \<open>The goal action name is fresh.\<close>
 
 lemma goal_ac_name_fresh: "goal_ac_name \<notin> set ac_names"
-  using safe_prefix_correct by blast
+  using fresh_name_correct by blast
 
 lemma g_acs_dist: "distinct (map ac_name (actions D3))"
 proof -
-  have "ac_name (goal_ac term_goal) = goal_ac_name"
+  have eq: "ac_name (goal_ac term_goal) = goal_ac_name"
     unfolding goal_ac_def by simp
-  hence "ac_name (goal_ac term_goal) \<notin> ac_name ` set (actions D)"
-    using goal_ac_name_fresh by force
+  have "ac_name (goal_ac term_goal) \<notin> ac_name ` set (actions D)"
+    unfolding eq by (rule goal_ac_name_fresh[unfolded set_map])
   thus ?thesis using wf_D(2) by simp
 qed
 

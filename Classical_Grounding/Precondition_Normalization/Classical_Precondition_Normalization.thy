@@ -208,11 +208,11 @@ lemma (in ast_classical_domain) split_ac_nth:
   assumes "i < length (dnf_list (ac_pre ac))"
   shows "split_ac ac ! i =
     SimpleActionSchema
-      (ActionHead (padl_lit split_pre_pad (String.implode (show i)) + ac_name ac) (ac_params ac))
+      (ActionHead (idx_name (ac_name ac) i) (ac_params ac))
       (SimpleActionBody (dnf_list (ac_pre ac) ! i) (ac_eff ac))"
   using assms unfolding split_ac_def split_ac_names_def n_clauses_def
   apply (induction ac rule: ast_classical_action_schema_induct_unfold)
-  by (simp add: padl_lit_implode)
+  by simp
 
 lemma (in ast_classical_domain4) p_ac:
   "ac' \<in> set (actions D4) \<longleftrightarrow> (\<exists>ac \<in> set (actions D). ac' \<in> set (split_ac ac))"
@@ -227,7 +227,7 @@ lemma (in ast_classical_domain) split_pres:
 lemma (in ast_classical_domain) split_ac_sel:
   assumes "a' \<in> set (split_ac a)"
   shows
-    "\<exists>i < length (split_ac a). ac_name a' = padl_lit split_pre_pad (String.implode (show i)) + ac_name a"
+    "\<exists>i < length (split_ac a). ac_name a' = idx_name (ac_name a) i"
     "ac_params a' = ac_params a"
     "ac_pre a' \<in> set (dnf_list (ac_pre a))"
     "ac_eff a' = ac_eff a"
@@ -238,7 +238,7 @@ proof -
     using in_set_conv_nth by metis
   from i show "ac_pre a' \<in> set (dnf_list (ac_pre a))"
     using split_ac_nth[of i a] split_ac_length split_ac_names_length by auto
-  from i show "\<exists>i < length (split_ac a). ac_name a' = padl_lit split_pre_pad (String.implode (show i)) + ac_name a"
+  from i show "\<exists>i < length (split_ac a). ac_name a' = idx_name (ac_name a) i"
     using split_ac_nth split_ac_names_length split_ac_length by auto
 qed
 
@@ -258,41 +258,29 @@ subsection \<open> Well-formedness \<close>
 context wf_ast_classical_domain4 begin
 
 (* generated action IDs are distinct *)
-(* TODO: simplify; combine with split_ac_sel *)
 
-lemma (in ast_classical_domain) split_names_prefix_length:
-  assumes "ac \<in> set (actions D)" "n \<in> set (split_ac_names ac)"
-  shows "\<exists>p. size p = split_pre_pad \<and> n = p + ac_name ac"
-proof -
-  from assms(2)[unfolded split_ac_names_def] obtain p::String.literal where
-    pin: "p \<in> set (distinct_strings_lit (n_clauses ac))" and
-    n: "n = (padl_lit split_pre_pad p) + ac_name ac"
-    by auto
-
-  have "n_clauses ac \<le> max_n_clauses"
-    using max_n_clauses_def assms(1) by simp
-  hence "size p \<le> split_pre_pad"
-    using pin split_pre_pad_def distinct_strings_lit_max_size by simp
-  hence "size (padl_lit split_pre_pad p) = split_pre_pad"
-    using padl_lit_size by blast
-  thus ?thesis using n by blast
-qed
+lemma (in ast_classical_domain) split_names_shape:
+  assumes "n \<in> set (split_ac_names ac)"
+  shows "\<exists>i. n = idx_name (ac_name ac) i"
+  using assms unfolding split_ac_names_def by auto
 
 lemma (in ast_classical_domain) split_names_distinct:
   shows "distinct (split_ac_names ac)"
-proof -
-  have "split_ac_names ac =
-    map (\<lambda>p. p + ac_name ac) (map (padl_lit split_pre_pad) (distinct_strings_lit (n_clauses ac)))"
-    unfolding split_ac_names_def by simp
-  thus ?thesis using distinct_strings_padl_lit append_r_distinct_lit by metis
-qed
+  unfolding split_ac_names_def by (rule distinct_idx_names[OF distinct_upt])
 
-lemma (in wf_ast_classical_domain) split_names_disjoint:
-  assumes "ac \<in> set (actions D)" "ac' \<in> set (actions D)" "ac_name ac \<noteq> ac_name ac'"
+lemma (in ast_classical_domain) split_names_disjoint:
+  assumes "ac_name ac \<noteq> ac_name ac'"
   shows "set (split_ac_names ac) \<inter> set (split_ac_names ac') = {}"
-  apply (unfold disjoint_iff_not_equal)
-  using assms split_names_prefix_length
-  using append_eq_append_conv_lit by metis
+proof (unfold disjoint_iff_not_equal, intro ballI)
+  fix x y
+  assume "x \<in> set (split_ac_names ac)"
+    and "y \<in> set (split_ac_names ac')"
+  then obtain i j where
+    x: "x = idx_name (ac_name ac) i"
+    and y: "y = idx_name (ac_name ac') j"
+    using split_names_shape by metis
+  show "x \<noteq> y" using assms x y idx_name_inj_base by metis
+qed
 
 (* TODO generalize to Utils:
   distinct xs \<Longrightarrow> x \<noteq> y; \<in> set xs \<longrightarrow> f x \<inter> f y = {} \<Longrightarrow> distinct (removeAll ... *)

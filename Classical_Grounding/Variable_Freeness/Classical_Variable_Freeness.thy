@@ -85,66 +85,26 @@ definition readable_pa :: "ast_classical_plan_action \<Rightarrow> String.litera
   "readable_pa \<pi> = (case \<pi> of SimplePlanAction n args \<Rightarrow>
      foldl (\<lambda>s ob. s + STR ''_'' + obj_str ob) n args)"
 
-text \<open>The readable action names carry a distinct decimal index suffix \<open>_i\<close>; since \<open>_\<close> never
-  occurs inside a decimal numeral, the trailing index can be recovered from the encoded string,
-  hence equal encodings force equal indices.\<close>
-lemma readable_suffix_inj:
-  assumes "a + STR ''_'' + String.implode (show (d::nat)) = b + STR ''_'' + String.implode (show (e::nat))"
-  shows "d = e"
-proof -
-  have expl_us: "String.explode (STR ''_'') = [CHR ''_'']" by code_simp
-  have expl_show: "String.explode (String.implode (show (n::nat))) = show n" for n
-    using show_no_digit7
-    by (simp add: String.explode_implode_eq String.ascii_of_idem list.map_ident_strong)
-  have eq1: "String.explode a @ [CHR ''_''] @ show d = String.explode b @ [CHR ''_''] @ show e"
-    using assms[THEN arg_cong[where f = String.explode]]
-    by (simp add: plus_literal.rep_eq expl_us expl_show del: String.explode_implode_eq)
-  have eq2: "rev (show d) @ [CHR ''_''] @ rev (String.explode a)
-           = rev (show e) @ [CHR ''_''] @ rev (String.explode b)"
-    using eq1[THEN arg_cong[where f = rev]] by simp
-  have nd: "x \<noteq> CHR ''_''" if "x \<in> set (rev (show d))" for x
-    using that notin_show_nat[of d] by auto
-  have ne: "x \<noteq> CHR ''_''" if "x \<in> set (rev (show e))" for x
-    using that notin_show_nat[of e] by auto
-  have twd: "takeWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (show d) @ [CHR ''_''] @ rev (String.explode a))
-           = rev (show d)"
-  proof -
-    have "takeWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (show d) @ ([CHR ''_''] @ rev (String.explode a)))
-        = rev (show d) @ takeWhile (\<lambda>c. c \<noteq> CHR ''_'') ([CHR ''_''] @ rev (String.explode a))"
-      using nd by (intro takeWhile_append2) blast
-    thus ?thesis by simp
-  qed
-  have twe: "takeWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (show e) @ [CHR ''_''] @ rev (String.explode b))
-           = rev (show e)"
-  proof -
-    have "takeWhile (\<lambda>c. c \<noteq> CHR ''_'') (rev (show e) @ ([CHR ''_''] @ rev (String.explode b)))
-        = rev (show e) @ takeWhile (\<lambda>c. c \<noteq> CHR ''_'') ([CHR ''_''] @ rev (String.explode b))"
-      using ne by (intro takeWhile_append2) blast
-    thus ?thesis by simp
-  qed
-  have "rev (show d) = rev (show e)"
-    using eq2[THEN arg_cong[where f = "takeWhile (\<lambda>c. c \<noteq> CHR ''_'')"]] twd twe by simp
-  hence "show d = show e" by simp
-  thus "d = e" using show_nat_inj by blast
-qed
-
 text \<open>The variable-freeness name machinery: fresh, distinct, readable nullary action names for
   the reachable ops (\<open>op_names\<close>), and the op\<open>\<leftrightarrow>\<close>name maps used to ground and restore plans.
-  Parameterised by the reachable-op list \<open>ops\<close> alone --- no facts.\<close>
+  Parameterised by the reachable-op list \<open>ops\<close> alone --- no facts. Each name decorates the
+  readable encoding with its position index via \<open>idx_name\<close>; since \<open>_\<close> never occurs inside a
+  decimal numeral, equal encodings force equal indices (\<open>idx_name_inj_idx\<close>), which is what
+  makes the generated names distinct.\<close>
 
 locale varfree = ast_classical_problem +
   fixes ops :: "ast_classical_plan_action list"
 begin
 
 definition "op_names \<equiv>
-  map2 (\<lambda>\<pi> i. readable_pa \<pi> + STR ''_'' + String.implode (show i)) ops [0..<length ops]"
+  map2 (\<lambda>\<pi> i. idx_name (readable_pa \<pi>) i) ops [0..<length ops]"
 
 lemma ops_len: "length ops = length op_names"
   unfolding op_names_def by simp
 
 lemma op_names_dis: "distinct op_names"
 proof -
-  have opn_nth: "op_names ! k = readable_pa (ops ! k) + STR ''_'' + String.implode (show k)"
+  have opn_nth: "op_names ! k = idx_name (readable_pa (ops ! k)) k"
     if "k < length ops" for k
     using that unfolding op_names_def by simp
   have "op_names ! i \<noteq> op_names ! j"
@@ -152,10 +112,9 @@ proof -
   proof
     assume eq: "op_names ! i = op_names ! j"
     have li: "i < length ops" and lj: "j < length ops" using ij ops_len by simp_all
-    have "readable_pa (ops ! i) + STR ''_'' + String.implode (show i)
-        = readable_pa (ops ! j) + STR ''_'' + String.implode (show j)"
+    have "idx_name (readable_pa (ops ! i)) i = idx_name (readable_pa (ops ! j)) j"
       using eq opn_nth[OF li] opn_nth[OF lj] by simp
-    hence "i = j" using readable_suffix_inj by blast
+    hence "i = j" using idx_name_inj_idx by blast
     thus False using ij(3) by simp
   qed
   thus "distinct op_names" by (simp add: distinct_conv_nth)

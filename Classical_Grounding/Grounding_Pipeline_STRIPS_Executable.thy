@@ -15,9 +15,6 @@ text \<open>The STRIPS-producing half of the executable pipeline: the shared re-
 
 subsection \<open>STRIPS-specific code equations for plan reconstruction\<close>
 
-lemma drop_lit_code [code]: "drop_lit n s = String.implode (drop n (String.explode s))"
-  by (metis drop_lit.rep_eq String.implode_explode_eq)
-
 lemma strips_model_code [code]:
   "ast_classical_problem.strips_model P M v =
      (if v \<in> set (ast_classical_problem.pos_vars P @ ast_classical_problem.neg_vars P)

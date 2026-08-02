@@ -56,10 +56,13 @@ subsection \<open>Domain-fresh prefix\<close>
 
 context domain_signature begin
 
-text \<open>A prefix fresh w.r.t. the declared predicate names, extended with the \<open>Defined_\<close> token.
-  Freshness follows from \<open>safe_prefix_correct\<close>.\<close>
+text \<open>A namespace token for the generated definedness predicates: the token \<open>Defined\<close>, decorated
+  with the least decimal index that makes it a non-prefix of every declared predicate name, and
+  terminated by a single \<open>_\<close> separator (so \<open>def_prefix + n\<close> needs no further glue). Typically this
+  is just \<open>Defined_\<close>, giving readable names such as \<open>Defined_fuel\<close>. Freshness at an arbitrary core
+  follows from \<open>fresh_prefix_correct\<close>.\<close>
 
-definition "def_prefix \<equiv> safe_prefix pred_names + STR ''Defined_''"
+definition "def_prefix \<equiv> fresh_prefix pred_names (STR ''Defined'')"
 
 end
 

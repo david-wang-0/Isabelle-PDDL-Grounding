@@ -478,14 +478,15 @@ qed
 
 lemma (in ast_classical_domain4) restore_split_ac:
   assumes "a \<in> set (actions D)" "a' \<in> set (split_ac a)"
-  shows "drop_lit split_pre_pad (ac_name a') = ac_name a"
+  shows "strip_idx (ac_name a') = ac_name a"
 proof -
-  from assms have "ac_name a' \<in> set (map ac_name (split_ac a))" by auto
+  have "ac_name a' \<in> set (map ac_name (split_ac a))" using assms by auto
   hence "ac_name a' \<in> set (split_ac_names a)"
     unfolding split_ac_def
     using split_ac_names_length set_n_pre_mapsel(1) by metis
-  thus ?thesis
-    using assms split_names_prefix_length drop_lit_prefix by metis
+  then obtain i where "ac_name a' = idx_name (ac_name a) i"
+    using split_names_shape by blast
+  thus ?thesis by simp
 qed
 
 lemma restore_pa_execute:
@@ -510,7 +511,7 @@ proof (induction \<pi>')
     using in_acts'
     unfolding split_dom_sel split_prob_sel split_acs_def by auto
 
-  have name_name': "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
+  have name_name': "ac_name ac = strip_idx (ac_name ac')"
     using restore_split_ac ac_split in_acts by presburger
 
   have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args"
@@ -553,7 +554,7 @@ proof (induction \<pi>')
     using in_acts'
     unfolding split_dom_sel split_prob_sel split_acs_def by auto
 
-  have name_name': "ac_name ac = drop_lit split_pre_pad (ac_name ac')"
+  have name_name': "ac_name ac = strip_idx (ac_name ac')"
     using restore_split_ac ac_split in_acts by presburger
 
   have \<pi>: "\<pi> = SimplePlanAction (ac_name ac) args"
@@ -651,8 +652,6 @@ subsection \<open> Code Setup \<close>
 
 lemmas precond_norm_code =
   n_clauses_def
-  ast_classical_domain.max_n_clauses_def
-  ast_classical_domain.split_pre_pad_def
   ast_classical_domain.split_ac_names_def
   ast_classical_domain.split_ac_def
   ast_classical_domain.split_acs_def

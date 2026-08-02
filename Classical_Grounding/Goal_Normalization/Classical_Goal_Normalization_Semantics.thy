@@ -196,14 +196,10 @@ thm degoal_prob_sel
   wf_execute that only cares about preserving wm_basic. *)
 lemma goal_atm_not_wf: "\<not>wf_fmla_atom tyt (Atom (predAtm goal_pred []))"
 proof -
-  have "safe_prefix pred_names + STR ''Goal'' \<notin> set pred_names"
-    using safe_prefix_correct by blast
-  hence "safe_prefix pred_names + STR ''Goal'' \<notin> predicate.name ` (pred ` set (predicates D))"
-    by auto
-  hence "goal_pred \<notin> pred ` set (predicates D)"
-    unfolding goal_pred_def by (metis image_iff predicate.sel)
-  hence "\<not>wf_pred_atom tyt (goal_pred, [])"
-    using sig_None wf_pred_atom.simps by (metis option.simps(4))
+  have "\<not>wf_pred_atom tyt (goal_pred, [])"
+    using goal_pred_fresh
+    using sig_None wf_pred_atom.simps
+    by (metis option.simps(4))
   thus ?thesis by simp
 qed
 

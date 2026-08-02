@@ -263,10 +263,7 @@ definition "P\<^sub>N \<equiv> ast_classical_problem.split_prob P\<^sub>X"
 definition "reconstruct_plan_norm \<pi>s \<equiv>
   ast_classical_domain.restore_plan_degoal detype_classical_dom
     (restore_plan_explicate
-      (ast_classical_domain.restore_plan_split
-        (ast_classical_domain.explicate_def_dom
-          (domain (ast_classical_problem.degoal_prob detype_classical_prob)))
-        \<pi>s))"
+      (ast_classical_domain.restore_plan_split \<pi>s))"
 
 text \<open> goal and precondition normalization preserve type normalization \<close>
 lemma goal_norm_preserves_typeless:

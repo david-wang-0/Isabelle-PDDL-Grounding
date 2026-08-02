@@ -20,6 +20,25 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
+- **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
+  bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
+  still *theorems* (no new locale assumptions, no gate checks). The machinery lives in
+  `Grounding_Common/Utils/String_Utils.thy` (baked into the `Grounding_Classical_Common` heap):
+  `fresh_name`/`fresh_prefix` (least-index decoration of a fixed token via the previously-dead
+  `safe_suffix`; index only on a genuine clash) replaced `safe_prefix`'s underscore-runs in
+  Type_Normalization (`type_car`), Goal_Normalization (`Goal`, classical goal action `Goal`) and
+  Definedness_Translation (`Defined_fuel`); `idx_name`/`strip_idx` (numeric `_i` suffix + executable
+  strip-back-to-last-`_` restore) replaced the `padl` fixed-width underscore-padded numeral *prefix*
+  on Precondition_Normalization split copies (`drop_0`, restore needs no width bound) and now also
+  carries `varfree.op_names` and the fact folder's `fact_names`/`fluent_names`, which became
+  readable-indexed (`at_p1_G_72`, `fuel_c1_0` — encoders `readable_fact`/`readable_fluent` in
+  `Classical_Grounded_PDDL_Locales.thy`, theory-level so the factorization equality survives
+  untouched). The whole `pad`/`padl`/`drop_lit`/`safe_prefix` family was deleted; grounder output is
+  deliberately **not** byte-identical to older runs (names changed; counts unchanged). Residual
+  cleanup for a future heap rebuild: `distinct_strings_lit` (+ its lemmas) in `String_Utils.thy` is
+  now referenced by nothing outside its own file; the two `declare safe_suffix(')...simps [simp del]`
+  in `Grounding_Common/Goal_Normalization/Goal_Normalization.thy` (they stop simp looping on the
+  recursive index search) belong next to `safe_suffix` in `String_Utils.thy`.
 - **DONE (fully verified, 0 `sorry`) — STRIPS grounder rebased on the variable-freeness stage.** The
   former `Numeric_Grounder` is now its own pipeline stage `Classical_Grounding/Variable_Freeness/`
   (session `Classical_Variable_Freeness`, constants `varfree_inst_ac/dom/prob`, locale ladder
@@ -73,9 +92,9 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   `dl_iterate`/`dl_eval`. It is **not in any ROOT and not jEdit-verified**; wire it in and retire the
   fuel-counted path. (memory `project_datalog_fixpoint_eval_replace`)
 - **Upstream the patched code bundles.** A `def_translate_code` bundle belongs in
-  `Classical_Definedness_Translation_Semantics.thy` (the only stage without one), and
-  `padl_lit_code` / `distinct_strings_lit_eq[code]` in `Grounding_Common/Utils/String_Utils.thy` — both
-  currently patched in `Code_Setup.thy`.
+  `Classical_Definedness_Translation_Semantics.thy` (the only stage without one). (The other half of
+  this item is done: `padl_lit_code` died with the `padl` family, and `distinct_strings_lit_eq[code]`
+  now sits at its definition site in `String_Utils.thy`.)
 - **Finish the certification end-state.** Parse Nemo's ograph directly into the generic `dl_certificate`,
   export the generic checker, and obtain the reachability requirements by theorem — retiring the
   duplicated PDDL-side check implementations.

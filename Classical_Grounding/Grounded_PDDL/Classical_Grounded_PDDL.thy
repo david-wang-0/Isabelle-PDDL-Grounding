@@ -2,22 +2,86 @@ theory Classical_Grounded_PDDL
   imports Classical_Grounded_PDDL_Locales
 begin
 
-subsection \<open> Stage 1+2: ported definitions, names, distinctness \<close>
+subsection \<open> Names and distinctness \<close>
 
-text \<open>The constructor/type port (Stage 1) and the \<^const>\<open>distinct_strings_lit\<close>-based name
-  generation with its distinctness obligations (Stage 2) are complete here. The detailed
-  grounding-correctness development (preserved verbatim in the commented block below) is
-  being re-derived against the classical pair-based semantics (Stage 3); for now the
-  headline results the pipeline consumes are stated with \<^bold>\<open>sorry\<close>.\<close>
+text \<open>The folder's generated names: lengths, the positional characterisation
+  (\<open>fact_names_nth\<close> / \<open>fluent_names_nth\<close> --- the reusable interface, preferred over re-unfolding
+  the definitions downstream), pairwise distinctness, and nonemptiness. Distinctness is carried
+  purely by the \<^const>\<open>idx_name\<close> index suffix (\<open>idx_name_inj_idx\<close>), so it holds in the bare
+  \<^locale>\<open>fact_folder\<close> without any assumption --- in particular the readable encodings
+  \<^const>\<open>readable_fact\<close> / \<^const>\<open>readable_fluent\<close> need not be injective. Nonemptiness likewise
+  is structural (\<open>idx_name_nonempty\<close>).\<close>
 
 context fact_folder begin
 
 lemma facts_len: "length facts = length fact_names"
   unfolding fact_names_def by simp
 
+lemma fluent_names_len: "length fluent_names = length fluents"
+  unfolding fluent_names_def by simp
+
+lemma fact_names_nth:
+  assumes "k < length facts"
+  shows "fact_names ! k = Pred (idx_name (readable_fact (facts ! k)) k)"
+  using assms unfolding fact_names_def by simp
+
+lemma fluent_names_nth:
+  assumes "k < length fluents"
+  shows "fluent_names ! k = Func (idx_name (readable_fluent (fluents ! k)) k)"
+  using assms unfolding fluent_names_def by simp
+
 lemma fact_names_dis: "distinct fact_names"
-  unfolding fact_names_def
-  by (simp add: distinct_strings_lit_dist distinct_map inj_on_def)
+proof -
+  have "fact_names ! i \<noteq> fact_names ! j"
+    if ij: "i < length fact_names" "j < length fact_names" "i \<noteq> j" for i j
+  proof
+    assume eq: "fact_names ! i = fact_names ! j"
+    have li: "i < length facts" and lj: "j < length facts" using ij facts_len by simp_all
+    have "idx_name (readable_fact (facts ! i)) i = idx_name (readable_fact (facts ! j)) j"
+      using eq fact_names_nth[OF li] fact_names_nth[OF lj] by simp
+    hence "i = j" using idx_name_inj_idx by blast
+    thus False using ij(3) by simp
+  qed
+  thus "distinct fact_names" by (simp add: distinct_conv_nth)
+qed
+
+lemma fluent_names_dis: "distinct fluent_names"
+proof -
+  have "fluent_names ! i \<noteq> fluent_names ! j"
+    if ij: "i < length fluent_names" "j < length fluent_names" "i \<noteq> j" for i j
+  proof
+    assume eq: "fluent_names ! i = fluent_names ! j"
+    have li: "i < length fluents" and lj: "j < length fluents"
+      using ij fluent_names_len by simp_all
+    have "idx_name (readable_fluent (fluents ! i)) i = idx_name (readable_fluent (fluents ! j)) j"
+      using eq fluent_names_nth[OF li] fluent_names_nth[OF lj] by simp
+    hence "i = j" using idx_name_inj_idx by blast
+    thus False using ij(3) by simp
+  qed
+  thus "distinct fluent_names" by (simp add: distinct_conv_nth)
+qed
+
+lemma fact_names_nonempty:
+  assumes "p \<in> set fact_names"
+  shows "predicate.name p \<noteq> STR ''''"
+proof -
+  obtain k where
+    k: "k < length facts"
+    and p: "p = fact_names ! k"
+    using assms facts_len in_set_conv_nth by metis
+  show ?thesis unfolding p fact_names_nth[OF k] using idx_name_nonempty by simp
+qed
+
+lemma fluent_names_nonempty:
+  assumes "f \<in> set fluent_names"
+  shows "func.name f \<noteq> STR ''''"
+proof -
+  obtain k where
+    k: "k < length fluents"
+    and f: "f = fluent_names ! k"
+    using assms fluent_names_len in_set_conv_nth by metis
+  show ?thesis unfolding f fluent_names_nth[OF k] using idx_name_nonempty by simp
+qed
 
 end
 
@@ -159,10 +223,7 @@ proof -
 qed
 
 lemma fluent_names_empty: "fluent_names = []"
-proof -
-  have "distinct_strings_lit 0 = []" by (metis distinct_str_lit_length length_0_conv)
-  thus ?thesis using fluents_empty by (simp add: fact_folder.fluent_names_def)
-qed
+  using fluents_empty unfolding fluent_names_def by simp
 
 lemma ground_dom_funcs: "functions D\<^sub>G = []"
   unfolding ground_dom_def by (simp add: fluent_names_empty)
@@ -288,13 +349,6 @@ lemma wf_acs_resinst:
   using ac_pa_wf wf_resolve_instantiate wf_ground_action_alt by simp_all
 
 subsubsection \<open> Fluent names, map, and nullary function signature \<close>
-
-lemma fluent_names_dis: "distinct fluent_names"
-  unfolding fluent_names_def
-  by (simp add: distinct_strings_lit_dist distinct_map inj_on_def)
-
-lemma fluent_names_len: "length fluent_names = length fluents"
-  unfolding fluent_names_def by simp
 
 lemma fluent_map_dom:
   assumes "fl \<in> set fluents"

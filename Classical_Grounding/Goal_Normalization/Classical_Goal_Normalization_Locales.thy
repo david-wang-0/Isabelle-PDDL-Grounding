@@ -21,7 +21,7 @@ context ast_classical_domain begin
 
   abbreviation "ac_names \<equiv> map ac_name (actions D)"
 
-  abbreviation "goal_ac_name \<equiv> safe_prefix ac_names + STR ''Goal''"
+  abbreviation "goal_ac_name \<equiv> fresh_name ac_names (STR ''Goal'')"
 
   abbreviation "goal_effect \<equiv> Effect [Atom (predAtm goal_pred [])] [] []"
 

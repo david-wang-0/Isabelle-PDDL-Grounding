@@ -332,8 +332,10 @@ text \<open>The grounded problem's components, projected out of the \<^const>\<o
   \<^const>\<open>Inl\<close> diagnostic would pass through unchanged) --- the propositional counterpart of the
   numeric twin's probe. Where the numeric grounder \<^emph>\<open>keeps\<close> object-carrying atoms (\<open>at c1 A\<close>, arity
   2), the propositional grounder turns every reachable ground fact into its \<^bold>\<open>own nullary\<close>
-  predicate: \<open>fact_names\<close> names fact \<open>i\<close> by its index \<open>i\<close> and \<open>ground_fmla\<close> rewrites each ground
-  atom to \<open>predAtm name []\<close>. So the predicate list below is one nullary \<open>PredDecl\<close> per reachable
+  predicate: \<open>fact_names\<close> names fact \<open>i\<close> by its readable encoding --- the original predicate name
+  with the argument objects appended --- plus the position index \<open>i\<close> as a trailing \<open>_i\<close> suffix
+  (\<open>at_c1_rooma_7\<close>), and \<open>ground_fmla\<close> rewrites each ground atom to \<open>predAtm name []\<close>.
+  So the predicate list below is one nullary \<open>PredDecl\<close> per reachable
   fact, and the grounded domain keeps no types, no constants and no objects whatsoever.\<close>
 value "map_sum id (\<lambda>P. predicates (ast_problem.domain P)) my_grounded"
 

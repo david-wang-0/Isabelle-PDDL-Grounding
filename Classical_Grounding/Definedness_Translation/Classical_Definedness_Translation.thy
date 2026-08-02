@@ -72,11 +72,7 @@ lemma dt_type_wf: "wf_type T \<Longrightarrow> dt.wf_type T"
 text \<open>The new \<open>Defined_\<close> predicate names are fresh and pairwise distinct.\<close>
 
 lemma def_prefix_fresh: "def_prefix + n \<notin> set pred_names"
-proof -
-  have "def_prefix + n = safe_prefix pred_names + (STR ''Defined_'' + n)"
-    unfolding def_prefix_def by (simp add: add.assoc)
-  thus ?thesis using safe_prefix_correct by metis
-qed
+  unfolding def_prefix_def by (rule fresh_prefix_correct)
 
 lemma fdecl_nm_dist: "distinct (map fdecl_nm (functions D))"
 proof -
