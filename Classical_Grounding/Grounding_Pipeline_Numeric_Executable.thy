@@ -38,33 +38,33 @@ section \<open>Executable numeric grounding (up to, but not including, the STRIP
 text \<open>The re-checked grounding pipeline, stopping one step before the propositional STRIPS encoding
   \<^const>\<open>ast_classical_problem.as_strips\<close>: it returns the grounded \<^emph>\<open>PDDL\<close> problem
   \<^term>\<open>numeric_ground_by_cert P M\<close> (a full \<^type>\<open>ast_problem\<close>) that \<^bold>\<open>retains numeric fluents\<close> ---
-  the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>grounder.numeric_ground_prob\<close> (verified in
-  \<^theory>\<open>Classical_Grounded_PDDL.Numeric_Grounder\<close>: well-formed, and plan-preserving via
-  \<open>ast_classical_problem.numeric_ground_cert_plan_valid_iff\<close>), \<^emph>\<open>not\<close> the propositional
+  the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>varfree.varfree_ground_prob\<close> (verified in
+  \<^theory>\<open>Classical_Variable_Freeness.Classical_Variable_Freeness\<close>: well-formed, and plan-preserving via
+  \<open>ast_classical_problem.varfree_ground_cert_plan_valid_iff\<close>), \<^emph>\<open>not\<close> the propositional
   \<^const>\<open>ground_by_cert\<close> that drops numerics. Foundedness of the untrusted datalog certificate is
   discharged by the verified directed-cycle DFS (\<^const>\<open>dl_certified_model_dfs\<close>).\<close>
 
 subsection \<open>Code setup for the fluent grounder\<close>
 
-text \<open>Make the fluent grounder \<^const>\<open>grounder.numeric_ground_prob\<close> (and the domain / action
+text \<open>Make the fluent grounder \<^const>\<open>varfree.varfree_ground_prob\<close> (and the domain / action
   constructors it is built from) code-generable, mirroring the propositional grounder's code
   equations (\<open>grounder.ground_dom_def[code]\<close> etc. in \<^theory>\<open>Classical_Grounding.Code_Setup\<close>). All the
-  underlying operations (\<^const>\<open>simple_action_instantiations.res_inst\<close>, \<^const>\<open>grounder.op_names\<close>,
+  underlying operations (\<^const>\<open>simple_action_instantiations.res_inst\<close>, \<^const>\<open>varfree.op_names\<close>,
   \<^const>\<open>map2\<close>, \<^const>\<open>map_atom_fmla\<close>, \<^const>\<open>map_ast_effect\<close>) are already executable.\<close>
 
-declare ast_classical_problem.numeric_ground_ac_def[code]
-declare grounder.numeric_ground_dom_def[code]
-declare grounder.numeric_ground_prob_def[code]
+declare ast_classical_problem.varfree_ground_ac_def[code]
+declare varfree.varfree_ground_dom_def[code]
+declare varfree.varfree_ground_prob_def[code]
 
 subsection \<open>Executable numeric grounder against a certified fact list\<close>
 
 text \<open>Unconditional executable twin of \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close>, replayed at the
   top level keyed on the certified facts \<open>M\<close>. Like \<^const>\<open>ground_by_cert\<close> but calling the
-  fluent grounder \<^const>\<open>grounder.numeric_ground_prob\<close>; note it takes only the ops (the grounder's
+  fluent grounder \<^const>\<open>varfree.varfree_ground_prob\<close>; note it takes only the ops (the grounder's
   \<open>facts\<close> parameter is unused by the fluent grounder, so the locale drops it).\<close>
 definition numeric_ground_by_cert where
   [code]: "numeric_ground_by_cert P M \<equiv>
-     grounder.numeric_ground_prob (ast_classical_problem.P\<^sub>T P)
+     varfree.varfree_ground_prob (ast_classical_problem.P\<^sub>T P)
        (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))"
 
 lemma numeric_ground_by_cert_eq:
@@ -369,7 +369,7 @@ proof (elim ground_via_cert_numeric_dfs_e_InrE)
   show "(\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 P \<pi>s)
         \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 Pg \<pi>s')"
     unfolding Pg_cert
-    by (rule ast_classical_problem.numeric_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
+    by (rule ast_classical_problem.varfree_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
 qed
 
 text \<open>Plan-validity equivalence for the ordered-scan (\<open>--topo\<close>) entry point --- verbatim mirror of
@@ -397,7 +397,7 @@ proof (elim ground_via_cert_numeric_exec_e_InrE)
   show "(\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 P \<pi>s)
         \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 Pg \<pi>s')"
     unfolding Pg_cert
-    by (rule ast_classical_problem.numeric_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
+    by (rule ast_classical_problem.varfree_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
 qed
 
 text \<open>Plan-validity equivalence for the global-sweep DFS (\<open>--gdfs\<close>) entry point --- verbatim mirror
@@ -424,7 +424,7 @@ proof (elim ground_via_cert_numeric_gdfs_e_InrE)
   show "(\<exists>\<pi>s. ast_classical_problem.valid_classical_plan2 P \<pi>s)
         \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 Pg \<pi>s')"
     unfolding Pg_cert
-    by (rule ast_classical_problem.numeric_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
+    by (rule ast_classical_problem.varfree_ground_cert_plan_valid_iff[OF ne cert gc' rp wf])
 qed
 
 subsection \<open>Executable plan restoration for the numeric grounder\<close>
@@ -479,7 +479,7 @@ proof (elim ground_via_cert_numeric_dfs_e_InrE)
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
-          ast_classical_problem.numeric_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
+          ast_classical_problem.varfree_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
           (reconstruct_plan_by_cert_numeric P (fst (f (dl_program_of P))) \<pi>s)"
     unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq[OF rp wf ne cert gc] .
@@ -511,7 +511,7 @@ proof (elim ground_via_cert_numeric_exec_e_InrE)
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
-          ast_classical_problem.numeric_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
+          ast_classical_problem.varfree_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
           (reconstruct_plan_by_cert_numeric P (fst (f (dl_program_of P))) \<pi>s)"
     unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq[OF rp wf ne cert gc] .
@@ -543,7 +543,7 @@ proof (elim ground_via_cert_numeric_gdfs_e_InrE)
   have "ast_classical_problem.valid_classical_plan2 P
           (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
-          ast_classical_problem.numeric_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
+          ast_classical_problem.varfree_ground_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
           (reconstruct_plan_by_cert_numeric P (fst (f (dl_program_of P))) \<pi>s)"
     unfolding fMdc fst_conv reconstruct_plan_by_cert_numeric_eq[OF rp wf ne cert gc] .
@@ -556,7 +556,7 @@ text \<open>Memory optimization for action-list-bound domains. Instead of materi
   reachable op into an instantiated precondition/effect schema --- the peak-RSS bottleneck), these
   streaming variants run \<^emph>\<open>exactly the same checks\<close> as their \<open>_e\<close> twins but return only the small
   materialized ops list \<^term>\<open>canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)\<close>. The
-  untrusted SML printer then folds the schema expansion \<^const>\<open>ast_classical_problem.numeric_ground_ac\<close>
+  untrusted SML printer then folds the schema expansion \<^const>\<open>ast_classical_problem.varfree_ground_ac\<close>
   over that ops list, one schema live at a time, reproducing the identical bytes. Each soundness lemma
   records both the ops identity and that building the full problem from \<open>M\<close> would have equalled the
   abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close> (via \<open>numeric_ground_by_cert_eq\<close> under the

@@ -2,23 +2,23 @@ theory Classical_Certified_Grounding_Semantics
   imports Classical_Certified_Grounding
 begin
 
-section \<open>Certificate-to-grounder bridge: the \<open>wf_grounder\<close> / \<open>wf_grounder_num\<close> plug-in at \<open>P\<close>\<close>
+section \<open>Certificate-to-grounder bridge: the \<open>wf_grounder\<close> / \<open>varfree_grounder\<close> plug-in at \<open>P\<close>\<close>
 
 text \<open>Interpret the grounder at the \<^emph>\<open>un-relaxed\<close> problem \<open>P\<close>, with the certificate-derived
   facts/ops \<open>cert_facts'\<close> / \<open>cert_ops'\<close>. The semantic supersets are \<open>all_facts_super\<close> /
   \<open>all_ops_super\<close> (proven in the shared base from the certificate); the syntactic well-formedness /
   coverage obligations are re-checked and discharged below. Two sibling interpretations:
-  \<^locale>\<open>certified_reachability_num\<close> interprets the weaker \<^locale>\<open>wf_grounder_num\<close> (numeric-fluent
+  \<^locale>\<open>certified_reachability_num\<close> interprets the weaker \<^locale>\<open>varfree_grounder\<close> (numeric-fluent
   retention), \<^locale>\<open>certified_reachability\<close> the full \<^locale>\<open>wf_grounder\<close> (propositional).\<close>
 
-subsection \<open>Numeric-fluent-retaining path: interpret \<^locale>\<open>wf_grounder_num\<close>\<close>
+subsection \<open>Numeric-fluent-retaining path: interpret \<^locale>\<open>varfree_grounder\<close>\<close>
 
 context certified_reachability_num
 begin
 
 text \<open>The single decidable obligation the numeric grounder needs, read off the
   \<open>numeric_grounding_checks\<close> assumption: every certified op is a well-formed plan action. The other
-  three \<^locale>\<open>wf_grounder_num\<close> goals (\<open>wf_problem\<close>, \<open>distinct cert_ops'\<close>, \<open>all_ops\<close>) come from the
+  three \<^locale>\<open>varfree_grounder\<close> goals (\<open>wf_problem\<close>, \<open>distinct cert_ops'\<close>, \<open>all_ops\<close>) come from the
   problem and the certificate (the base's \<open>all_ops_super\<close>), not from a re-check.\<close>
 
 lemma ops_wf_l: "\<forall>\<pi> \<in> set cert_ops'. wf_classical_plan_action \<pi>"
@@ -26,7 +26,7 @@ lemma ops_wf_l: "\<forall>\<pi> \<in> set cert_ops'. wf_classical_plan_action \<
 
 end
 
-sublocale certified_reachability_num \<subseteq> wfg_num: wf_grounder_num P cert_facts' cert_ops'
+sublocale certified_reachability_num \<subseteq> vfg: varfree_grounder P cert_ops'
 proof unfold_locales
   show "wf_classical_problem" by (rule wf_classical_problem)
   show "distinct cert_ops'" by (simp add: cert_ops'_def)
@@ -68,7 +68,7 @@ lemma ops_no_num_l: "\<forall>\<pi> \<in> set cert_ops'. numeric_effects (effect
 
 end
 
-sublocale certified_reachability \<subseteq> wfg: wf_grounder P cert_facts' cert_ops'
+sublocale certified_reachability \<subseteq> wfg: wf_grounder P cert_ops' cert_facts'
 proof unfold_locales
   show "wf_classical_problem" by (rule wf_classical_problem)
   show "distinct cert_facts'" by (simp add: cert_facts'_def cert_facts_of_def)

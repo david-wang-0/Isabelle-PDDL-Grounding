@@ -21,6 +21,7 @@ Classical_Grounding/Definedness_Normalization
 Classical_Grounding/Precondition_Normalization
 Classical_Grounding/Definedness_Translation
 Classical_Grounding/PDDL_Relaxation
+Classical_Grounding/Variable_Freeness
 Classical_Grounding/Grounded_PDDL
 Classical_Grounding/Reachability_Analysis
 Classical_Grounding

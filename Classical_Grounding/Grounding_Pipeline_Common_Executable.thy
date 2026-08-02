@@ -115,8 +115,8 @@ text \<open>Unconditional executable twin of \<^verbatim>\<open>P\<^sub>G_cert\<
 definition ground_by_cert where
   [code]: "ground_by_cert P M \<equiv>
      grounder.ground_prob (ast_classical_problem.P\<^sub>T P)
-       (cert_facts_of_exec (ast_classical_problem.P\<^sub>T P) M)
-       (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))"
+       (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))
+       (cert_facts_of_exec (ast_classical_problem.P\<^sub>T P) M)"
 
 subsection \<open>Shared code equations for plan reconstruction\<close>
 
@@ -124,9 +124,9 @@ text \<open>The grounder-level reconstruction operations reused by every reconst
   \<open>reconstruct_plan_by_cert\<close> and the grounded-PDDL \<open>reconstruct_plan_by_cert_numeric\<close>); the
   STRIPS-only code equations (\<open>restore_prefix\<close>, \<open>restore_pddl_pa\<close>, the STRIPS model) stay with the
   STRIPS grounders.\<close>
-declare grounder.op_names_def[code]
-declare grounder.op_map_def[code]
-declare grounder.restore_ground_pa.simps[code]
+declare varfree.op_names_def[code]
+declare varfree.op_map_def[code]
+declare varfree.restore_ground_pa.simps[code]
 declare ast_classical_problem.reconstruct_plan_norm_def[code]
 
 subsection \<open>Grounded-plan restoration (no STRIPS prefix; shared by both grounders)\<close>
@@ -134,7 +134,7 @@ subsection \<open>Grounded-plan restoration (no STRIPS prefix; shared by both gr
 text \<open>Executable twin of the abstract reconstructors \<^const>\<open>ast_classical_problem.reconstruct_plan_ground_cert\<close>
   (propositional) and \<open>ast_classical_problem.numeric_reconstruct_plan_ground_cert\<close> (numeric, downstream):
   a plan of a grounded PDDL problem is restored to a plan of the original \<open>P\<close> by undoing grounding
-  (\<^const>\<open>grounder.restore_ground_plan\<close>) \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization. Unlike the STRIPS
+  (\<^const>\<open>varfree.restore_ground_plan\<close>) \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization. Unlike the STRIPS
   \<open>reconstruct_plan_by_cert\<close> there is no \<open>restore_prefix\<close> step: the input is already a grounded-problem
   plan (both the propositional and numeric error-monad grounders return grounded PDDL, not STRIPS). The
   propositional \<open>_eq\<close> bridge is in the STRIPS executable theory; the numeric one is in the numeric
@@ -143,7 +143,7 @@ definition reconstruct_plan_by_cert_numeric where
   [code]: "reconstruct_plan_by_cert_numeric P M \<pi>s \<equiv>
      ast_classical_problem.reconstruct_plan_norm P
        (restore_plan_def_translate
-          (grounder.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)) \<pi>s))"
+          (varfree.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)) \<pi>s))"
 
 subsection \<open>Exec \<open>\<leftrightarrow>\<close> locale bridges\<close>
 

@@ -4,114 +4,44 @@ imports "Classical_Planning.Classical_Abstract_Syntax"
     Grounding_Classical_Common.Classical_PDDL_Normalization
     Grounding_Utils.Grounding_Utils
     Grounding_Utils.String_Utils Grounding_Grounded_PDDL.Grounded_PDDL
+    Classical_Variable_Freeness.Classical_Variable_Freeness
 begin
 
 type_synonym facty = "object atom formula"
 
-subsection \<open>Introduction / elimination rules for the conjunctive target predicates\<close>
-
-text \<open>Rather than repeatedly \<open>unfolding\<close> the definitions and splitting with \<open>intro conjI\<close>, we
-  give each conjunctive predicate a proper introduction rule (declared \<open>[intro]\<close>) and the
-  matching destruction rules (declared \<open>[dest]\<close>).\<close>
-
-context ast_classical_domain begin
-
-lemma grounded_domI [intro]:
-  assumes "types D = []" "\<forall>p \<in> set (predicates D). grounded_pred p"
-    "consts D = []" "\<forall>f \<in> set (functions D). grounded_func f"
-    "\<forall>a \<in> set (actions D). grounded_ac a"
-  shows grounded_dom
-  unfolding grounded_dom_def using assms by blast
-
-lemma grounded_domD [dest]:
-  assumes grounded_dom
-  shows "types D = []" "\<forall>p \<in> set (predicates D). grounded_pred p"
-    "consts D = []" "\<forall>f \<in> set (functions D). grounded_func f"
-    "\<forall>a \<in> set (actions D). grounded_ac a"
-  using assms unfolding grounded_dom_def by blast+
-
-lemma wf_classical_domainI [intro]:
-  assumes wf_domain_signature "distinct (map ac_name (actions D))"
-    "\<forall>a \<in> set (actions D). wf_classical_action_schema a"
-  shows wf_classical_domain
-  unfolding wf_classical_domain_def using assms by blast
-
-lemma wf_classical_domainD [dest]:
-  assumes wf_classical_domain
-  shows wf_domain_signature "distinct (map ac_name (actions D))"
-    "\<forall>a \<in> set (actions D). wf_classical_action_schema a"
-  using assms unfolding wf_classical_domain_def by blast+
-
-end
-
-lemma (in domain_signature) wf_classical_action_schemaI [intro]:
-  assumes "distinct (map fst (ac_params ac))"
-    "wf_fmla (ac_tyt ac) (ac_pre ac)" "wf_effect (ac_tyt ac) (ac_eff ac)"
-  shows "wf_classical_action_schema ac"
-  unfolding wf_classical_action_schema_alt using assms by blast
-
-context ast_classical_problem begin
-
-lemma grounded_probI [intro]:
-  assumes grounded_dom "objects P = []"
-  shows grounded_prob
-  unfolding grounded_prob_def using assms by blast
-
-lemma grounded_probD [dest]:
-  assumes grounded_prob shows grounded_dom "objects P = []"
-  using assms unfolding grounded_prob_def by blast+
-
-lemma wf_classical_problemI [intro]:
-  assumes wf_classical_domain wf_problem_signature "distinct (init P)"
-    "\<forall>f \<in> set (init P). wf_fmla_atom objT f \<or> wf_func_assign f"
-    "wf_fmla objT (goal P)"
-  shows wf_classical_problem
-  unfolding wf_classical_problem_def using assms by blast
-
-lemma wf_classical_problemD [dest]:
-  assumes wf_classical_problem
-  shows wf_classical_domain wf_problem_signature "distinct (init P)"
-    "\<forall>f \<in> set (init P). wf_fmla_atom objT f \<or> wf_func_assign f"
-    "wf_fmla objT (goal P)"
-  using assms unfolding wf_classical_problem_def by blast+
-
-end
-
-text \<open>A readable string encoder for ground plan actions: the action name, followed by each
-  argument object's name, all joined by underscores. Used to name ground actions readably.\<close>
-
-fun obj_str :: "object \<Rightarrow> String.literal" where
-  "obj_str (Obj nm) = nm"
-
-definition readable_pa :: "ast_classical_plan_action \<Rightarrow> String.literal" where
-  "readable_pa \<pi> = (case \<pi> of SimplePlanAction n args \<Rightarrow>
-     foldl (\<lambda>s ob. s + STR ''_'' + obj_str ob) n args)"
-
-text \<open>The grounder is parameterised by the lists of achievable facts and applicable plan actions.\<close>
-
-locale grounder = ast_classical_problem +
-  fixes facts :: "facty list" and ops :: "ast_classical_plan_action list"
-begin
-
-text \<open>Fresh, distinct nullary predicate names for the achievable facts, and fresh,
-  distinct action names for the applicable ops, via the \<^const>\<open>distinct_strings_lit\<close>
-  machinery of \<^theory>\<open>Grounding_Utils.String_Utils\<close> (\<^const>\<open>name\<close> is now
-  \<^typ>\<open>String.literal\<close>, so the old \<open>char list\<close> padding/\<open>show\<close> mangling is replaced by
-  the \<open>String.literal\<close>-native unique-name helpers).\<close>
-definition "fact_names \<equiv> map Pred (distinct_strings_lit (length facts))"
-definition "fact_map \<equiv> map_of (zip facts fact_names)"
-
-text \<open>The fluent analogue of \<open>fact_names\<close>/\<open>fact_map\<close>: the ground fluents (primitive numeric
-  expressions) occurring in the reachable ops' ground actions, and fresh nullary function names for
-  them. Predicate and function names live in separate namespaces (\<^const>\<open>Pred\<close> vs \<^const>\<open>Func\<close>),
-  so reusing the \<open>distinct_strings_lit\<close> pool is clash-free.\<close>
-definition op_fluents :: "ast_classical_plan_action \<Rightarrow> object primitive_numeric_expression list" where
+text \<open>The op-fluent enumeration: the ground fluents (primitive numeric expressions) occurring in a
+  plan action's instantiated ground action --- precondition, numeric-effect left-hand sides, and
+  numeric right-hand-side expressions.\<close>
+definition (in ast_classical_problem) op_fluents :: "ast_classical_plan_action \<Rightarrow> object primitive_numeric_expression list" where
   "op_fluents \<pi> = (let ga = the (res_inst \<pi>) in
      formula_enumerate_primitive_numeric_expressions (precondition ga)
      @ map (\<lambda>ne. case ne of NumericEffect _ l _ \<Rightarrow> l) (numeric_effects (effect ga))
      @ ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ga))"
 
-definition "fluents \<equiv> remdups (concat (map op_fluents ops))"
+subsection \<open>The fact folder: folding ground atoms and fluents to nullary form\<close>
+
+text \<open>The second stage of the propositional grounder, parameterised by the achievable-facts list
+  \<open>facts\<close> \<^bold>\<open>and\<close> the reachable ground-fluent list \<open>fluents\<close> --- both supplied by whatever provides
+  the reachable actions (in the pipeline, the datalog certificate stage; the grounder below derives
+  its fluents from the reachable ops). It re-indexes ground predicate atoms onto fresh nullary
+  predicates (\<open>fact_names\<close>) and ground fluents onto fresh nullary functions (\<open>fluent_names\<close>);
+  \<open>fold_prob\<close> folds an entire \<^emph>\<open>variable-free\<close> problem (the Variable_Freeness stage's output
+  shape \<^const>\<open>ast_classical_problem.varfree_prob\<close>) into the fully grounded, nullary-predicate
+  form.\<close>
+
+locale fact_folder = ast_classical_problem +
+  fixes facts :: "facty list" and fluents :: "object primitive_numeric_expression list"
+begin
+
+text \<open>Fresh, distinct nullary predicate names for the achievable facts and fresh nullary function
+  names for the reachable fluents, via the \<^const>\<open>distinct_strings_lit\<close> machinery of
+  \<^theory>\<open>Grounding_Utils.String_Utils\<close> (\<^const>\<open>name\<close> is now \<^typ>\<open>String.literal\<close>, so the old
+  \<open>char list\<close> padding/\<open>show\<close> mangling is replaced by the \<open>String.literal\<close>-native unique-name
+  helpers). Predicate and function names live in separate namespaces (\<^const>\<open>Pred\<close> vs
+  \<^const>\<open>Func\<close>), so reusing the \<open>distinct_strings_lit\<close> pool is clash-free.\<close>
+definition "fact_names \<equiv> map Pred (distinct_strings_lit (length facts))"
+definition "fact_map \<equiv> map_of (zip facts fact_names)"
+
 definition "fluent_names \<equiv> map Func (distinct_strings_lit (length fluents))"
 definition "fluent_map \<equiv> map_of (zip fluents fluent_names)"
 
@@ -175,8 +105,58 @@ fun ga_eff :: "ground_action \<Rightarrow> 'a ast_effect" where
   "ga_eff (GroundAction pre (Effect a d ne)) =
     Effect (map ground_fmla a) (map ground_fmla d) (map ground_neff ne)"
 
-definition "op_names \<equiv>
-  map2 (\<lambda>\<pi> i. readable_pa \<pi> + STR ''_'' + String.implode (show i)) ops [0..<length ops]"
+text \<open>\<open>achievable\<close> ranges over \<^typ>\<open>fact\<close> (\<open>predicate \<times> object list\<close>) whereas the folder's
+  \<open>facts\<close> are \<^typ>\<open>facty\<close> formulas; this lifts a reachable fact to its formula.\<close>
+abbreviation fact_to_facty :: "fact \<Rightarrow> facty" where
+  "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
+
+text \<open>Folding a whole variable-free problem: each nullary action schema resolves-and-instantiates
+  at the empty argument list (undoing the \<open>term.CONST\<close> lift of the Variable_Freeness stage), and
+  its ground body is re-indexed by \<open>ga_pre\<close>/\<open>ga_eff\<close>; the action \<^emph>\<open>name\<close> is kept verbatim.\<close>
+
+definition ac_pa :: "ast_classical_action_schema \<Rightarrow> ast_classical_plan_action" where
+  "ac_pa a = SimplePlanAction (ac_name a) []"
+
+definition fold_ac :: "ast_classical_action_schema \<Rightarrow> ast_classical_action_schema" where
+  "fold_ac a =
+    (let ga = the (res_inst (ac_pa a)) in
+    SimpleActionSchema (ActionHead (ac_name a) []) (SimpleActionBody (ga_pre ga) (ga_eff ga)))"
+
+definition fold_dom :: ast_classical_domain where
+  "fold_dom \<equiv> Domain
+    []
+    (map (\<lambda>p. PredDecl p []) fact_names)
+    (map (\<lambda>f. FuncDecl f []) fluent_names)
+    []
+    (map fold_ac (actions (domain P)))"
+
+definition fold_prob :: ast_classical_problem where
+  "fold_prob \<equiv> Problem
+    fold_dom
+    []
+    (map ground_fmla (init P))
+    (ground_fmla (goal P))"
+
+end
+
+subsection \<open>The one-shot grounder: variable elimination and folding in one step\<close>
+
+text \<open>The grounder is parameterised by the achievable-facts list \<open>facts\<close> on top of the
+  variable-freeness name machinery's reachable-op list \<open>ops\<close> (locale \<open>varfree\<close>); its fluents are
+  \<^emph>\<open>derived\<close> from the reachable ops, and the folding machinery is the shared
+  \<^locale>\<open>fact_folder\<close>, imported below at exactly these derived fluents.\<close>
+
+locale grounder = varfree +
+  fixes facts :: "facty list"
+begin
+
+definition "fluents \<equiv> remdups (concat (map op_fluents ops))"
+
+end
+
+sublocale grounder \<subseteq> fact_folder P facts fluents .
+
+context grounder begin
 
 definition ground_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
   "ground_ac \<pi> n =
@@ -198,48 +178,17 @@ definition ground_prob :: "ast_classical_problem" where
     (map ground_fmla (init P))
     (ground_fmla (goal P))"
 
-
-definition "op_map \<equiv> map_of (zip op_names ops)"
-
-fun restore_ground_pa :: "ast_classical_plan_action \<Rightarrow> ast_classical_plan_action" where
-  "restore_ground_pa (SimplePlanAction n args) = the (op_map n)"
-
-abbreviation restore_ground_plan :: "ast_classical_plan_action list \<Rightarrow> ast_classical_plan_action list" where
-  "restore_ground_plan \<pi>s \<equiv> map restore_ground_pa \<pi>s"
-
 end
 
 
 text \<open>Some of these may follow from one another\<close>
 
-text \<open>\<open>achievable\<close> ranges over \<^typ>\<open>fact\<close> (\<open>predicate \<times> object list\<close>) whereas the grounder's
-  \<open>facts\<close> are \<^typ>\<open>facty\<close> formulas; this lifts a reachable fact to its formula.\<close>
-abbreviation (in grounder) fact_to_facty :: "fact \<Rightarrow> facty" where
-  "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
-
-text \<open>The \<^emph>\<open>minimal\<close> reachability/well-formedness assumptions the numeric-fluent-retaining grounder
-  needs: the input problem is well-formed, the reachable-op list \<open>ops\<close> is distinct, over-approximates
-  the applicable actions, and every op is a well-formed plan action. The numeric-fluent-retaining
-  grounder (theory \<open>Numeric_Grounder\<close>, downstream) is based on this weaker locale: it grounds the
-  un-relaxed problem \<open>P\<^sub>T\<close> keeping its numeric preconditions/effects and function assignments verbatim
-  (via a \<open>term.CONST\<close> lift, undone by instantiate-at-\<open>[]\<close>), so it never propositionalises an atom and
-  hence needs \<^emph>\<open>none\<close> of the coverage / \<open>facts\<close> assumptions --- those (and \<open>covered\<close>, which rejects
-  numeric atoms outright) are what the \<^emph>\<open>propositional\<close> grounder needs, and they move to
-  \<open>wf_grounder\<close> below.\<close>
-locale wf_grounder_num = grounder +
-  assumes
-    wf_problem: "wf_classical_problem" and
-    ops_dist: "distinct ops" and
-    all_ops: "set ops \<supseteq> {\<pi>. applicable \<pi>}" and
-    (* If "set ops = {\<pi>. applicable \<pi>}", this follows: *)
-    ops_wf: "\<forall>\<pi> \<in> set ops. wf_classical_plan_action \<pi>"
-
-text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>wf_grounder_num\<close> plus a reachable \<open>facts\<close> list that is
+text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>varfree_grounder\<close> plus a reachable \<open>facts\<close> list that is
   well-formed and covers every op's precondition/effect predicate atoms and the goal, so the shared
   \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing of \<^emph>\<open>predicate\<close> atoms onto nullary \<open>predAtm\<close>s
   is faithful. Numeric atoms/effects are \<^emph>\<open>allowed\<close> here (they re-index onto nullary fluents); this
   is the layer at which the nullary-fluent-retaining grounded problem \<open>ground_prob\<close> lives.\<close>
-locale wf_grounder_cov = wf_grounder_num +
+locale wf_grounder_cov = grounder + varfree_grounder +
   assumes
     facts_dist: "distinct facts" and
     all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
@@ -265,12 +214,45 @@ The last two conditions can be satisfied by instantiating every \<pi>\<in>ops an
 to \<open>facts\<close>. I don't need to implement this for my grounder, but you are welcome to.
 \<close>
 
-abbreviation (in grounder) "D\<^sub>G \<equiv> ground_dom"
-abbreviation (in grounder) "P\<^sub>G \<equiv> ground_prob"
+subsection \<open>Assumption layers for the standalone fact folder\<close>
 
-sublocale wf_grounder_num \<subseteq> wf_ast_classical_problem P
+text \<open>The folder's input obligations, stated on the variable-free problem \<open>P\<close> itself (no ops
+  parameter --- the nullary plan actions \<^const>\<open>fact_folder.ac_pa\<close> are determined by the
+  problem's own action schemas). Mirrors \<^locale>\<open>wf_grounder_cov\<close>: input well-formed and
+  variable-free, \<open>facts\<close> distinct / well-formed / covering everything achievable and every
+  predicate atom of the action bodies and goal, \<open>fluents\<close> distinct / well-formed / covering every
+  ground fluent of the action bodies.\<close>
+locale wf_fact_folder_cov = fact_folder +
+  assumes
+    wf_problem: "wf_classical_problem" and
+    varfree_input: varfree_prob and
+    facts_dist: "distinct facts" and
+    all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
+    facts_wf: "\<forall>a \<in> set facts. wf_fmla_atom objT a" and
+    effs_covered: "\<forall>a \<in> set (actions (domain P)). (let eff = effect (the (res_inst (ac_pa a))) in
+      \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" and
+    pres_covered: "\<forall>a \<in> set (actions (domain P)). covered (precondition (the (res_inst (ac_pa a)))) facts" and
+    goal_covered: "covered (goal P) facts" and
+    fluents_dist: "distinct fluents" and
+    fluents_wf: "\<forall>fl \<in> set fluents. wf_primitive_numeric_expression objT fl" and
+    acs_fluents: "\<forall>a \<in> set (actions (domain P)). set (op_fluents (ac_pa a)) \<subseteq> set fluents"
+
+text \<open>The propositional/STRIPS layer of the folder, mirroring \<^locale>\<open>wf_grounder\<close>: the initial
+  state is purely propositional and the (nullary) actions carry no numeric effects.\<close>
+locale wf_fact_folder = wf_fact_folder_cov +
+  assumes
+    init_props: "\<forall>f \<in> set (init P). is_predAtom f" and
+    acs_no_num: "\<forall>a \<in> set (actions (domain P)). numeric_effects (effect (the (res_inst (ac_pa a)))) = []"
+
+sublocale wf_fact_folder_cov \<subseteq> wf_ast_classical_problem P
   apply (unfold_locales)
   using wf_problem unfolding wf_classical_problem_def by simp
+
+sublocale fact_folder \<subseteq> fdg: ast_classical_domain fold_dom .
+sublocale fact_folder \<subseteq> fpg: ast_classical_problem fold_prob .
+
+abbreviation (in grounder) "D\<^sub>G \<equiv> ground_dom"
+abbreviation (in grounder) "P\<^sub>G \<equiv> ground_prob"
 
 sublocale grounder \<subseteq> dg: ast_classical_domain D\<^sub>G .
 sublocale grounder \<subseteq> pg: ast_classical_problem P\<^sub>G .

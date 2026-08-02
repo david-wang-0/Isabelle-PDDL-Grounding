@@ -111,7 +111,7 @@ proof -
           wf_ground_cert_problem[OF nonempty cert grounding_cert assms] nf by blast
 qed
 
-text \<open>The grounded goal is a single nullary predicate atom: \<^const>\<open>grounder.ground_fmla\<close> maps the
+text \<open>The grounded goal is a single nullary predicate atom: \<^const>\<open>fact_folder.ground_fmla\<close> maps the
   single-atom goal of \<^term>\<open>P\<^sub>T\<close> (\<open>goal_P\<^sub>T_single\<close>) to one nullary \<^const>\<open>predAtm\<close>.\<close>
 lemma goal_P\<^sub>G_cert_single:
   assumes "restrict_prob" "wf_classical_problem"

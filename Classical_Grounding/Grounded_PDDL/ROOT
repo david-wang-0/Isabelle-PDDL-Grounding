@@ -7,9 +7,10 @@ session Classical_Grounded_PDDL = Grounding_Classical_Common +
   options [timeout = 900]
   sessions
     "Grounding_Grounded_PDDL"
+    "Classical_Variable_Freeness"
   theories
     Classical_Grounded_PDDL_Locales
     Classical_Grounded_PDDL
     Classical_Grounded_PDDL_Semantics
-    Numeric_Grounder
-    Numeric_Grounder_Semantics
+    Classical_Grounded_PDDL_Num_Free
+    Classical_Grounded_PDDL_Factorization

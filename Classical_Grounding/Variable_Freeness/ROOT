@@ -1,0 +1,13 @@
+chapter AFP
+
+session Classical_Variable_Freeness = Grounding_Classical_Common +
+  description \<open>The variable-freeness stage: instantiates every reachable operator into a nullary
+    (variable-free) action schema via a term.CONST lift, promoting objects to constants and keeping
+    predicates, functions, numeric preconditions/effects and init/goal verbatim. Well-formedness-
+    and plan-preserving. The numeric pipeline emits its output directly; the propositional/STRIPS
+    grounder builds on it as its first stage.\<close>
+  options [timeout = 900]
+  theories
+    Classical_Variable_Freeness
+    Classical_Variable_Freeness_Semantics
+    Classical_Variable_Freeness_Num_Free

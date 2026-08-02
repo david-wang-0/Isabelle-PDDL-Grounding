@@ -101,4 +101,42 @@ text \<open>The grounded (pre-STRIPS) action schemas themselves: each is nullary
   problem to its action list (an \<^const>\<open>Inl\<close> diagnostic would pass through unchanged).\<close>
 value "map_sum id (\<lambda>P. actions (domain P)) my_grounded_num"
 
+subsection \<open>The two-stage grounding path, concretely\<close>
+
+text \<open>The propositional grounder factors into the two pipeline stages
+  (\<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization\<close>,
+  theorem \<open>ground_prob_factors\<close>): first the Variable_Freeness stage
+  \<^const>\<open>varfree.varfree_ground_prob\<close> instantiates every certified-reachable op into a
+  \<^emph>\<open>nullary schema\<close> (parameters gone, but the ground atoms and the \<open>fuel(c)\<close> numerics still
+  there), then the fact folder \<^const>\<open>fact_folder.fold_prob\<close> collapses the ground atoms onto fresh
+  nullary predicates and the ground fluents onto fresh nullary functions. The numeric grounder run
+  above is \<^emph>\<open>exactly\<close> stage one; composing stage two on top of it reproduces the one-shot
+  propositional \<^const>\<open>ground_by_cert\<close>. Both stages consume the same certified data as the pipeline
+  entry points: the ops list \<^term>\<open>canon (cert_ops_of_exec_fast N M)\<close> and the fact list
+  \<^term>\<open>cert_facts_of_exec N M\<close>.\<close>
+
+definition "my_cert_facts \<equiv> cert_facts_of_exec my_P\<^sub>T_num (fst my_cert_num)"
+definition "my_cert_ops \<equiv> canon (cert_ops_of_exec_fast my_P\<^sub>T_num (fst my_cert_num))"
+definition "my_fluents \<equiv> grounder.fluents my_P\<^sub>T_num my_cert_ops"
+definition "my_varfree \<equiv> varfree.varfree_ground_prob my_P\<^sub>T_num my_cert_ops"
+definition "my_folded \<equiv> fact_folder.fold_prob my_varfree my_cert_facts my_fluents"
+
+text \<open>The reachable fluents enumerated off the certified ops: the three ground \<open>fuel(c)\<close> PNEs, one
+  per Car. These are what stage two turns into nullary function names.\<close>
+value "my_fluents"
+
+text \<open>Stage one's output is literally the numeric grounder's output: the error monad's \<^const>\<open>Inr\<close>
+  payload \<^emph>\<open>is\<close> \<^const>\<open>varfree.varfree_ground_prob\<close> at the same ops list (\<^const>\<open>True\<close>).\<close>
+value "my_grounded_num = Inr my_varfree"
+
+text \<open>Stage two's output: everything is nullary --- the predicates are the fresh names of the
+  certified facts, the functions are the fresh names of the \<open>fuel(c)\<close> fluents above, and each
+  action's precondition/effect is stated purely over those nullary names.\<close>
+value "my_folded"
+
+text \<open>And the factorization made concrete: folding stage one's output equals the one-shot
+  propositional grounder \<^const>\<open>ground_by_cert\<close> on the original problem (\<^const>\<open>True\<close>) --- the
+  evaluation counterpart of \<open>ground_prob_factors\<close>.\<close>
+value "my_folded = ground_by_cert my_problem_num (fst my_cert_num)"
+
 end

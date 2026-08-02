@@ -95,13 +95,13 @@ subsection \<open>STRIPS plan reconstruction\<close>
 
 text \<open>Unconditional executable twin of the cert-context \<open>reconstruct_pipeline_plan_cert\<close>. A decoded
   STRIPS serial solution is undone step by step: \<^const>\<open>ast_classical_problem.restore_prefix\<close> (the
-  applicable prefix of the STRIPS plan) \<open>\<rightarrow>\<close> \<^const>\<open>grounder.restore_ground_plan\<close> (undo grounding)
+  applicable prefix of the STRIPS plan) \<open>\<rightarrow>\<close> \<^const>\<open>varfree.restore_ground_plan\<close> (undo grounding)
   \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization.\<close>
 definition reconstruct_plan_by_cert where
   [code]: "reconstruct_plan_by_cert P M ops \<equiv>
      ast_classical_problem.reconstruct_plan_norm P
        (restore_plan_def_translate
-          (grounder.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))
+          (varfree.restore_ground_plan (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))
              (ast_classical_problem.restore_prefix (ground_by_cert P M)
                 (ast_classical_problem.I (ground_by_cert P M)) ops)))"
 

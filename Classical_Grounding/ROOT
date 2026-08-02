@@ -13,6 +13,7 @@ session Classical_Grounding = Grounding_Classical_Common +
 	"Classical_Precondition_Normalization"
 	"Classical_Definedness_Translation"
 	"Classical_PDDL_Relaxation"
+	"Classical_Variable_Freeness"
 	"Classical_Grounded_PDDL"
 	"Classical_Reachability_Analysis"
   directories

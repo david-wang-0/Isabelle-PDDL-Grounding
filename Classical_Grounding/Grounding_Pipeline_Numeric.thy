@@ -6,8 +6,7 @@ theory Grounding_Pipeline_Numeric
     Classical_Definedness_Translation.Classical_Definedness_Translation_Semantics
     Classical_PDDL_Relaxation.Classical_PDDL_Relaxation_Semantics
     Classical_Reachability_Analysis.Classical_Certified_Grounding_Semantics
-    Classical_Grounded_PDDL.Classical_Grounded_PDDL_Semantics
-    Classical_Grounded_PDDL.Numeric_Grounder_Semantics
+    Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization
     Grounding_Classical_Common.Numeric_Free
 begin
 
@@ -17,26 +16,16 @@ text \<open>This theory assembles the verified grounding pipeline that applies t
   problem \<^term>\<open>P\<^sub>G_cert\<close>. The numeric-free specialization that converts the grounded problem
   to STRIPS lives downstream in \<^verbatim>\<open>Grounding_Pipeline_STRIPS\<close>.\<close>
 
-subsection \<open> Grounding preserves numeric-freeness and normalization \<close>
+subsection \<open> Grounding preserves normalization \<close>
 
-text \<open>\<^const>\<open>grounder.ground_fmla\<close> maps a predicate atom to a nullary \<^const>\<open>predAtm\<close> and an
-  equality to \<open>\<bottom>\<close>/\<open>\<^bold>\<not>\<bottom>\<close>, and re-indexes a numeric-comparison atom onto nullary fluents (it is the
-  general, numeric-retaining form). Under the \<^emph>\<open>propositional\<close> grounder's assumptions, though, the
-  ground formulas are all \<^const>\<open>covered\<close> --- which rejects numeric atoms outright --- and every op is
-  \<open>ops_no_num\<close>, so no numeric atom or effect survives. Hence the grounded problem is numeric-free
-  under \<open>wf_grounder\<close>, and \<^emph>\<open>normalized\<close> whenever its input is. The bare \<open>grounder\<close> proof of numeric-
-  freeness therefore takes the relevant coverage fact as a hypothesis.\<close>
-
-lemma (in grounder) num_free_ground_fmla:
-  "covered \<phi> facts \<Longrightarrow> num_free_fmla (ground_fmla \<phi>)"
-  by (induction \<phi> rule: ground_fmla.induct) (auto split: if_splits simp: covered_def)
-
-text \<open>A \<^const>\<open>predAtm\<close> formula is re-indexed to a nullary \<^const>\<open>predAtm\<close>, hence numeric-free
-  unconditionally --- the initial state (\<open>init_props\<close>) is exactly such a formula, so it needs no
-  coverage assumption.\<close>
-lemma (in grounder) num_free_ground_predAtom:
-  "is_predAtom \<phi> \<Longrightarrow> num_free_fmla (ground_fmla \<phi>)"
-  by (cases \<phi> rule: is_predAtom.cases) auto
+text \<open>Numeric-freeness preservation is proven \<^emph>\<open>stage-locally\<close>, adjacent to each stage: the fact
+  folder's \<open>fold_prob_num_free\<close> lives in
+  \<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Num_Free\<close>, the variable-freeness
+  stage's \<open>varfree_ground_prob_num_free\<close> in \<^verbatim>\<open>Classical_Variable_Freeness_Num_Free\<close>, and the
+  one-shot grounder's \<open>ground_prob_num_free\<close> derives compositionally from the folder's theorem in
+  \<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization\<close>. Here we keep only the
+  \<^emph>\<open>normalization\<close> covariance: the grounded problem is typeless, and precondition-normalized
+  whenever its input is.\<close>
 
 lemma (in grounder) is_lit_plus_ground_fmla: "is_lit_plus L \<Longrightarrow> is_lit_plus (ground_fmla L)"
   apply (cases L rule: is_lit_plus.cases; simp)
@@ -51,51 +40,12 @@ lemma (in grounder) is_conj_ground_fmla: "is_conj F \<Longrightarrow> is_conj (g
   by (induction F rule: is_conj.induct)
      (auto simp: is_lit_plus_ground_fmla is_lit_plus_imp_is_conj)
 
-lemma (in wf_grounder) num_free_ac_ground_ac:
-  assumes "\<pi> \<in> set ops"
-  shows "num_free_ac (ground_ac \<pi> n)"
-proof -
-  let ?ga = "the (res_inst \<pi>)"
-  have pre_cov: "covered (precondition ?ga) facts" using pres_covered assms by blast
-  have ad_cov: "\<forall>\<phi> \<in> set (adds (effect ?ga) @ dels (effect ?ga)). covered \<phi> facts"
-    using effs_covered assms unfolding Let_def by blast
-  have ne0: "numeric_effects (effect ?ga) = []" using ops_no_num assms by blast
-  have pre: "num_free_fmla (ground_fmla (precondition ?ga))"
-    using num_free_ground_fmla[OF pre_cov] .
-  have ad: "\<forall>\<phi> \<in> set (adds (effect ?ga)) \<union> set (dels (effect ?ga)). num_free_fmla (ground_fmla \<phi>)"
-    using ad_cov by (auto simp: num_free_ground_fmla)
-  show ?thesis
-    unfolding num_free_ac_def ground_ac_sel ga_pre_alt ga_eff_alt num_free_eff.simps
-    using pre ad ne0 by (auto simp: ne0)
-qed
-
 lemma (in grounder) ac_pre_ground_ac:
   "ac_pre (ground_ac \<pi> n) = ground_fmla (ground_action.precondition (the (res_inst \<pi>)))"
   unfolding ground_ac_def Let_def by (cases "the (res_inst \<pi>)") simp
 
 lemma (in grounder) ac_params_ground_ac: "ac_params (ground_ac \<pi> n) = []"
   unfolding ground_ac_def Let_def by (cases "the (res_inst \<pi>)") simp
-
-lemma (in wf_grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob ground_prob"
-proof -
-  have dom: "ast_classical_domain.num_free_dom (domain ground_prob)"
-    unfolding ast_classical_domain.num_free_dom_def
-  proof
-    fix a assume "a \<in> set (actions (domain ground_prob))"
-    then obtain \<pi> n where a: "a = ground_ac \<pi> n" and pin: "(\<pi>, n) \<in> set (zip ops op_names)"
-      unfolding ground_prob_def ground_dom_def by (auto simp: map2_map_map)
-    from pin have "\<pi> \<in> set ops" using set_zip_leftD by fastforce
-    thus "num_free_ac a" unfolding a by (simp add: num_free_ac_ground_ac)
-  qed
-  have goal: "num_free_fmla (goal ground_prob)"
-    unfolding ground_prob_def ground_dom_def
-    by (simp add: num_free_ground_fmla goal_covered)
-  have init: "\<forall>f \<in> set (init ground_prob). num_free_fmla f"
-    unfolding ground_prob_def ground_dom_def
-    using init_props by (auto simp: num_free_ground_predAtom)
-  show ?thesis
-    unfolding ast_classical_problem.num_free_prob_def using dom goal init by blast
-qed
 
 lemma (in grounder) ground_prob_typeless: "ast_classical_problem.typeless_classical_problem ground_prob"
   unfolding ast_classical_problem.typeless_classical_problem_def
@@ -554,12 +504,12 @@ proof -
 qed
 
 definition "P\<^sub>G_cert \<equiv> grounder.ground_prob P\<^sub>T
-  (normalized_problem_rx.cert_facts_of P\<^sub>T M)
-  (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
+  (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))
+  (normalized_problem_rx.cert_facts_of P\<^sub>T M)"
 
 definition "reconstruct_plan_ground_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
-    (grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
+    (varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
 lemma wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
@@ -613,7 +563,7 @@ lemma ground_cert_plan_reconstruct:
 proof -
   assume p: "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s"
   interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
-  let ?q = "grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
     using p[unfolded P\<^sub>G_cert_def] cr.wfg.valid_classical_plan_left[unfolded cr.cert_facts'_def cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
@@ -632,15 +582,15 @@ subsection \<open>Grounding against a certified reachability model (numeric)\<cl
 
 text \<open>The numeric analogue of the propositional certificate-grounding block above: the same certified
   reachability model
-  \<open>(M, dc)\<close> now drives the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>grounder.numeric_ground_prob\<close>
+  \<open>(M, dc)\<close> now drives the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>varfree.varfree_ground_prob\<close>
   instead of the propositional \<^const>\<open>grounder.ground_prob\<close>. Well-formedness and plan-preservation
-  are inherited from \<open>wf_grounder_num.numeric_ground_prob_wf\<close> /
-  \<open>wf_grounder_num.numeric_valid_classical_plan_iff\<close> via the \<open>cr.wfg_num\<close> interpretation of the
+  are inherited from \<open>varfree_grounder.varfree_ground_prob_wf\<close> /
+  \<open>varfree_grounder.varfree_valid_classical_plan_iff\<close> via the \<open>cr.vfg\<close> interpretation of the
   \<^emph>\<open>weaker\<close> \<^locale>\<open>certified_reachability_num\<close> --- which requires only
   \<open>numeric_grounding_checks\<close> (the five coverage obligations), \<^emph>\<open>not\<close> the numeric-freeness checks
   \<open>init_props\<close>/\<open>ops_no_num\<close> that the propositional \<^locale>\<open>certified_reachability\<close> imposes. This is
   what lets a task with genuine numeric effects (whose reachable ops carry \<open>NumericEffect\<close>s) pass the
-  re-check and be grounded with those effects retained. (Note \<^const>\<open>grounder.numeric_ground_prob\<close>
+  re-check and be grounded with those effects retained. (Note \<^const>\<open>varfree.varfree_ground_prob\<close>
   takes only \<open>P\<close> and \<open>ops\<close> --- the grounder's \<open>facts\<close> parameter is unused, so the locale drops it
   from the constant's signature.)\<close>
 
@@ -684,7 +634,7 @@ context
       and grounding_cert_num: "normalized_problem_rx.numeric_grounding_checks P\<^sub>T M"
 begin
 
-definition "numeric_P\<^sub>G_cert \<equiv> grounder.numeric_ground_prob P\<^sub>T
+definition "numeric_P\<^sub>G_cert \<equiv> varfree.varfree_ground_prob P\<^sub>T
   (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 lemma numeric_wf_ground_cert_problem:
@@ -693,12 +643,12 @@ lemma numeric_wf_ground_cert_problem:
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
-  have pg_eq: "numeric_P\<^sub>G_cert = cr.wfg_num.numeric_ground_prob"
+  have pg_eq: "numeric_P\<^sub>G_cert = cr.vfg.varfree_ground_prob"
     unfolding numeric_P\<^sub>G_cert_def cr.cert_ops'_def by simp
-  show ?thesis unfolding pg_eq using cr.wfg_num.numeric_ground_prob_wf by simp
+  show ?thesis unfolding pg_eq using cr.vfg.varfree_ground_prob_wf by simp
 qed
 
-lemma numeric_ground_cert_plan_valid_iff:
+lemma varfree_ground_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
   shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
 proof -
@@ -711,19 +661,19 @@ proof -
     unfolding P\<^sub>T_def by simp
   also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
     unfolding numeric_P\<^sub>G_cert_def
-    using cr.wfg_num.numeric_valid_classical_plan_iff[unfolded cr.cert_ops'_def] by simp
+    using cr.vfg.varfree_valid_classical_plan_iff[unfolded cr.cert_ops'_def] by simp
   finally show ?thesis .
 qed
 
 definition "numeric_reconstruct_plan_ground_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
-    (grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
+    (varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
 text \<open>Plan restoration: a valid plan of the numeric grounded problem restores to a \<^emph>\<open>concrete\<close> valid
   plan of the original \<open>P\<close> (undo grounding \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization). Numeric twin of
   \<open>ground_cert_plan_reconstruct\<close>, using the numeric grounder's constructive restore
-  \<open>numeric_valid_plan_left\<close> (\<^const>\<open>grounder.restore_ground_plan\<close>).\<close>
-lemma numeric_ground_cert_plan_reconstruct:
+  \<open>varfree_valid_plan_left\<close> (\<^const>\<open>varfree.restore_ground_plan\<close>).\<close>
+lemma varfree_ground_cert_plan_reconstruct:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s \<Longrightarrow>
     valid_classical_plan2 (numeric_reconstruct_plan_ground_cert \<pi>s)"
@@ -731,9 +681,9 @@ proof -
   assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s"
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
-  let ?q = "grounder.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
-    using p[unfolded numeric_P\<^sub>G_cert_def] cr.wfg_num.numeric_valid_plan_left[unfolded cr.cert_ops'_def] by simp
+    using p[unfolded numeric_P\<^sub>G_cert_def] cr.vfg.varfree_valid_plan_left[unfolded cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
     unfolding P\<^sub>T_def .
   hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"

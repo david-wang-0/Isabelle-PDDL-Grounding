@@ -383,7 +383,7 @@ text \<open>The decidable grounding obligations, phrased to match the \<^locale>
   certificate, not re-checked.
 
   \<open>numeric_grounding_checks\<close> is the \<^emph>\<open>single\<close> obligation that the numeric-fluent-retaining grounder
-  needs --- every certified op is a well-formed plan action (\<^locale>\<open>wf_grounder_num\<close>'s only decidable
+  needs --- every certified op is a well-formed plan action (\<^locale>\<open>varfree_grounder\<close>'s only decidable
   goal; the other three, \<open>wf_problem\<close>/\<open>ops_dist\<close>/\<open>all_ops\<close>, are proven from the problem and the
   certificate, not re-checked). Because it retains numerics verbatim it must \<^emph>\<open>not\<close> demand
   \<open>covered\<close>-coverage of preconditions/effects (\<open>covered\<close> rejects numeric atoms) --- that, the \<open>facts\<close>
@@ -435,7 +435,7 @@ end
 text \<open>The numeric-fluent-retaining grounding-input locale: the shared base plus the single ops
   well-formedness re-check (\<open>numeric_grounding_checks\<close>). It grounds the un-relaxed problem \<open>P\<close>
   \<^emph>\<open>retaining\<close> its numeric preconditions/effects, so it must \<^emph>\<open>not\<close> require the coverage /
-  facts-wf / numeric-freeness checks --- it interprets \<^locale>\<open>wf_grounder_num\<close>, not
+  facts-wf / numeric-freeness checks --- it interprets \<^locale>\<open>varfree_grounder\<close>, not
   \<^locale>\<open>wf_grounder\<close>.\<close>
 locale certified_reachability_num = certified_reachability_base +
   assumes grounding_cert_num: "numeric_grounding_checks M"
@@ -443,7 +443,7 @@ locale certified_reachability_num = certified_reachability_base +
 text \<open>The propositional grounding-input locale: the shared base plus the full \<open>grounding_checks\<close>
   (the five coverage checks \<^emph>\<open>and\<close> the two numeric-freeness checks). It interprets the full
   \<^locale>\<open>wf_grounder\<close>. Sibling of \<^locale>\<open>certified_reachability_num\<close> --- neither extends the other,
-  so no locale interprets both \<^locale>\<open>wf_grounder\<close> and \<^locale>\<open>wf_grounder_num\<close> at the same
+  so no locale interprets both \<^locale>\<open>wf_grounder\<close> and \<^locale>\<open>varfree_grounder\<close> at the same
   parameters (which would deduplicate the shared \<open>grounder\<close> interpretation).\<close>
 locale certified_reachability = certified_reachability_base +
   assumes grounding_cert: "grounding_checks M"
