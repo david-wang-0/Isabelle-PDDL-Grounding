@@ -480,6 +480,363 @@ theorem fold_valid_classical_plan_iff:
 end
 
 
+subsection \<open> Numeric fact folder: state renaming and semantics transfer \<close>
+
+text \<open>The numeric groundwork for the \<^locale>\<open>wf_fact_folder_num\<close> plan-equivalence chain. With
+  fluents retained, the folded problem's numeric states are the input's numeric states
+  \<^emph>\<open>renamed\<close> along \<open>ground_pne\<close>: \<open>fold_nstate\<close> maps a folded (nullary) fluent back to the
+  original fluent it names and looks that up, and is \<open>None\<close> outside the folded fluents. The
+  lemmas below transfer expression valuation, divisor enumeration, atom/formula valuation, and
+  the numeric update functions across that renaming; everything lives at the
+  \<^locale>\<open>wf_fact_folder_cov\<close> layer (injectivity of the naming is all that is needed), so both
+  the propositional and the numeric problem layers can consume it.\<close>
+
+lemma covered_num_atom_pnes:
+  assumes "covered_num (Atom a) facts fluents"
+  shows "set (atom_enumerate_primitive_numeric_expressions a) \<subseteq> set fluents"
+  using covered_num_fluent_mem[OF assms] by auto
+
+context fact_folder begin
+
+text \<open>The numeric-state renaming: a folded fluent name is looked up back to the fluent it
+  re-indexes, all other keys are undefined. This is the numeric component of the folded world
+  model corresponding to input numeric state \<open>N\<close>.\<close>
+definition fold_nstate :: "numeric_world_model \<Rightarrow> numeric_world_model" where
+  "fold_nstate N = (\<lambda>x. case map_of (zip (map ground_pne fluents) fluents) x of
+     Some fl \<Rightarrow> N fl | None \<Rightarrow> None)"
+
+lemma fold_nstate_None:
+  assumes "map_of (zip (map ground_pne fluents) fluents) x = None"
+  shows "fold_nstate N x = None"
+  unfolding fold_nstate_def assms by simp
+
+lemma fold_nstate_Some:
+  assumes "map_of (zip (map ground_pne fluents) fluents) x = Some fl"
+  shows "fold_nstate N x = N fl"
+  unfolding fold_nstate_def assms by simp
+
+lemma fold_nstate_keyE:
+  assumes "map_of (zip (map ground_pne fluents) fluents) x = Some fl"
+  obtains "fl \<in> set fluents" and "x = ground_pne fl"
+proof -
+  have mem: "(x, fl) \<in> set (zip (map ground_pne fluents) fluents)"
+    using map_of_SomeD[OF assms] .
+  then obtain i where
+    i: "i < length fluents"
+    and x: "map ground_pne fluents ! i = x"
+    and fl: "fluents ! i = fl"
+    using in_set_zip[of "(x, fl)"] by auto
+  have "fl \<in> set fluents" using i fl nth_mem by blast
+  moreover
+  have "x = ground_pne fl" using i x fl by simp
+  ultimately
+  show thesis using that by blast
+qed
+
+text \<open>Folding maps the divisor enumeration through \<open>ground_numexp\<close> pointwise, so
+  division-by-zero definedness questions transfer along the valuation equality below.\<close>
+lemma ground_numexp_divisors:
+  "enumerate_divisor_expressions (ground_numexp e) = map ground_numexp (enumerate_divisor_expressions e)"
+  by (induction e) simp_all
+
+end
+
+context wf_fact_folder_cov begin
+
+text \<open>The folded-fluent lookup inverts \<open>ground_pne\<close> on the reachable fluents --- this is where
+  \<open>ground_pne_inj\<close> (i.e. distinctness of the generated \<open>fluent_names\<close>) enters.\<close>
+lemma ground_pne_key:
+  assumes "fl \<in> set fluents"
+  shows "map_of (zip (map ground_pne fluents) fluents) (ground_pne fl :: object primitive_numeric_expression) = Some fl"
+proof -
+  have "map_of (zip (map ground_pne fluents) fluents) (ground_pne fl :: object primitive_numeric_expression) \<noteq> None"
+    using assms by (simp add: map_of_zip_is_None)
+  then obtain fl' where fl': "map_of (zip (map ground_pne fluents) fluents) (ground_pne fl :: object primitive_numeric_expression) = Some fl'"
+    by blast
+  have "fl' = fl"
+  proof (rule fold_nstate_keyE[OF fl'])
+    assume "fl' \<in> set fluents" and "ground_pne fl = (ground_pne fl' :: object primitive_numeric_expression)"
+    thus "fl' = fl" using inj_onD[OF ground_pne_inj _ assms] by blast
+  qed
+  thus ?thesis using fl' by simp
+qed
+
+lemma fold_nstate_ground_pne:
+  assumes "fl \<in> set fluents"
+  shows "fold_nstate N (ground_pne fl) = N fl"
+  using fold_nstate_Some[OF ground_pne_key[OF assms]] .
+
+lemma fold_nstate_dom:
+  "dom (fold_nstate N) = ground_pne ` (set fluents \<inter> dom N)"
+proof -
+  have "x \<in> dom (fold_nstate N) \<longleftrightarrow> x \<in> ground_pne ` (set fluents \<inter> dom N)" for x
+  proof (cases "map_of (zip (map ground_pne fluents) fluents) x")
+    case None
+    have "x \<noteq> ground_pne fl" if "fl \<in> set fluents" for fl
+      using ground_pne_key[OF that] None that by auto
+    hence "x \<notin> ground_pne ` (set fluents \<inter> dom N)" by blast
+    thus ?thesis using fold_nstate_None[OF None] by (simp add: domIff)
+  next
+    case (Some fl)
+    obtain mem: "fl \<in> set fluents" and x: "x = ground_pne fl"
+      by (rule fold_nstate_keyE[OF Some])
+    have d: "x \<in> dom (fold_nstate N) \<longleftrightarrow> fl \<in> dom N"
+      using fold_nstate_Some[OF Some] by (simp add: domIff)
+    have inj: "fl' = fl" if "fl' \<in> set fluents" and "x = ground_pne fl'" for fl'
+      using inj_onD[OF ground_pne_inj] that mem x by blast
+    show ?thesis using d inj mem x by blast
+  qed
+  thus ?thesis by blast
+qed
+
+text \<open>Folding preserves numeric-expression valuation: the folded expression evaluated in the
+  renamed state agrees with the original --- including undefinedness (missing fluents and
+  division by zero transfer both ways), since the two sides are equal as \<^type>\<open>option\<close>
+  values.\<close>
+lemma ground_numexp_val:
+  assumes "set (enumerate_primitive_numeric_expressions e) \<subseteq> set fluents"
+  shows "(ground_numexp e)\<lbrakk>fold_nstate N\<rbrakk> = e\<lbrakk>N\<rbrakk>"
+  using assms by (induction e) (simp_all add: fold_nstate_ground_pne)
+
+text \<open>The numeric-atom cases of the valuation correspondence: on numeric comparison atoms the
+  folded valuation is \<^emph>\<open>equal\<close> (as an \<^type>\<open>option\<close> value) to the original, for any logical
+  components on either side.\<close>
+lemma fold_valuation_num_atom:
+  assumes l: "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+      and r: "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+  shows "valuation (L, fold_nstate (snd M)) (numericEqAtm (ground_numexp l) (ground_numexp r)) = valuation M (numericEqAtm l r)"
+    and "valuation (L, fold_nstate (snd M)) (numericLessAtm (ground_numexp l) (ground_numexp r)) = valuation M (numericLessAtm l r)"
+    and "valuation (L, fold_nstate (snd M)) (numericLEAtm (ground_numexp l) (ground_numexp r)) = valuation M (numericLEAtm l r)"
+    and "valuation (L, fold_nstate (snd M)) (numericGreaterAtm (ground_numexp l) (ground_numexp r)) = valuation M (numericGreaterAtm l r)"
+    and "valuation (L, fold_nstate (snd M)) (numericGEAtm (ground_numexp l) (ground_numexp r)) = valuation M (numericGEAtm l r)"
+  by (simp_all add: valuation_def ground_numexp_val[OF l] ground_numexp_val[OF r])
+
+text \<open>Atom-definedness transfers: a \<^const>\<open>covered_num\<close> formula's atoms are in the valuation's
+  domain iff the folded formula's atoms are (equality atoms compile to \<open>\<bottom>\<close>/\<open>\<^bold>\<not>\<bottom>\<close> and are always
+  defined; numeric atoms transfer by the valuation equality above).\<close>
+lemma ground_fmla_dom_num:
+  assumes "covered_num \<phi> facts fluents"
+  shows "(\<forall>a \<in> atoms \<phi>. a \<in> dom (valuation M)) \<longleftrightarrow>
+    (\<forall>a \<in> atoms (ground_fmla \<phi>). a \<in> dom (valuation (ground_fmla ` fst M, fold_nstate (snd M))))"
+  using assms
+proof (induction \<phi> rule: ground_fmla.induct)
+  case ("4" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(1) by (simp add: domIff)
+next
+  case ("5" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(2) by (simp add: domIff)
+next
+  case ("6" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(3) by (simp add: domIff)
+next
+  case ("7" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(4) by (simp add: domIff)
+next
+  case ("8" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(5) by (simp add: domIff)
+qed (auto simp: valuation_def domIff)
+
+text \<open>The numeric generalisation of \<open>ground_fmla_sem_aux\<close>: truth under the total-ised valuation
+  transfers for any \<^const>\<open>covered_num\<close> formula.\<close>
+lemma ground_fmla_sem_aux_num:
+  assumes "fst M \<subseteq> set facts"
+      and "covered_num \<phi> facts fluents"
+  shows "(the \<circ> valuation M) \<Turnstile> \<phi> \<longleftrightarrow>
+    (the \<circ> valuation (ground_fmla ` fst M, fold_nstate (snd M))) \<Turnstile> ground_fmla \<phi>"
+  using assms(2)
+proof (induction \<phi> rule: ground_fmla.induct)
+  case ("4" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(1) by simp
+next
+  case ("5" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(2) by simp
+next
+  case ("6" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(3) by simp
+next
+  case ("7" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(4) by simp
+next
+  case ("8" l r)
+  hence "set (enumerate_primitive_numeric_expressions l) \<subseteq> set fluents"
+    and "set (enumerate_primitive_numeric_expressions r) \<subseteq> set fluents"
+    using covered_num_atom_pnes by fastforce+
+  thus ?case using fold_valuation_num_atom(5) by simp
+next
+  case ("9" p xs)
+  hence mem: "Atom (predAtm p xs) \<in> set facts" using covered_num_predAtm_mem by fastforce
+  have "(Atom (predAtm p xs) \<in> fst M) = (ground_fmla (Atom (predAtm p xs)) \<in> ground_fmla ` fst M)"
+  proof
+    assume "Atom (predAtm p xs) \<in> fst M"
+    thus "ground_fmla (Atom (predAtm p xs)) \<in> ground_fmla ` fst M" by (rule imageI)
+  next
+    assume "ground_fmla (Atom (predAtm p xs)) \<in> ground_fmla ` fst M"
+    thus "Atom (predAtm p xs) \<in> fst M"
+      using ground_fmla_inj inj_on_image_mem_iff assms(1) mem by metis
+  qed
+  thus ?case unfolding valuation_def by simp
+qed (auto simp: valuation_def)
+
+text \<open>The numeric generalisation of \<open>ground_fmla_sem\<close>: full \<open>\<Turnstile>\<^sub>m\<close> semantics (truth \<^emph>\<open>and\<close>
+  definedness) transfer across the fold.\<close>
+lemma ground_fmla_sem_num:
+  assumes "covered_num \<phi> facts fluents"
+      and "fst M \<subseteq> set facts"
+  shows "valuation M \<Turnstile>\<^sub>m \<phi> \<longleftrightarrow>
+    valuation (ground_fmla ` fst M, fold_nstate (snd M)) \<Turnstile>\<^sub>m ground_fmla \<phi>"
+  unfolding map_formula_semantics_def
+  using ground_fmla_dom_num[OF assms(1)] ground_fmla_sem_aux_num[OF assms(2) assms(1)] by simp
+
+text \<open>Executing a single folded numeric effect on the renamed states is the renaming of
+  executing the original: the \<open>if x = lhs\<close> test inside \<^const>\<open>numeric_update_function\<close>
+  transfers through injectivity of \<open>ground_pne\<close>, the right-hand side by the valuation
+  equality, and everything outside the folded fluents is \<open>None\<close> on both sides.\<close>
+lemma ground_neff_update_num:
+  assumes "numeric_effect.lhs ne \<in> set fluents"
+      and "set (enumerate_primitive_numeric_expressions (numeric_effect.rhs ne)) \<subseteq> set fluents"
+  shows "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N')
+       = fold_nstate (numeric_update_function ne N N')"
+proof -
+  obtain opr l r where ne: "ne = NumericEffect opr l r" by (cases ne)
+  have l: "l \<in> set fluents" using assms(1) unfolding ne by simp
+  have r: "(ground_numexp r)\<lbrakk>fold_nstate N\<rbrakk> = r\<lbrakk>N\<rbrakk>"
+    using ground_numexp_val assms(2) unfolding ne by simp
+  have glhs: "numeric_effect.lhs (ground_neff ne :: object numeric_effect) = ground_pne l"
+    unfolding ne ground_neff_def by simp
+  show ?thesis
+  proof (rule ext)
+    fix x :: "object primitive_numeric_expression"
+    show "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') x
+        = fold_nstate (numeric_update_function ne N N') x"
+    proof (cases "map_of (zip (map ground_pne fluents) fluents) x")
+      case None
+      hence xl: "x \<noteq> ground_pne l" using ground_pne_key[OF l] l by auto
+      have "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') x
+          = fold_nstate N' x"
+        using numeric_update_function_only_changes_lvalue[of x "ground_neff ne" "fold_nstate N" "fold_nstate N'"]
+        using xl glhs by simp
+      thus ?thesis using fold_nstate_None[OF None] by simp
+    next
+      case (Some fl)
+      obtain mem: "fl \<in> set fluents" and x: "x = ground_pne fl"
+        by (rule fold_nstate_keyE[OF Some])
+      show ?thesis
+      proof (cases "fl = l")
+        case True
+        have "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') x
+            = numeric_update_function ne N N' l"
+          unfolding ne ground_neff_def x True
+          by (cases opr) (simp_all add: r fold_nstate_ground_pne[OF l])
+        thus ?thesis using fold_nstate_Some[OF Some] True by simp
+      next
+        case False
+        hence xl: "x \<noteq> ground_pne l"
+          using inj_onD[OF ground_pne_inj] mem l x by blast
+        have "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') x
+            = fold_nstate N' x"
+          using numeric_update_function_only_changes_lvalue[of x "ground_neff ne" "fold_nstate N" "fold_nstate N'"]
+          using xl glhs by simp
+        also have "\<dots> = N' fl" using fold_nstate_Some[OF Some] .
+        also have "\<dots> = numeric_update_function ne N N' fl"
+          using numeric_update_function_only_changes_lvalue[of fl ne N N'] False
+          unfolding ne by simp
+        also have "\<dots> = fold_nstate (numeric_update_function ne N N') x"
+          using fold_nstate_Some[OF Some] by simp
+        finally show ?thesis .
+      qed
+    qed
+  qed
+qed
+
+text \<open>Executing a folded action's whole numeric-effect list commutes with the renaming ---
+  induction over the effect list, lifting the single-effect commutation. Stated for the
+  explicit \<^const>\<open>GroundAction\<close> the folded nullary plan action resolves to
+  (\<open>resinst_fold_pa\<close>), so the \<^locale>\<open>wf_fact_folder_num\<close> execution chain can rewrite with it
+  directly.\<close>
+lemma fold_action_update_num:
+  assumes "a \<in> set (actions (domain P))"
+  shows "action_numeric_update_function
+           (GroundAction (ga_pre (the (res_inst (ac_pa a)))) (ga_eff (the (res_inst (ac_pa a)))))
+           (fold_nstate N)
+       = fold_nstate (action_numeric_update_function (the (res_inst (ac_pa a))) N)"
+proof -
+  let ?ga = "the (res_inst (ac_pa a))"
+  let ?nes = "numeric_effects (effect ?ga)"
+  have lhs_mem: "numeric_effect.lhs ne \<in> set fluents" if "ne \<in> set ?nes" for ne
+  proof -
+    obtain opr l r where ne: "ne = NumericEffect opr l r" by (cases ne)
+    have "l \<in> set (op_fluents (ac_pa a))"
+      using neff_lhs_in_op_fluents that unfolding ne by blast
+    thus ?thesis using acs_fluents assms unfolding ne by auto
+  qed
+  have rhs_sub: "set (enumerate_primitive_numeric_expressions (numeric_effect.rhs ne)) \<subseteq> set fluents"
+    if "ne \<in> set ?nes" for ne
+  proof -
+    obtain opr l r where ne: "ne = NumericEffect opr l r" by (cases ne)
+    have "set (enumerate_primitive_numeric_expressions r) \<subseteq> set (op_fluents (ac_pa a))"
+      using neff_rhs_pnes_in_op_fluents that unfolding ne by blast
+    thus ?thesis using acs_fluents assms unfolding ne by auto
+  qed
+  have main: "fold (\<circ>) (map (\<lambda>u. numeric_update_function u (fold_nstate N)) (map ground_neff nes)) id (fold_nstate N')
+            = fold_nstate (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) nes) id N')"
+    if "set nes \<subseteq> set ?nes" for nes N'
+    using that
+  proof (induction nes arbitrary: N')
+    case Nil thus ?case by simp
+  next
+    case (Cons ne nes)
+    have ne_mem: "ne \<in> set ?nes" using Cons.prems by simp
+    have upd: "numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N')
+             = fold_nstate (numeric_update_function ne N N')"
+      using ground_neff_update_num[OF lhs_mem[OF ne_mem] rhs_sub[OF ne_mem]] .
+    have "fold (\<circ>) (map (\<lambda>u. numeric_update_function u (fold_nstate N)) (map ground_neff (ne # nes))) id (fold_nstate N')
+        = fold (\<circ>) (map (\<lambda>u. numeric_update_function u (fold_nstate N)) (map ground_neff nes)) id
+            (numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N'))"
+      by (simp add: fold_of_comp'[where g="numeric_update_function (ground_neff ne) (fold_nstate N)"])
+    also have "\<dots> = fold (\<circ>) (map (\<lambda>u. numeric_update_function u (fold_nstate N)) (map ground_neff nes)) id
+            (fold_nstate (numeric_update_function ne N N'))"
+      unfolding upd ..
+    also have "\<dots> = fold_nstate (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) nes) id
+            (numeric_update_function ne N N'))"
+      by (rule Cons.IH) (use Cons.prems in auto)
+    also have "\<dots> = fold_nstate (fold (\<circ>) (map (\<lambda>u. numeric_update_function u N) (ne # nes)) id N')"
+      by (simp add: fold_of_comp'[where g="numeric_update_function ne N"])
+    finally show ?case .
+  qed
+  show ?thesis
+    unfolding action_numeric_update_function_def
+    using main[of ?nes N] by (simp add: ga_eff_sel)
+qed
+
+end
+
 subsection \<open> Code Setup \<close>
 
 lemmas pddl_ground_code =
