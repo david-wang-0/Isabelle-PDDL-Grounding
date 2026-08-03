@@ -48,7 +48,7 @@ each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md
 | Numeric-fluent-retaining grounder | `Numeric_Grounder.thy` (`numeric_ground_prob`) | wf + plan-preservation proven, 0 sorry |
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
-| Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`ground_via_cert_numeric_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
+| Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`instantiate_all_actions_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
 | Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`, ordered scan), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, per-vertex DFS), `Datalog_Cycle_DFS_Global.thy` (`dl_certified_model_gdfs`, fast `O(V+E)` global-sweep DFS) — three verified foundedness re-checks | 0 sorry |
 | Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo\|--gdfs]`) |
 | End-to-end demos | `Running_Example.thy`, `Running_Example_DFS.thy`, `Running_Example_Numeric.thy` | green; in-Isabelle `(M, dc)` cert demos (`naive_cert`) |
@@ -105,7 +105,7 @@ numeric-freeness assumptions for the propositional path. On the certificate side
 `certified_reachability` (interprets the full `wf_grounder`) — neither extends the other, so the
 propositional STRIPS pipeline keeps `cr.wfg.ground_prob` verbatim.
 
-**Executable + demo.** `ground_via_cert_numeric_dfs` gates on the weaker `numeric_grounding_checks_exec`
+**Executable + demo.** `instantiate_all_actions_dfs` gates on the weaker `numeric_grounding_checks_exec`
 (so a task whose reachable ops still carry numeric effects passes) and calls the fluent grounder;
 `Running_Example_Numeric.thy` evaluates the whole chain in-Isabelle on a `fuel` fluent. The exported SML
 binary's `ground` subcommand (top-level `SMLCodebase/`) prints the grounded, fluent-retaining PDDL:

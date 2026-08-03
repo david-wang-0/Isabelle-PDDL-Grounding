@@ -631,23 +631,23 @@ context
       and grounding_cert_num: "normalized_problem_rx.numeric_grounding_checks P\<^sub>T M"
 begin
 
-definition "numeric_P\<^sub>G_cert \<equiv> varfree.varfree_inst_prob P\<^sub>T
+definition "numeric_P\<^sub>V_cert \<equiv> varfree.varfree_inst_prob P\<^sub>T
   (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
 lemma numeric_wf_ground_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "ast_classical_problem.wf_classical_problem numeric_P\<^sub>G_cert"
+  shows "ast_classical_problem.wf_classical_problem numeric_P\<^sub>V_cert"
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
-  have pg_eq: "numeric_P\<^sub>G_cert = cr.vfi.varfree_inst_prob"
-    unfolding numeric_P\<^sub>G_cert_def cr.cert_ops'_def by simp
+  have pg_eq: "numeric_P\<^sub>V_cert = cr.vfi.varfree_inst_prob"
+    unfolding numeric_P\<^sub>V_cert_def cr.cert_ops'_def by simp
   show ?thesis unfolding pg_eq using cr.vfi.varfree_inst_prob_wf by simp
 qed
 
 lemma varfree_inst_cert_plan_valid_iff:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
+  shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s')"
 proof -
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
@@ -656,8 +656,8 @@ proof -
   also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
     using ast_classical_problem.def_translate_valid_iff_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]]
     unfolding P\<^sub>T_def by simp
-  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
-    unfolding numeric_P\<^sub>G_cert_def
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s')"
+    unfolding numeric_P\<^sub>V_cert_def
     using cr.vfi.varfree_valid_classical_plan_iff[unfolded cr.cert_ops'_def] by simp
   finally show ?thesis .
 qed
@@ -672,15 +672,15 @@ text \<open>Plan restoration: a valid plan of the numeric grounded problem resto
   \<open>varfree_valid_plan_left\<close> (\<^const>\<open>varfree.restore_ground_plan\<close>).\<close>
 lemma varfree_inst_cert_plan_reconstruct:
   assumes "restrict_prob" "wf_classical_problem"
-  shows "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s \<Longrightarrow>
+  shows "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s \<Longrightarrow>
     valid_classical_plan2 (numeric_reconstruct_plan_ground_cert \<pi>s)"
 proof -
-  assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s"
+  assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s"
   interpret cr: certified_reachability_num P\<^sub>T M dc
     using certified_reachability_num_i[OF nonempty cert grounding_cert_num assms] .
   let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
   have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
-    using p[unfolded numeric_P\<^sub>G_cert_def] cr.vfi.varfree_valid_plan_left[unfolded cr.cert_ops'_def] by simp
+    using p[unfolded numeric_P\<^sub>V_cert_def] cr.vfi.varfree_valid_plan_left[unfolded cr.cert_ops'_def] by simp
   hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
     unfolding P\<^sub>T_def .
   hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"

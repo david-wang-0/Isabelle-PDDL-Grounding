@@ -71,7 +71,7 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   `ground_prob_typeless`.
 - **DONE (fully verified, 0 `sorry`) — HTG cert-check speed + three selectable foundedness checks.** The
   exported grounder offers three re-checks of the reachability certificate, `ground [--dfs|--topo|--gdfs]`
-  (default `--dfs`), each `ground_via_cert_numeric_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`,
+  (default `--dfs`), each `instantiate_all_actions_{dfs,exec,gdfs}_e` + `dl_certified_model_{dfs,exec,gdfs}`,
   all kept on purpose: `--dfs` per-vertex `dl_acyclic_dfs` (`O(V²)`); `--topo` ordered scan
   `dl_founded_exec` over Nemo's topological order; `--gdfs` the fast single-sweep global-visited DFS
   `dl_acyclic_dfs_global` (`Datalog_Cycle_DFS_Global.thy`, `O(V+E)`), **now fully proven** —

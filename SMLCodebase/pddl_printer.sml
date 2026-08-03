@@ -1,5 +1,5 @@
 (* Pretty-printer for the grounded PDDL problem produced by the verified numeric
-   grounder `ground_via_cert_numeric_dfs` (the numeric-pipeline output, before the
+   grounder `instantiate_all_actions_dfs` (the numeric-pipeline output, before the
    STRIPS conversion). Emits *syntactically valid* PDDL (domain + problem) that
    round-trips through a standard PDDL parser.
 

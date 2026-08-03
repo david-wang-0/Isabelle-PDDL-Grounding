@@ -9,7 +9,7 @@ text \<open>The Helmert-2009 running example (\<^theory>\<open>Classical_Groundi
   \<open>from \<noteq> to\<close> (an \<^const>\<open>eqAtm\<close> inequality guard, translated to a datalog \<open>Neql\<close>) and
   \<open>decrease\<close>s fuel by 1. Everything else is reused verbatim (types, predicates, consts, objects,
   goal, and the other operators). We then thread it through the \<^emph>\<open>same\<close> grounding pipeline and run
-  the numeric-fluent-retaining grounder \<^const>\<open>ground_via_cert_numeric_dfs_e\<close>, stopping \<^emph>\<open>before\<close> the
+  the numeric-fluent-retaining grounder \<^const>\<open>instantiate_all_actions_dfs_e\<close>, stopping \<^emph>\<open>before\<close> the
   STRIPS conversion.
 
   What the pipeline does to the numerics (Option B --- faithful numeric-\<^emph>\<open>effect\<close> retention):
@@ -21,7 +21,7 @@ text \<open>The Helmert-2009 running example (\<^theory>\<open>Classical_Groundi
   \<open>ops_no_num\<close>/\<open>init_props\<close> --- which is why the propositional \<open>grounding_checks_exec\<close> returns
   \<^const>\<open>False\<close> here but the numeric-fluent-retaining \<^const>\<open>numeric_grounding_checks_exec\<close> (the five
   coverage obligations, without the numeric-freeness ones) returns \<^const>\<open>True\<close>. The
-  \<^const>\<open>ground_via_cert_numeric_dfs_e\<close> gate keys on the latter, so the grounder retains the \<open>fuel\<close>
+  \<^const>\<open>instantiate_all_actions_dfs_e\<close> gate keys on the latter, so the grounder retains the \<open>fuel\<close>
   function declaration \<^emph>\<open>and\<close> the \<open>decrease (fuel c) 1\<close> \<^const>\<open>NumericEffect\<close> on each grounded drive.\<close>
 
 subsection \<open>Domain and problem with the \<open>fuel\<close> fluent\<close>
@@ -92,7 +92,7 @@ text \<open>The error-monad fluent grounder returns \<^const>\<open>Inr\<close> 
   whose nullary \<open>drive\<close> schemas retain the real \<open>decrease (fuel c) 1\<close> \<^const>\<open>NumericEffect\<close> and the
   \<open>fuel >= 1\<close> guard, over the certified reachable ops (a failing check would give \<^const>\<open>Inl\<close> of a
   diagnostic string instead).\<close>
-definition "my_grounded_num \<equiv> ground_via_cert_numeric_dfs_e (\<lambda>_. my_cert_num) my_problem_num"
+definition "my_grounded_num \<equiv> instantiate_all_actions_dfs_e (\<lambda>_. my_cert_num) my_problem_num"
 value "my_grounded_num"
 
 text \<open>The grounded (pre-STRIPS) action schemas themselves: each is nullary (empty parameters) and

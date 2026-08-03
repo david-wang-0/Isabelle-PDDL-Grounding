@@ -6,13 +6,13 @@
      <bin> plan   <domain.pddl> <problem.pddl> [t_max]
         -- run the verified planner `plan_by_cert_dfs`; prints a VAL-format plan.
      <bin> ground <domain.pddl> <problem.pddl>
-        -- run the verified numeric grounder `ground_via_cert_numeric_dfs`
+        -- run the verified numeric grounder `instantiate_all_actions_dfs`
            (up to, not including, the STRIPS conversion) and print the grounded
            PDDL problem via GroundedPddlPrinter.
 
    Both oracle outputs (Nemo certificate, SAT assignment) are re-checked inside
    the verified kernel, so a non-error answer is correct by theorem
-   (plan_by_cert_dfs_sound / ground_via_cert_numeric_dfs_eq). *)
+   (plan_by_cert_dfs_sound / instantiate_all_actions_dfs_eq). *)
 
 structure E = PDDL_SAT_Planner_Exported
 
@@ -152,14 +152,14 @@ fun doGround mode domFile probFile outOpt =
        NOT the fully-built ground-action-schema problem: the schema expansion is folded by
        the printer one action at a time (`problemToStreamOps`), so the ~10^6-action schema
        list is never materialized -- the peak-RSS bottleneck on action-list-bound domains.
-       Soundness is `ground_via_cert_numeric_*_stream_e_sound`: on `Inr ops`, building the
+       Soundness is `instantiate_all_actions_*_stream_e_sound`: on `Inr ops`, building the
        full problem from `ops` would equal the abstract certified grounding. *)
     val gres = Prof.time "ground_total"
                  (fn () => withNemo (fn () =>
                     (case mode of
-                        ChkDFS  => E.ground_via_cert_numeric_dfs_stream_e
-                      | ChkTopo => E.ground_via_cert_numeric_exec_stream_e
-                      | ChkGDFS => E.ground_via_cert_numeric_gdfs_stream_e)
+                        ChkDFS  => E.instantiate_all_actions_dfs_stream_e
+                      | ChkTopo => E.instantiate_all_actions_exec_stream_e
+                      | ChkGDFS => E.instantiate_all_actions_gdfs_stream_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in

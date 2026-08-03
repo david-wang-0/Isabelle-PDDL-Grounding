@@ -146,7 +146,7 @@ qed
 
 section \<open>Error-reporting propositional grounding (mirror of the numeric error-monad path)\<close>
 
-text \<open>The propositional twin of \<open>ground_via_cert_numeric_dfs_e\<close>: same error monad + \<open>return_iff\<close>
+text \<open>The propositional twin of \<open>instantiate_all_actions_dfs_e\<close>: same error monad + \<open>return_iff\<close>
   discipline, but grounding to the propositional \<^emph>\<open>PDDL\<close> problem \<^const>\<open>ground_by_cert\<close> (= \<open>P\<^sub>G_cert\<close>,
   numerics compiled away) rather than the fluent-retaining one. It gates on the \<^emph>\<open>full\<close>
   \<^const>\<open>grounding_checks_exec\<close> (which the propositional grounder needs) and reuses the abstract

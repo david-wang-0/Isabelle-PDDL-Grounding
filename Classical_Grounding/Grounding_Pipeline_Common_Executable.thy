@@ -111,7 +111,7 @@ subsection \<open>Grounding a problem against a certified fact list\<close>
 text \<open>Unconditional executable twin of \<^verbatim>\<open>P\<^sub>G_cert\<close>, replayed at the top level as a code-generable
   function keyed on the certified facts \<open>M\<close>. This is the \<^emph>\<open>propositional\<close> grounder
   (\<^const>\<open>grounder.ground_prob\<close>, numerics compiled away); the fluent-retaining twin
-  \<open>numeric_ground_by_cert\<close> lives with the numeric grounder.\<close>
+  \<open>instantiate_all_actions_by_cert\<close> lives with the numeric grounder.\<close>
 definition ground_by_cert where
   [code]: "ground_by_cert P M \<equiv>
      grounder.ground_prob (ast_classical_problem.P\<^sub>T P)
