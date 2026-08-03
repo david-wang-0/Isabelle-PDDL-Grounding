@@ -431,7 +431,7 @@ subsection \<open>Executable plan restoration for the numeric grounder\<close>
 
 text \<open>Numeric bridge for the shared \<^const>\<open>reconstruct_plan_by_cert_numeric\<close> (defined in
   \<^theory>\<open>Classical_Grounding.Grounding_Pipeline_Common_Executable\<close>): it equals the abstract
-  \<^const>\<open>ast_classical_problem.numeric_reconstruct_plan_ground_cert\<close> under the certificate conditions.\<close>
+  \<^const>\<open>ast_classical_problem.numeric_reconstruct_plan_varfree_cert\<close> under the certificate conditions.\<close>
 lemma reconstruct_plan_by_cert_numeric_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
       and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
@@ -439,7 +439,7 @@ lemma reconstruct_plan_by_cert_numeric_eq:
                    (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
                    (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
       and gc: "numeric_grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
-  shows "reconstruct_plan_by_cert_numeric P M \<pi>s = ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s"
+  shows "reconstruct_plan_by_cert_numeric P M \<pi>s = ast_classical_problem.numeric_reconstruct_plan_varfree_cert P M \<pi>s"
 proof -
   have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
     by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
@@ -447,7 +447,7 @@ proof -
     using gc unfolding numeric_grounding_checks_exec_eq[OF rx] .
   show ?thesis
     unfolding reconstruct_plan_by_cert_numeric_def
-              ast_classical_problem.numeric_reconstruct_plan_ground_cert_def[OF ne cert gc']
+              ast_classical_problem.numeric_reconstruct_plan_varfree_cert_def[OF ne cert gc']
               cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed
@@ -477,7 +477,7 @@ proof (elim instantiate_all_actions_dfs_e_InrE)
   have gc': "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     using gc unfolding numeric_grounding_checks_exec_eq[OF rx] .
   have "ast_classical_problem.valid_classical_plan2 P
-          (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
+          (ast_classical_problem.numeric_reconstruct_plan_varfree_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
           ast_classical_problem.varfree_inst_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
@@ -509,7 +509,7 @@ proof (elim instantiate_all_actions_exec_e_InrE)
   have gc': "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     using gc unfolding numeric_grounding_checks_exec_eq[OF rx] .
   have "ast_classical_problem.valid_classical_plan2 P
-          (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
+          (ast_classical_problem.numeric_reconstruct_plan_varfree_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
           ast_classical_problem.varfree_inst_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
@@ -541,7 +541,7 @@ proof (elim instantiate_all_actions_gdfs_e_InrE)
   have gc': "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
     using gc unfolding numeric_grounding_checks_exec_eq[OF rx] .
   have "ast_classical_problem.valid_classical_plan2 P
-          (ast_classical_problem.numeric_reconstruct_plan_ground_cert P M \<pi>s)"
+          (ast_classical_problem.numeric_reconstruct_plan_varfree_cert P M \<pi>s)"
     using vp[unfolded Pg_cert]
           ast_classical_problem.varfree_inst_cert_plan_reconstruct[OF ne cert gc' rp wf] by blast
   thus "ast_classical_problem.valid_classical_plan2 P
@@ -756,6 +756,352 @@ proof -
   have "instantiate_all_actions_by_cert P M = ast_classical_problem.numeric_P\<^sub>V_cert P M"
     by (rule instantiate_all_actions_by_cert_eq[OF rp wf ne cert gc])
   thus ?thesis using fMdc ops_eq by blast
+qed
+
+section \<open>Executable numeric grounding: the second (fold) stage as well\<close>
+
+text \<open>The \<^emph>\<open>fully grounded\<close> numeric entry points. Where \<^const>\<open>instantiate_all_actions_dfs_e\<close>
+  stops after the Variable_Freeness stage (nullary schemas, but ground atoms and \<open>fuel(c)\<close> PNEs
+  still present), these run the second stage too --- the fact/fluent fold --- and return a
+  \<^bold>\<open>fully grounded\<close> problem: nullary predicates naming the certified facts, nullary functions
+  naming the reachable ground fluents, and an initial state whose function assignments are stated
+  over those nullary functions.
+
+  The returned problem is exactly the existing one-shot executable grounder
+  \<^const>\<open>ground_by_cert\<close> --- which already computed the numeric fold, it just had no name at the
+  abstract level --- and equals the abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close>. The
+  gate is the \<^emph>\<open>separate\<close> \<^const>\<open>numeric_fold_checks_exec\<close>, so the shipped streaming CLI
+  (which keeps gating on \<^const>\<open>numeric_grounding_checks_exec\<close>) is untouched.
+
+  \<^bold>\<open>Status\<close>: the grounded output is proven \<^emph>\<open>well-formed\<close> (\<open>_wf\<close> below, via
+  \<open>numeric_wf_ground_cert_problem\<close>). Plan-existence equivalence and plan restoration are, for now,
+  available only for the \<^emph>\<open>instantiation\<close> (\<open>instantiate_all_actions_*_e_plan_valid_iff\<close> /
+  \<open>_plan_restore\<close>); carrying them across the fold under numerics is a follow-up.\<close>
+
+subsection \<open>The executable fold bridge\<close>
+
+lemma ground_by_cert_numeric_eq:
+  assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
+      and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+      and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+  shows "ground_by_cert P M = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have gcf: "normalized_problem_rx.numeric_fold_checks (ast_classical_problem.P\<^sub>T P) M"
+    using gc unfolding numeric_fold_checks_exec_eq[OF rx] .
+  have gcn: "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule ast_classical_problem.numeric_fold_checks_imp_grounding_checks[OF rx gcf])
+  show ?thesis
+    unfolding ground_by_cert_def
+              ast_classical_problem.numeric_P\<^sub>G_cert_ground_prob[OF ne cert gcn gcf rp wf]
+              cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
+    by (rule refl)
+qed
+
+text \<open>The fold gate subsumes the instantiation gate, so anything the grounded entry points accept
+  the instantiating ones accept too.\<close>
+lemma numeric_fold_checks_exec_imp_grounding_checks_exec:
+  assumes "numeric_fold_checks_exec N M"
+  shows "numeric_grounding_checks_exec N M"
+  using assms unfolding numeric_fold_checks_exec_def numeric_grounding_checks_exec_def by blast
+
+subsection \<open>DFS-founded grounded entry point\<close>
+
+definition ground_all_actions_dfs_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_problem" where
+  [code]: "ground_all_actions_dfs_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_dfs (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified DFS checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding fold well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'') (\<lambda>_. ground_by_cert P M))
+   }"
+
+lemma ground_all_actions_dfs_e_return_iff[return_iff]:
+  "ground_all_actions_dfs_e f P = Inr Pg \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> Pg = ground_by_cert P M))"
+  unfolding ground_all_actions_dfs_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+lemma ground_all_actions_dfs_e_InrE:
+  assumes "ground_all_actions_dfs_e f P = Inr Pg"
+  obtains M dc where
+    "f (dl_program_of P) = (M, dc)"
+    "ast_classical_problem.restrict_prob P"
+    "ast_classical_problem.wf_classical_problem P"
+    "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    "dl_certified_model
+       (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+       (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_all_actions_dfs_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_dfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg: "Pg = ground_by_cert P M"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_dfs_imp[OF certE])
+  have Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    using Pg ground_by_cert_numeric_eq[OF rp wf ne cert gc] by simp
+  show thesis by (rule that[OF fMdc rp wf ne cert gc Pg_cert])
+qed
+
+theorem ground_all_actions_dfs_e_sound:
+  assumes "ground_all_actions_dfs_e f P = Inr Pg"
+  shows "\<exists>M. Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  using assms by (elim ground_all_actions_dfs_e_InrE) blast
+
+theorem ground_all_actions_dfs_e_wf:
+  assumes "ground_all_actions_dfs_e f P = Inr Pg"
+  shows "ast_classical_problem.wf_classical_problem Pg"
+  using assms
+proof (elim ground_all_actions_dfs_e_InrE)
+  fix M dc
+  assume rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and cert: "dl_certified_model
+                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have gcf: "normalized_problem_rx.numeric_fold_checks (ast_classical_problem.P\<^sub>T P) M"
+    using gc unfolding numeric_fold_checks_exec_eq[OF rx] .
+  have gcn: "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule ast_classical_problem.numeric_fold_checks_imp_grounding_checks[OF rx gcf])
+  show "ast_classical_problem.wf_classical_problem Pg"
+    unfolding Pg_cert
+    by (rule ast_classical_problem.numeric_wf_ground_cert_problem[OF ne cert gcn gcf rp wf])
+qed
+
+subsection \<open>Ordered-scan grounded entry point\<close>
+
+text \<open>Verbatim mirror of \<^const>\<open>ground_all_actions_dfs_e\<close> with the ordered-scan certificate check
+  \<^const>\<open>dl_certified_model_exec\<close>.\<close>
+definition ground_all_actions_exec_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_problem" where
+  [code]: "ground_all_actions_exec_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_exec (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified ordered-scan checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding fold well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'') (\<lambda>_. ground_by_cert P M))
+   }"
+
+lemma ground_all_actions_exec_e_return_iff[return_iff]:
+  "ground_all_actions_exec_e f P = Inr Pg \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> Pg = ground_by_cert P M))"
+  unfolding ground_all_actions_exec_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+lemma ground_all_actions_exec_e_InrE:
+  assumes "ground_all_actions_exec_e f P = Inr Pg"
+  obtains M dc where
+    "f (dl_program_of P) = (M, dc)"
+    "ast_classical_problem.restrict_prob P"
+    "ast_classical_problem.wf_classical_problem P"
+    "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    "dl_certified_model
+       (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+       (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_all_actions_exec_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_exec (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg: "Pg = ground_by_cert P M"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_exec_imp[OF certE])
+  have Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    using Pg ground_by_cert_numeric_eq[OF rp wf ne cert gc] by simp
+  show thesis by (rule that[OF fMdc rp wf ne cert gc Pg_cert])
+qed
+
+theorem ground_all_actions_exec_e_sound:
+  assumes "ground_all_actions_exec_e f P = Inr Pg"
+  shows "\<exists>M. Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  using assms by (elim ground_all_actions_exec_e_InrE) blast
+
+theorem ground_all_actions_exec_e_wf:
+  assumes "ground_all_actions_exec_e f P = Inr Pg"
+  shows "ast_classical_problem.wf_classical_problem Pg"
+  using assms
+proof (elim ground_all_actions_exec_e_InrE)
+  fix M dc
+  assume rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and cert: "dl_certified_model
+                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have gcf: "normalized_problem_rx.numeric_fold_checks (ast_classical_problem.P\<^sub>T P) M"
+    using gc unfolding numeric_fold_checks_exec_eq[OF rx] .
+  have gcn: "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule ast_classical_problem.numeric_fold_checks_imp_grounding_checks[OF rx gcf])
+  show "ast_classical_problem.wf_classical_problem Pg"
+    unfolding Pg_cert
+    by (rule ast_classical_problem.numeric_wf_ground_cert_problem[OF ne cert gcn gcf rp wf])
+qed
+
+subsection \<open>Global-sweep DFS grounded entry point\<close>
+
+text \<open>Verbatim mirror of \<^const>\<open>ground_all_actions_dfs_e\<close> with the single-sweep certificate check
+  \<^const>\<open>dl_certified_model_gdfs\<close>.\<close>
+definition ground_all_actions_gdfs_e ::
+  "(dl_program \<Rightarrow> fact list \<times> (predicate, object) dl_certificate)
+     \<Rightarrow> ast_classical_problem \<Rightarrow> String.literal + ast_classical_problem" where
+  [code]: "ground_all_actions_gdfs_e f P \<equiv> do {
+     check (ast_classical_problem.restrict_prob P)
+           (STR ''input problem is outside the restricted (single-type) fragment'');
+     check (ast_classical_problem.wf_classical_problem P)
+           (STR ''input problem is not well-formed'');
+     let R = ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P);
+     let (M, dc) = f (dl_program_of P);
+     check (ast_classical_problem.const_names R \<noteq> [])
+           (STR ''relaxed problem has an empty object universe'');
+     check (time_it (STR ''check'')
+              (\<lambda>_. dl_certified_model_gdfs (dl_rules R) (ast_classical_problem.const_names R) M dc))
+           (STR ''reachability certificate rejected by the verified global-sweep DFS checker'');
+     check (time_it (STR ''gcheck'')
+              (\<lambda>_. numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M))
+           (STR ''grounding fold well-formedness checks failed'');
+     Error_Monad.return (time_it (STR ''enumerate'') (\<lambda>_. ground_by_cert P M))
+   }"
+
+lemma ground_all_actions_gdfs_e_return_iff[return_iff]:
+  "ground_all_actions_gdfs_e f P = Inr Pg \<longleftrightarrow>
+   (ast_classical_problem.restrict_prob P
+    \<and> ast_classical_problem.wf_classical_problem P
+    \<and> (case f (dl_program_of P) of (M, dc) \<Rightarrow>
+         ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []
+         \<and> dl_certified_model_gdfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+              (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc
+         \<and> numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M
+         \<and> Pg = ground_by_cert P M))"
+  unfolding ground_all_actions_gdfs_e_def
+  by (auto simp: return_iff Let_def split: prod.splits)
+
+lemma ground_all_actions_gdfs_e_InrE:
+  assumes "ground_all_actions_gdfs_e f P = Inr Pg"
+  obtains M dc where
+    "f (dl_program_of P) = (M, dc)"
+    "ast_classical_problem.restrict_prob P"
+    "ast_classical_problem.wf_classical_problem P"
+    "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    "dl_certified_model
+       (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+       (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+proof -
+  obtain M dc where fMdc: "f (dl_program_of P) = (M, dc)" by (cases "f (dl_program_of P)")
+  from assms[unfolded ground_all_actions_gdfs_e_return_iff] fMdc
+  have rp: "ast_classical_problem.restrict_prob P"
+    and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and certE: "dl_certified_model_gdfs (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))
+                  (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg: "Pg = ground_by_cert P M"
+    by (auto split: prod.splits)
+  have cert: "dl_certified_model
+                (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    by (rule dl_certified_model_gdfs_imp[OF certE])
+  have Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+    using Pg ground_by_cert_numeric_eq[OF rp wf ne cert gc] by simp
+  show thesis by (rule that[OF fMdc rp wf ne cert gc Pg_cert])
+qed
+
+theorem ground_all_actions_gdfs_e_sound:
+  assumes "ground_all_actions_gdfs_e f P = Inr Pg"
+  shows "\<exists>M. Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  using assms by (elim ground_all_actions_gdfs_e_InrE) blast
+
+theorem ground_all_actions_gdfs_e_wf:
+  assumes "ground_all_actions_gdfs_e f P = Inr Pg"
+  shows "ast_classical_problem.wf_classical_problem Pg"
+  using assms
+proof (elim ground_all_actions_gdfs_e_InrE)
+  fix M dc
+  assume rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
+    and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+    and cert: "dl_certified_model
+                 (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                 (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+    and gc: "numeric_fold_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+    and Pg_cert: "Pg = ast_classical_problem.numeric_P\<^sub>G_cert P M"
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have gcf: "normalized_problem_rx.numeric_fold_checks (ast_classical_problem.P\<^sub>T P) M"
+    using gc unfolding numeric_fold_checks_exec_eq[OF rx] .
+  have gcn: "normalized_problem_rx.numeric_grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    by (rule ast_classical_problem.numeric_fold_checks_imp_grounding_checks[OF rx gcf])
+  show "ast_classical_problem.wf_classical_problem Pg"
+    unfolding Pg_cert
+    by (rule ast_classical_problem.numeric_wf_ground_cert_problem[OF ne cert gcn gcf rp wf])
 qed
 
 end

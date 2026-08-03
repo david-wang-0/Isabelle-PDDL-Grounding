@@ -7,8 +7,12 @@ begin
 section \<open>SML code export (default): DFS-founded planner + numeric grounder\<close>
 
 text \<open>\<^bold>\<open>The default SML export of the session\<close> (the only active \<open>export_files\<close> in \<open>./ROOT\<close>): the
-  \<^emph>\<open>STRIPS\<close> DFS planner \<^const>\<open>plan_by_cert_dfs\<close> (for the SAT-based planner) and the \<^emph>\<open>numeric\<close> DFS
-  error-monad grounder \<^const>\<open>instantiate_all_actions_dfs_e\<close> (for the grounded-PDDL printer),
+  \<^emph>\<open>STRIPS\<close> DFS planner \<^const>\<open>plan_by_cert_dfs\<close> (for the SAT-based planner), the \<^emph>\<open>numeric\<close> DFS
+  error-monad \<^emph>\<open>instantiation\<close> \<^const>\<open>instantiate_all_actions_dfs_e\<close> (for the grounded-PDDL
+  printer) and the \<^emph>\<open>fully grounded\<close> numeric twins \<^const>\<open>ground_all_actions_dfs_e\<close> /
+  \<^const>\<open>ground_all_actions_exec_e\<close> / \<^const>\<open>ground_all_actions_gdfs_e\<close> (which additionally run
+  the fact/fluent fold; not used by the shipped \<open>ground\<close> command, whose output must stay
+  byte-identical),
   foundedness in both discharged by the verified directed-cycle DFS \<^const>\<open>dl_acyclic_dfs\<close> rather than
   the ordered linear scan. This drags the graph-library RBT / \<^const>\<open>find_dircycle\<close> code into the
   export alongside the PDDL planner code. Regenerate with \<open>isabelle build -e Classical_Grounding\<close> (the
@@ -21,6 +25,7 @@ export_code
   plan_by_cert_dfs ground_via_cert'_dfs ground_via_cert_dfs
   instantiate_all_actions_dfs_e instantiate_all_actions_exec_e instantiate_all_actions_gdfs_e
   instantiate_all_actions_dfs_stream_e instantiate_all_actions_exec_stream_e instantiate_all_actions_gdfs_stream_e
+  ground_all_actions_dfs_e ground_all_actions_exec_e ground_all_actions_gdfs_e
   ast_classical_problem.P\<^sub>T cert_ops_of_exec_fast canon ast_classical_problem.varfree_inst_ac
   varfree.op_names
   ground_via_cert_prop_dfs_e

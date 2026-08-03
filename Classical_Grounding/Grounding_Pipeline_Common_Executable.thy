@@ -106,6 +106,35 @@ definition numeric_grounding_checks_exec where
   [code]: "numeric_grounding_checks_exec N M \<equiv>
      (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M). ast_classical_problem.wf_classical_plan_action N \<pi>)"
 
+text \<open>The \<^emph>\<open>fold\<close> re-check: executable twin of
+  \<^const>\<open>normalized_problem_rx.numeric_fold_checks\<close>, gating the \<^emph>\<open>fully grounded\<close> numeric entry
+  points. It is \<^const>\<open>grounding_checks_exec\<close> with the two numeric-freeness conjuncts replaced by
+  their \<^const>\<open>covered_num\<close> counterparts (preconditions, goal, and --- the extra obligation the
+  problem level needs --- every initial-state formula), all measured against the ops-derived
+  fluent list \<^term>\<open>grounder.fluents N (canon (cert_ops_of_exec_fast N M))\<close>. It does \<^bold>\<open>not\<close>
+  replace \<^const>\<open>numeric_grounding_checks_exec\<close>: the shipped streaming CLI keeps gating on that
+  one, so its acceptance behaviour is unchanged.\<close>
+definition numeric_fold_checks_exec where
+  [code]: "numeric_fold_checks_exec N M \<equiv>
+     (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M). ast_classical_problem.wf_classical_plan_action N \<pi>)
+   \<and> (\<forall>a \<in> set (cert_facts_of_exec N M).
+        domain_signature.wf_fmla_atom (types (domain N)) (predicates (domain N))
+          (problem_signature.objT (consts (domain N)) (objects N)) a)
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M).
+        let eff = ground_action.effect (the (simple_action_instantiations.res_inst
+                    (ast_classical_domain.resolve_classical_action_schema (domain N))
+                    instantiate_classical_action_schema \<pi>))
+        in \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> (cert_facts_of_exec N M))
+   \<and> (\<forall>\<pi> \<in> set (cert_ops_of_exec_fast N M).
+        covered_num (ground_action.precondition (the (simple_action_instantiations.res_inst
+                   (ast_classical_domain.resolve_classical_action_schema (domain N))
+                   instantiate_classical_action_schema \<pi>)))
+          (cert_facts_of_exec N M) (grounder.fluents N (canon (cert_ops_of_exec_fast N M))))
+   \<and> covered_num (goal N) (cert_facts_of_exec N M)
+        (grounder.fluents N (canon (cert_ops_of_exec_fast N M)))
+   \<and> (\<forall>f \<in> set (init N). covered_num f (cert_facts_of_exec N M)
+        (grounder.fluents N (canon (cert_ops_of_exec_fast N M))))"
+
 subsection \<open>Grounding a problem against a certified fact list\<close>
 
 text \<open>Unconditional executable twin of \<^verbatim>\<open>P\<^sub>G_cert\<close>, replayed at the top level as a code-generable
@@ -132,7 +161,7 @@ declare ast_classical_problem.reconstruct_plan_norm_def[code]
 subsection \<open>Grounded-plan restoration (no STRIPS prefix; shared by both grounders)\<close>
 
 text \<open>Executable twin of the abstract reconstructors \<^const>\<open>ast_classical_problem.reconstruct_plan_ground_cert\<close>
-  (propositional) and \<open>ast_classical_problem.numeric_reconstruct_plan_ground_cert\<close> (numeric, downstream):
+  (propositional) and \<open>ast_classical_problem.numeric_reconstruct_plan_varfree_cert\<close> (numeric, downstream):
   a plan of a grounded PDDL problem is restored to a plan of the original \<open>P\<close> by undoing grounding
   (\<^const>\<open>varfree.restore_ground_plan\<close>) \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization. Unlike the STRIPS
   \<open>reconstruct_plan_by_cert\<close> there is no \<open>restore_prefix\<close> step: the input is already a grounded-problem
@@ -222,6 +251,14 @@ lemma numeric_grounding_checks_exec_eq:
   shows "numeric_grounding_checks_exec N M = normalized_problem_rx.numeric_grounding_checks N M"
   unfolding numeric_grounding_checks_exec_def normalized_problem_rx.numeric_grounding_checks_def[OF assms]
             cert_ops_of_exec_fast_set_abs[OF assms] cert_facts_of_exec_eq[OF assms]
+  by (rule refl)
+
+lemma numeric_fold_checks_exec_eq:
+  assumes "normalized_problem_rx N"
+  shows "numeric_fold_checks_exec N M = normalized_problem_rx.numeric_fold_checks N M"
+  unfolding numeric_fold_checks_exec_def normalized_problem_rx.numeric_fold_checks_def[OF assms]
+            cert_ops_of_exec_fast_set_abs[OF assms] cert_facts_of_exec_eq[OF assms]
+            cert_ops_of_exec_fast_canon_eq[OF assms]
   by (rule refl)
 
 text \<open>The three side conditions of the certified-grounding context, discharged from executable

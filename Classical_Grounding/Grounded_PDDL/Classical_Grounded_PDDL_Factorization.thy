@@ -16,7 +16,13 @@ text \<open>The propositional grounder \<^const>\<open>grounder.ground_prob\<clo
 
 subsection \<open>The plan-action bridge: zip pairs and \<open>res_inst\<close> transfer\<close>
 
-context wf_grounder_cov
+text \<open>This bridge --- and the factorization equality it feeds --- needs \<^emph>\<open>no\<close> coverage
+  assumptions, only the \<open>res_inst\<close> transfer of the Variable_Freeness stage, so it lives in
+  \<^locale>\<open>grounder_inst\<close> (\<^locale>\<open>grounder\<close> + \<^locale>\<open>varfree_instantiator\<close>). Every
+  \<^locale>\<open>wf_grounder_cov\<close> context inherits it, and the \<^emph>\<open>numeric\<close> pipeline --- which only ever
+  establishes \<^locale>\<open>varfree_instantiator\<close> --- can use it too.\<close>
+
+context grounder_inst
 begin
 
 text \<open>Each index of the reachable-op list pairs the op with its generated name, and the
@@ -70,7 +76,12 @@ lemma png_op_fluents_ac_pa:
   shows "png.op_fluents (ac_pa (varfree_inst_ac \<pi> n)) = op_fluents \<pi>"
   unfolding png.op_fluents_def op_fluents_def resinst_ac_pa[OF assms] ..
 
+end
+
 subsection \<open>Well-formedness of the derived fluents\<close>
+
+context wf_grounder_cov
+begin
 
 text \<open>Every fluent enumerated from a reachable op's instantiated ground action is well-formed
   under \<^const>\<open>objT\<close>: the precondition and effect are well-formed (\<open>wf_ops_resinst\<close>), and the
@@ -163,7 +174,7 @@ proof (unfold_locales)
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" unfolding ri .
   qed
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      covered (precondition (the (png.res_inst (ac_pa a)))) facts"
+      covered_num (precondition (the (png.res_inst (ac_pa a)))) facts fluents"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
     hence "a \<in> set (actions varfree_inst_dom)" by simp
@@ -173,10 +184,10 @@ proof (unfold_locales)
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
     have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
-    show "covered (precondition (the (png.res_inst (ac_pa a)))) facts"
-      unfolding ri using pres_covered pi by blast
+    show "covered_num (precondition (the (png.res_inst (ac_pa a)))) facts fluents"
+      unfolding ri using pres_covered_num pi by blast
   qed
-  show "covered (goal varfree_inst_prob) facts" using goal_covered by simp
+  show "covered_num (goal varfree_inst_prob) facts fluents" using goal_covered_num by simp
   show "distinct fluents" unfolding fluents_def by simp
   show "\<forall>fl \<in> set fluents. png.wf_primitive_numeric_expression png.objT fl"
     unfolding varfree_png_wf_pne varfree_png_objT using fluents_wf_orig by blast
@@ -199,7 +210,7 @@ qed
 
 subsection \<open>The factorization equality\<close>
 
-context wf_grounder_cov
+context grounder_inst
 begin
 
 text \<open>Pointwise: folding a variable-free grounded schema yields exactly the one-shot grounded
@@ -258,6 +269,21 @@ text \<open>At \<^locale>\<open>wf_grounder\<close> strength the folder's two pr
   refining the \<open>ff\<close> interpretation to \<^locale>\<open>wf_fact_folder\<close>.\<close>
 sublocale wf_grounder \<subseteq> ff: wf_fact_folder varfree_inst_prob facts fluents
 proof (unfold_locales)
+  show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
+      covered (precondition (the (png.res_inst (ac_pa a)))) facts"
+  proof
+    fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+    hence "a \<in> set (actions varfree_inst_dom)" by simp
+    then obtain \<pi> n where
+      a: "a = varfree_inst_ac \<pi> n"
+      and pi: "\<pi> \<in> set ops"
+      and n: "op_map_inv \<pi> = Some n"
+      using vg_acs_obtain by metis
+    have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
+    show "covered (precondition (the (png.res_inst (ac_pa a)))) facts"
+      unfolding ri using pres_covered pi by blast
+  qed
+  show "covered (goal varfree_inst_prob) facts" using goal_covered by simp
   show "\<forall>f \<in> set (init varfree_inst_prob). is_predAtom f" using init_props by simp
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
       numeric_effects (effect (the (png.res_inst (ac_pa a)))) = []"
@@ -274,6 +300,27 @@ proof (unfold_locales)
       unfolding ri using ops_no_num pi by blast
   qed
 qed
+
+subsection \<open>The numeric folder layer\<close>
+
+text \<open>At \<^locale>\<open>wf_grounder_num\<close> strength the folder's extra numeric obligation is literally
+  \<open>init_covered_num\<close> --- the variable-free problem keeps \<open>P\<close>'s initial state verbatim --- so the
+  \<open>ff\<close> interpretation refines to \<^locale>\<open>wf_fact_folder_num\<close>, and the one-shot grounder's
+  \<^emph>\<open>numeric\<close> problem well-formedness is the folder's, rewritten through the factorization
+  equality. This is the theorem that makes the folded numeric product a proper pipeline stage: the
+  grounded problem retains nullary function declarations and function assignments, and is
+  well-formed.\<close>
+sublocale wf_grounder_num \<subseteq> ff: wf_fact_folder_num varfree_inst_prob facts fluents
+proof (unfold_locales)
+  show "\<forall>f \<in> set (init varfree_inst_prob). covered_num f facts fluents"
+    using init_covered_num by simp
+qed
+
+theorem (in wf_grounder_num) ground_prob_wf_num: "pg.wf_classical_problem"
+  using ff.fold_prob_wf_num unfolding ground_prob_factors .
+
+sublocale wf_grounder_num \<subseteq> pg: grounded_problem P\<^sub>G
+  using ground_prob_wf_num ground_prob_grounded by unfold_locales
 
 subsection \<open>The grounder's theorems, re-derived through the factorization\<close>
 

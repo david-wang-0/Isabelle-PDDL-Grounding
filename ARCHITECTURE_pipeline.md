@@ -45,7 +45,8 @@ each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md
 | Reachability certificate kernel (PDDL-specific) | session `Classical_Reachability_Analysis`: `Classical_PDDL_Reachability_{Locales,Analysis,Certificate}.thy` (+ shared infra in `Classical_Reachability_Analysis.thy`) | 0 sorry |
 | Generic positive-datalog certificate kernel + evaluator | session `Datalog_Certification` (`Grounding_Common/Datalog/`): `Datalog_Certificate.thy`, `Datalog_Evaluation.thy` | 0 sorry |
 | Grounder (propositional) | `Classical_Grounded_PDDL` | fully proven |
-| Numeric-fluent-retaining grounder | `Numeric_Grounder.thy` (`numeric_ground_prob`) | wf + plan-preservation proven, 0 sorry |
+| Numeric stage 1: variable-free instantiation | `Classical_Variable_Freeness` (`varfree.varfree_inst_prob`) | wf + plan-preservation proven, 0 sorry |
+| Numeric stage 2: fact/fluent fold (fully grounded) | `Classical_Grounded_PDDL` (`fact_folder.fold_prob` at `wf_fact_folder_num` / `wf_grounder_num`) | wf proven, 0 sorry; plan-equivalence open (follow-up) |
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`instantiate_all_actions_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
@@ -73,12 +74,20 @@ diverges only at the grounder; it stops at grounded PDDL (no STRIPS conversion, 
    │                       │     • relax_eff / relax_prob drop numeric effects + init assignments
    │                       └─dl_program_of─► Nemo (untrusted) ─► (M, dc), re-checked as on the STRIPS path
    ▼
- numeric_ground  (wf_grounder_num, targets P_T; each reachable op π grounds to a NULLARY schema whose
-   │              body is the term.CONST-lift of the instantiated ground action res_inst π — parameters
-   │              are substituted, atoms are NOT propositionalised, so the numerics stay put)
+ STAGE 1  varfree_inst_prob  (varfree_instantiator, targets P_T; each reachable op π instantiates to a
+   │              NULLARY schema whose body is the term.CONST-lift of the instantiated ground action
+   │              res_inst π — parameters are substituted, atoms are NOT propositionalised, so the
+   │              numerics stay put)                       ⇒ numeric_P_V_cert
    ▼
- grounded nullary PDDL that RETAINS the fluent — STOPS here:
-   (:functions (fuel …)); each grounded drive keeps its (>= (fuel c) 1) guard + (decrease (fuel c) 1) effect
+ nullary-schema PDDL that RETAINS the fluent, with ground atoms and fuel(c) PNEs still present
+   │
+   │  STAGE 2  fold_prob  (wf_grounder_num / wf_fact_folder_num: re-index the ground atoms onto fresh
+   │              nullary predicates and the ground fluents onto fresh nullary functions,
+   │              fuel(c1) ↦ fuel_c1_0)                    ⇒ numeric_P_G_cert
+   ▼
+ FULLY GROUNDED nullary PDDL that RETAINS the fluent — STOPS here:
+   (:functions (fuel_c1_0) …); each grounded drive keeps its (>= (fuel_c1_0) 1) guard +
+   (decrease (fuel_c1_0) 1) effect, and init keeps (= (fuel_c1_0) 10)
 ```
 
 **Why the two halves can disagree about numerics.** The lossiness lives where it is *sound*:
@@ -90,25 +99,44 @@ diverges only at the grounder; it stops at grounded PDDL (no STRIPS conversion, 
   `relax_prob` leaves the datalog's derivable facts unchanged. This is the cheap, correct place to make
   `P_R` numeric-free for the datalog while `P_T` stays faithful.
 
-**Verification.** `numeric_ground_ac π n` lifts `res_inst π` via `term.CONST`; the linchpin
-`numeric_ground_ac_inst` shows that instantiating the nullary schema at `[]` undoes the lift and recovers
-`res_inst π` exactly — so the grounded problem executes each op identically to `P_T` (same world model,
-same numeric effects). That yields well-formedness (`numeric_ground_prob_wf`) and plan-preservation
-(`numeric_valid_classical_plan_iff`), both `0 sorry`.
+**Verification (stage 1).** `varfree_inst_ac π n` lifts `res_inst π` via `term.CONST`; the linchpin
+`varfree_inst_ac_inst` shows that instantiating the nullary schema at `[]` undoes the lift and recovers
+`res_inst π` exactly — so the instantiated problem executes each op identically to `P_T` (same world model,
+same numeric effects). That yields well-formedness (`varfree_inst_prob_wf`) and plan-preservation
+(`varfree_valid_classical_plan_iff`), both `0 sorry`.
+
+**Verification (stage 2).** The fold re-indexes atoms *and* fluents, so its coverage obligation is the
+**numeric-permissive** `covered_num` (`Grounding_Common/Grounded_PDDL/Grounded_PDDL.thy`): a numeric atom
+is admissible as long as every ground fluent in it is one of the reachable `fluents` (`facts_covered` /
+`fluents_covered` are its two named halves, with `covered_numI/E/D` reaching element level). The folded
+problem's well-formedness is `wf_fact_folder_num.fold_prob_wf_num`, lifted to the one-shot grounder as
+`wf_grounder_num.ground_prob_wf_num` through the factorization `ground_prob_factors`, and to the pipeline
+as `numeric_wf_ground_cert_problem`. **Plan-equivalence across the fold is not yet proven under
+numerics** — it holds for stage 1 only (`varfree_inst_cert_plan_valid_iff` /
+`varfree_inst_cert_plan_reconstruct`); the fold's state relation must rename the numeric component
+(`snd M`) rather than carry it unchanged, which is a scheduled follow-up.
 
 **Locale plumbing.** The propositional grounder's `covered` re-check rejects numeric atoms outright, and
-the numeric grounder needs none of the facts/coverage obligations, so `wf_grounder_num` is the **minimal**
-locale (`wf_problem`, `ops_dist`, `all_ops`, `ops_wf` only); `wf_grounder` adds the coverage/facts and
-numeric-freeness assumptions for the propositional path. On the certificate side,
-`certified_reachability_num` (interprets `wf_grounder_num`, discharging only the single decidable check
-`numeric_grounding_checks` = "every certified op is a well-formed plan action") is a **sibling** of
-`certified_reachability` (interprets the full `wf_grounder`) — neither extends the other, so the
-propositional STRIPS pipeline keeps `cr.wfg.ground_prob` verbatim.
+stage 1 needs none of the facts/coverage obligations, so `varfree_instantiator` is the **minimal**
+locale (`wf_problem`, `ops_dist`, `all_ops`, `ops_wf` only). `grounder_inst` = `grounder` +
+`varfree_instantiator` (no new assumptions) carries the factorization; `wf_grounder_cov` adds the
+`covered`/`covered_num` coverage layer on top of it; `wf_grounder` re-asserts the *strong* `covered`
+coverage plus the numeric-freeness assumptions for the propositional path, while `wf_grounder_num` adds
+only `init_covered_num` (every init formula is `covered_num`) for the folded numeric path. On the
+certificate side there are **three siblings**, none extending another (which would deduplicate the
+shared `grounder` interpretation): `certified_reachability_num` (interprets `varfree_instantiator`, one
+decidable check `numeric_grounding_checks`), `certified_reachability_fold_num` (interprets
+`wf_grounder_num`, check `numeric_fold_checks`) and `certified_reachability` (interprets the full
+`wf_grounder`, check `grounding_checks`) — so the propositional STRIPS pipeline keeps
+`cr.wfg.ground_prob` verbatim.
 
-**Executable + demo.** `instantiate_all_actions_dfs` gates on the weaker `numeric_grounding_checks_exec`
-(so a task whose reachable ops still carry numeric effects passes) and calls the fluent grounder;
-`Running_Example_Numeric.thy` evaluates the whole chain in-Isabelle on a `fuel` fluent. The exported SML
-binary's `ground` subcommand (top-level `SMLCodebase/`) prints the grounded, fluent-retaining PDDL:
+**Executable + demo.** `instantiate_all_actions_{dfs,exec,gdfs}_e` (and their `_stream_e` twins, which
+the shipped `ground` command calls) gate on the weaker `numeric_grounding_checks_exec` and return the
+stage-1 instantiation; `ground_all_actions_{dfs,exec,gdfs}_e` gate on the strictly stronger
+`numeric_fold_checks_exec` and return the fully grounded stage-2 problem (`_wf` corollaries prove it
+well-formed). The shipped CLI's acceptance behaviour and output are unchanged.
+`Running_Example_Numeric.thy` evaluates both stages in-Isabelle on a `fuel` fluent. The exported SML
+binary's `ground` subcommand (top-level `SMLCodebase/`) prints the stage-1, fluent-retaining PDDL:
 `bin/pddl_ground_planner_dfs ground examples/running_example_numeric/{domain,problem}.pddl`.
 
 ## Trust story

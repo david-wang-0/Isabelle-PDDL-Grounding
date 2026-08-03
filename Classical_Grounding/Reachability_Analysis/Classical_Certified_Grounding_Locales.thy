@@ -393,6 +393,30 @@ definition numeric_grounding_checks :: "fact list \<Rightarrow> bool" where
   "numeric_grounding_checks M \<equiv>
      (\<forall>\<pi> \<in> set (cert_ops_of M). wf_classical_plan_action \<pi>)"
 
+text \<open>The \<^emph>\<open>fold\<close> re-check: what the numeric grounder needs on top of
+  \<^const>\<open>numeric_grounding_checks\<close> in order to run the \<^emph>\<open>second\<close> stage (the fact/fluent fold)
+  as well, i.e. to produce a well-formed fully grounded (nullary) numeric problem. It is
+  \<open>grounding_checks\<close> below with the two numeric-freeness conjuncts (\<open>init_props\<close>, \<open>ops_no_num\<close>)
+  replaced by their numeric-permissive counterparts: preconditions, goal \<^bold>\<open>and\<close> the initial state
+  are checked with \<^const>\<open>covered_num\<close> against the certified facts and the ops-derived fluents.
+
+  The last conjunct is not derivable: \<^const>\<open>grounder.fluents\<close> is enumerated from the reachable
+  \<^emph>\<open>ops\<close>, so an initial assignment to a fluent that no reachable op mentions would have no
+  nullary name to fold onto --- it is checked here rather than by widening the fluent list (which
+  would perturb every generated fluent name). Note the arity: \<^const>\<open>grounder.fluents\<close> takes
+  \<open>(P, ops)\<close>; the \<open>facts\<close> parameter is dropped because its body does not use it.\<close>
+definition numeric_fold_checks :: "fact list \<Rightarrow> bool" where
+  "numeric_fold_checks M \<equiv>
+     (\<forall>\<pi> \<in> set (cert_ops_of M). wf_classical_plan_action \<pi>) \<and>
+     (\<forall>a \<in> set (cert_facts_of M). px.wf_fmla_atom px.objT a) \<and>
+     (\<forall>\<pi> \<in> set (cert_ops_of M). let eff = effect (the (res_inst \<pi>))
+        in \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> (cert_facts_of M)) \<and>
+     (\<forall>\<pi> \<in> set (cert_ops_of M). covered_num (precondition (the (res_inst \<pi>)))
+        (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M)))) \<and>
+     covered_num (goal P) (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M))) \<and>
+     (\<forall>f \<in> set (init P).
+        covered_num f (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M))))"
+
 definition grounding_checks :: "fact list \<Rightarrow> bool" where
   "grounding_checks M \<equiv>
      (\<forall>a \<in> set (cert_facts_of M). px.wf_fmla_atom px.objT a) \<and>
@@ -439,6 +463,19 @@ text \<open>The numeric-fluent-retaining grounding-input locale: the shared base
   \<^locale>\<open>wf_grounder\<close>.\<close>
 locale certified_reachability_num = certified_reachability_base +
   assumes grounding_cert_num: "numeric_grounding_checks M"
+
+text \<open>The \<^emph>\<open>folded\<close> numeric grounding-input locale: the shared base plus the numeric-permissive
+  coverage re-checks (\<open>numeric_fold_checks\<close>). It interprets \<^locale>\<open>wf_grounder_num\<close>, i.e.
+  both pipeline stages --- the variable-free instantiation \<^emph>\<open>and\<close> the fact/fluent fold --- so its
+  product is the fully grounded (nullary) numeric problem.
+
+  \<^bold>\<open>It must extend \<^locale>\<open>certified_reachability_base\<close> only\<close>, as a sibling of
+  \<^locale>\<open>certified_reachability_num\<close> and \<open>certified_reachability\<close>: were it to extend
+  either, one locale would interpret \<^locale>\<open>wf_grounder\<close>/\<^locale>\<open>varfree_instantiator\<close> and
+  \<^locale>\<open>wf_grounder_num\<close> at the same parameters, which deduplicates the shared \<open>grounder\<close>
+  interpretation.\<close>
+locale certified_reachability_fold_num = certified_reachability_base +
+  assumes grounding_cert_fold_num: "numeric_fold_checks M"
 
 text \<open>The propositional grounding-input locale: the shared base plus the full \<open>grounding_checks\<close>
   (the five coverage checks \<^emph>\<open>and\<close> the two numeric-freeness checks). It interprets the full

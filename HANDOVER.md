@@ -20,6 +20,32 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
 ## Open work
 
+- **DONE (tiers 1+2, 0 `sorry`) — the numeric pipeline now has a real *grounded* output, not just
+  the variable-free instantiation.** Honest names first: the stage-1 (variable-free) product is
+  `numeric_P⇩V_cert` with executable entry points `instantiate_all_actions_{dfs,exec,gdfs}[_stream]_e`
+  (the shipped `ground` CLI keeps calling the `_stream_e` ones, gate + output unchanged), and its wf /
+  restore theorems are `numeric_wf_varfree_cert_problem` / `numeric_reconstruct_plan_varfree_cert`.
+  The freed name `numeric_P⇩G_cert` now denotes the **stage-2** product: stage 1 composed with the
+  fact/fluent fold `fact_folder.fold_prob`, i.e. the fully grounded nullary problem (nullary
+  predicates for the certified facts, nullary functions `fuel_c1_0` for the reachable fluents,
+  folded init assignments). Executable entry points `ground_all_actions_{dfs,exec,gdfs}_e` (gated by
+  the new `numeric_fold_checks[_exec]`, `_return_iff`/`_InrE`/`_sound`/`_wf`), exported from
+  `Planner_Export.thy`. Verification scaffolding: numeric-permissive coverage `covered_num` (+
+  `facts_covered`/`fluents_covered` halves and intro/elim/dest rules) in
+  `Grounding_Common/Grounded_PDDL/Grounded_PDDL.thy`; `wf_fact_folder_cov`/`wf_grounder_cov` weakened
+  to `covered_num` with the strong `covered` re-asserted under the same names one level up in
+  `wf_fact_folder`/`wf_grounder`; new `wf_fact_folder_num`/`wf_grounder_num` and the sibling
+  `certified_reachability_fold_num` (**must** extend `certified_reachability_base` only, else the
+  `grounder` interpretation deduplicates); factorization block moved into the new assumption-free
+  `grounder_inst` locale. Pipeline theorem `numeric_wf_ground_cert_problem`.
+  **OPEN (tier 3, follow-up): plan equivalence across the fold under numerics.** The whole
+  `wf_fact_folder` semantics chain carries `snd M` unchanged; with fluents it must carry a renaming
+  (`fold_nstate`, inverting `ground_pne` on `fluents`). ~22 obligations, two of them hard:
+  `numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') =
+  fold_nstate (numeric_update_function ne N N')` and the `action_numeric_update_function`
+  (`fold (∘)` over the effect list) commutation. Until then the grounded numeric output is proven
+  well-formed but plan-equivalence is available for the *instantiation* only. Plan:
+  `/tmp/plan_numeric_grounded_output.md` §Tier 3.
 - **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
   bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
   still *theorems* (no new locale assumptions, no gate checks). The machinery lives in

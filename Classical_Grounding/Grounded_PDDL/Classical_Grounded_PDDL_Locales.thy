@@ -207,33 +207,69 @@ definition ground_prob :: "ast_classical_problem" where
 end
 
 
+text \<open>The \<^emph>\<open>instantiating\<close> grounder: the one-shot grounder's parameters
+  (\<^locale>\<open>grounder\<close>) together with the Variable_Freeness stage's \<^emph>\<open>minimal\<close> obligations
+  (\<^locale>\<open>varfree_instantiator\<close>) and \<^bold>\<open>no coverage assumptions at all\<close>. This is exactly the layer at
+  which the factorization \<open>ground_prob_factors\<close>
+  (\<open>Classical_Grounded_PDDL_Factorization\<close>) lives: folding the variable-free instantiation
+  reproduces the one-shot grounded problem \<^emph>\<open>syntactically\<close>, which needs only the \<open>res_inst\<close>
+  transfer, never coverage. Keeping the factorization here --- rather than in
+  \<open>wf_grounder_cov\<close> --- is what lets the numeric pipeline, which has only
+  \<^locale>\<open>varfree_instantiator\<close>, name its folded product as the composite of the two stages.\<close>
+locale grounder_inst = grounder + varfree_instantiator
+
+text \<open>The fact folder at the variable-free problem, with the grounder's own \<open>facts\<close>/\<open>fluents\<close>.
+  \<^locale>\<open>fact_folder\<close> is assumption-free, so this interpretation costs nothing here;
+  \<open>wf_grounder_cov\<close> strengthens the \<^emph>\<open>same\<close> \<open>ff\<close> interpretation to
+  \<open>wf_fact_folder_cov\<close>.\<close>
+sublocale grounder_inst \<subseteq> ff: fact_folder varfree_inst_prob facts fluents .
+
 text \<open>Some of these may follow from one another\<close>
 
-text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>varfree_instantiator\<close> plus a reachable \<open>facts\<close> list that is
+text \<open>The \<^emph>\<open>covered\<close> numeric grounder: \<^locale>\<open>grounder_inst\<close> plus a reachable \<open>facts\<close> list that is
   well-formed and covers every op's precondition/effect predicate atoms and the goal, so the shared
   \<open>ground_fmla\<close> / \<open>ga_eff\<close> re-indexing of \<^emph>\<open>predicate\<close> atoms onto nullary \<open>predAtm\<close>s
   is faithful. Numeric atoms/effects are \<^emph>\<open>allowed\<close> here (they re-index onto nullary fluents); this
-  is the layer at which the nullary-fluent-retaining grounded problem \<open>ground_prob\<close> lives.\<close>
-locale wf_grounder_cov = grounder + varfree_instantiator +
+  is the layer at which the nullary-fluent-retaining grounded problem \<open>ground_prob\<close> lives, so the
+  precondition/goal coverage obligations are the \<^emph>\<open>numeric-permissive\<close> \<^const>\<open>covered_num\<close>
+  (a numeric atom is fine as long as its ground fluents are in \<open>fluents\<close>). The effect
+  add/delete literals stay at the strong \<^const>\<open>covered\<close>: they are \<open>wf_fmla_atom\<close>s, hence always
+  predicate atoms.\<close>
+locale wf_grounder_cov = grounder_inst +
   assumes
     facts_dist: "distinct facts" and
     all_facts: "fact_to_facty ` {a. achievable a} \<subseteq> set facts" and
     facts_wf: "\<forall>a \<in> set facts. wf_fmla_atom objT a" and (* If "set facts = {a. achievable a}", this follows. *)
     effs_covered: "\<forall>\<pi> \<in> set ops. (let eff = effect (the (res_inst \<pi>)) in
       \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" and
-    pres_covered: "\<forall>\<pi> \<in> set ops. covered (precondition (the (res_inst \<pi>))) facts" and
-    goal_covered: "covered (goal P) facts"
+    pres_covered_num: "\<forall>\<pi> \<in> set ops. covered_num (precondition (the (res_inst \<pi>))) facts fluents" and
+    goal_covered_num: "covered_num (goal P) facts fluents"
 
 text \<open>The \<^emph>\<open>propositional\<close>/STRIPS grounder = the covered numeric grounder plus the actual
-  \<^emph>\<open>no-fluents\<close> assumptions: the initial state has no function assignments (it is purely
-  propositional) and the applicable ops carry no numeric effects. Under these the shared grounder
-  emits no numeric atom or effect, so the grounded problem is numeric-free --- these hold trivially
-  once numerics have been compiled away upstream. So \<^bold>\<open>the STRIPS grounder is the numeric grounder
-  (\<^locale>\<open>wf_grounder_cov\<close>) with the two numeric-freeness assumptions added\<close>.\<close>
+  \<^emph>\<open>no-fluents\<close> assumptions: precondition and goal coverage strengthen back to
+  \<^const>\<open>covered\<close> (no numeric atom anywhere), the initial state has no function assignments (it is
+  purely propositional) and the applicable ops carry no numeric effects. Under these the shared
+  grounder emits no numeric atom or effect, so the grounded problem is numeric-free --- these hold
+  trivially once numerics have been compiled away upstream. So \<^bold>\<open>the STRIPS grounder is the numeric
+  grounder (\<^locale>\<open>wf_grounder_cov\<close>) with the numeric-freeness assumptions added\<close>. The two strong
+  coverage assumptions keep the \<^emph>\<open>names\<close> \<open>pres_covered\<close> / \<open>goal_covered\<close> they had before the
+  \<^const>\<open>covered_num\<close> weakening, so every downstream proof reads unchanged.\<close>
 locale wf_grounder = wf_grounder_cov +
   assumes
+    pres_covered: "\<forall>\<pi> \<in> set ops. covered (precondition (the (res_inst \<pi>))) facts" and
+    goal_covered: "covered (goal P) facts" and
     init_props: "\<forall>f \<in> set (init P). is_predAtom f" and
     ops_no_num: "\<forall>\<pi> \<in> set ops. numeric_effects (effect (the (res_inst \<pi>))) = []"
+
+text \<open>The \<^emph>\<open>numeric\<close> grounder: the covered numeric layer plus the one obligation that the
+  \<^emph>\<open>problem\<close> level needs on top of the domain level --- every initial-state formula is
+  \<^const>\<open>covered_num\<close>, i.e. its predicate atoms are facts and its ground fluents are reachable
+  fluents. This is what lets \<open>fold_prob\<close> fold an initial function assignment such as
+  \<open>(= (fuel c1) 10)\<close> onto its nullary form; it cannot be derived, because
+  \<^const>\<open>grounder.fluents\<close> is enumerated from the reachable \<^emph>\<open>ops\<close> only.\<close>
+locale wf_grounder_num = wf_grounder_cov +
+  assumes
+    init_covered_num: "\<forall>f \<in> set (init P). covered_num f facts fluents"
 
 text \<open>
 The last two conditions can be satisfied by instantiating every \<pi>\<in>ops and adding all missing atoms
@@ -257,18 +293,30 @@ locale wf_fact_folder_cov = fact_folder +
     facts_wf: "\<forall>a \<in> set facts. wf_fmla_atom objT a" and
     effs_covered: "\<forall>a \<in> set (actions (domain P)). (let eff = effect (the (res_inst (ac_pa a))) in
       \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" and
-    pres_covered: "\<forall>a \<in> set (actions (domain P)). covered (precondition (the (res_inst (ac_pa a)))) facts" and
-    goal_covered: "covered (goal P) facts" and
+    pres_covered_num: "\<forall>a \<in> set (actions (domain P)).
+      covered_num (precondition (the (res_inst (ac_pa a)))) facts fluents" and
+    goal_covered_num: "covered_num (goal P) facts fluents" and
     fluents_dist: "distinct fluents" and
     fluents_wf: "\<forall>fl \<in> set fluents. wf_primitive_numeric_expression objT fl" and
     acs_fluents: "\<forall>a \<in> set (actions (domain P)). set (op_fluents (ac_pa a)) \<subseteq> set fluents"
 
-text \<open>The propositional/STRIPS layer of the folder, mirroring \<^locale>\<open>wf_grounder\<close>: the initial
-  state is purely propositional and the (nullary) actions carry no numeric effects.\<close>
+text \<open>The propositional/STRIPS layer of the folder, mirroring \<^locale>\<open>wf_grounder\<close>: precondition
+  and goal coverage strengthen back to \<^const>\<open>covered\<close> (under the \<^emph>\<open>same names\<close> they carried
+  before the \<^const>\<open>covered_num\<close> weakening, so the folder's semantics chain reads unchanged), the
+  initial state is purely propositional and the (nullary) actions carry no numeric effects.\<close>
 locale wf_fact_folder = wf_fact_folder_cov +
   assumes
+    pres_covered: "\<forall>a \<in> set (actions (domain P)). covered (precondition (the (res_inst (ac_pa a)))) facts" and
+    goal_covered: "covered (goal P) facts" and
     init_props: "\<forall>f \<in> set (init P). is_predAtom f" and
     acs_no_num: "\<forall>a \<in> set (actions (domain P)). numeric_effects (effect (the (res_inst (ac_pa a)))) = []"
+
+text \<open>The \<^emph>\<open>numeric\<close> layer of the folder, mirroring \<^locale>\<open>wf_grounder_num\<close>: the covered
+  numeric layer plus \<^const>\<open>covered_num\<close> coverage of every initial-state formula, which is what
+  lets \<open>fold_prob\<close> fold an initial function assignment onto its nullary form.\<close>
+locale wf_fact_folder_num = wf_fact_folder_cov +
+  assumes
+    init_covered_num: "\<forall>f \<in> set (init P). covered_num f facts fluents"
 
 sublocale wf_fact_folder_cov \<subseteq> wf_ast_classical_problem P
   apply (unfold_locales)

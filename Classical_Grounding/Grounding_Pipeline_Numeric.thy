@@ -622,6 +622,47 @@ proof -
     by simp_all
 qed
 
+text \<open>Interpretation helper for the \<^emph>\<open>folded\<close> numeric certified-reachability locale --- the
+  sibling that additionally re-checks the numeric-permissive coverage obligations
+  (\<open>numeric_fold_checks\<close>), so that the fact/fluent fold may run on top of the instantiation.
+  Verbatim mirror of \<open>certified_reachability_num_i\<close> with the stronger check.\<close>
+lemma certified_reachability_fold_num_i:
+  assumes "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and "dl_certified_model
+             (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+             (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and "restrict_prob" "wf_classical_problem"
+  shows "certified_reachability_fold_num P\<^sub>T M dc"
+proof -
+  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using assms(4,5) normalization_wf by simp
+  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using assms(4,5) normalization_normalizes by simp
+  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
+    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  have rx_T: "normalized_problem_rx P\<^sub>T"
+    unfolding normalized_problem_rx_def normalized_problem_def'
+    using wf_T norm_T by blast
+  interpret rx: normalized_problem_rx P\<^sub>T using rx_T .
+  show ?thesis
+    apply unfold_locales
+    using assms(1,2,3)
+    by simp_all
+qed
+
+text \<open>The fold re-check subsumes the instantiation re-check (its first conjunct), so a task that
+  passes \<open>numeric_fold_checks\<close> also passes \<open>numeric_grounding_checks\<close> and both stage-1 and
+  stage-2 products are available for it.\<close>
+lemma numeric_fold_checks_imp_grounding_checks:
+  assumes "normalized_problem_rx P\<^sub>T"
+      and "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+  shows "normalized_problem_rx.numeric_grounding_checks P\<^sub>T M"
+  using assms(2)
+  unfolding normalized_problem_rx.numeric_fold_checks_def[OF assms(1)]
+            normalized_problem_rx.numeric_grounding_checks_def[OF assms(1)]
+  by blast
+
 context
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
   assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
@@ -634,7 +675,7 @@ begin
 definition "numeric_P\<^sub>V_cert \<equiv> varfree.varfree_inst_prob P\<^sub>T
   (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
 
-lemma numeric_wf_ground_cert_problem:
+lemma numeric_wf_varfree_cert_problem:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.wf_classical_problem numeric_P\<^sub>V_cert"
 proof -
@@ -662,18 +703,18 @@ proof -
   finally show ?thesis .
 qed
 
-definition "numeric_reconstruct_plan_ground_cert \<pi>s \<equiv>
+definition "numeric_reconstruct_plan_varfree_cert \<pi>s \<equiv>
   reconstruct_plan_norm (restore_plan_def_translate
     (varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
 
-text \<open>Plan restoration: a valid plan of the numeric grounded problem restores to a \<^emph>\<open>concrete\<close> valid
-  plan of the original \<open>P\<close> (undo grounding \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization). Numeric twin of
-  \<open>ground_cert_plan_reconstruct\<close>, using the numeric grounder's constructive restore
-  \<open>varfree_valid_plan_left\<close> (\<^const>\<open>varfree.restore_ground_plan\<close>).\<close>
+text \<open>Plan restoration: a valid plan of the variable-free instantiation restores to a
+  \<^emph>\<open>concrete\<close> valid plan of the original \<open>P\<close> (undo instantiation \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close>
+  normalization). Numeric twin of \<open>ground_cert_plan_reconstruct\<close>, using the numeric grounder's
+  constructive restore \<open>varfree_valid_plan_left\<close> (\<^const>\<open>varfree.restore_ground_plan\<close>).\<close>
 lemma varfree_inst_cert_plan_reconstruct:
   assumes "restrict_prob" "wf_classical_problem"
   shows "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s \<Longrightarrow>
-    valid_classical_plan2 (numeric_reconstruct_plan_ground_cert \<pi>s)"
+    valid_classical_plan2 (numeric_reconstruct_plan_varfree_cert \<pi>s)"
 proof -
   assume p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>V_cert \<pi>s"
   interpret cr: certified_reachability_num P\<^sub>T M dc
@@ -687,8 +728,65 @@ proof -
     using ast_classical_problem.restore_plan_def_translate_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]] by blast
   hence "valid_classical_plan2 (reconstruct_plan_norm (restore_plan_def_translate ?q))"
     using assms normalization_reconstruct by simp
-  thus "valid_classical_plan2 (numeric_reconstruct_plan_ground_cert \<pi>s)"
-    unfolding numeric_reconstruct_plan_ground_cert_def .
+  thus "valid_classical_plan2 (numeric_reconstruct_plan_varfree_cert \<pi>s)"
+    unfolding numeric_reconstruct_plan_varfree_cert_def .
+qed
+
+subsubsection \<open>Stage 2: the fully grounded (folded) numeric problem\<close>
+
+text \<open>The \<^emph>\<open>grounded\<close> numeric product: stage one's variable-free instantiation
+  \<^const>\<open>ast_classical_problem.numeric_P\<^sub>V_cert\<close> put through the fact/fluent fold
+  \<^const>\<open>fact_folder.fold_prob\<close> at the certified facts and the ops-derived fluents. Everything in
+  it is nullary --- the predicates are fresh names for the certified facts, the functions fresh
+  names for the reachable ground fluents (\<open>fuel(c1) \<mapsto> fuel_c1_2\<close>), and each action's
+  precondition/effect and the initial function assignments are stated over those names. This is the
+  numeric counterpart of the propositional \<^const>\<open>ast_classical_problem.P\<^sub>G_cert\<close>, and by
+  \<open>ground_prob_factors\<close> it is \<^emph>\<open>syntactically\<close> the one-shot grounder's output, which makes it
+  executable for free through the existing \<open>ground_by_cert\<close>.\<close>
+
+definition "numeric_cert_fluents \<equiv>
+  grounder.fluents P\<^sub>T (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))"
+
+definition "numeric_P\<^sub>G_cert \<equiv> fact_folder.fold_prob numeric_P\<^sub>V_cert
+  (normalized_problem_rx.cert_facts_of P\<^sub>T M) numeric_cert_fluents"
+
+text \<open>The factorization made concrete at the pipeline level: the folded numeric product is the
+  one-shot grounder's problem at the certified ops/facts (\<open>ground_prob_factors\<close>, which needs no
+  coverage assumption --- only \<^locale>\<open>grounder_inst\<close>).\<close>
+lemma numeric_P\<^sub>G_cert_ground_prob:
+  assumes fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and "restrict_prob" "wf_classical_problem"
+  shows "numeric_P\<^sub>G_cert = grounder.ground_prob P\<^sub>T
+           (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M))
+           (normalized_problem_rx.cert_facts_of P\<^sub>T M)"
+proof -
+  interpret cr: certified_reachability_fold_num P\<^sub>T M dc
+    using certified_reachability_fold_num_i[OF nonempty cert fold_cert assms(2,3)] .
+  have "numeric_P\<^sub>G_cert = cr.wfg_num.ff.fold_prob"
+    unfolding numeric_P\<^sub>G_cert_def numeric_P\<^sub>V_cert_def numeric_cert_fluents_def
+              cr.cert_ops'_def cr.cert_facts'_def by simp
+  thus ?thesis
+    using cr.wfg_num.ground_prob_factors[unfolded cr.cert_ops'_def cr.cert_facts'_def]
+    unfolding cr.cert_ops'_def cr.cert_facts'_def by simp
+qed
+
+text \<open>\<^bold>\<open>Well-formedness of the grounded numeric problem\<close>: under the fold re-checks the folded
+  product is a well-formed classical problem --- nullary predicate declarations for the certified
+  facts, nullary function declarations for the reachable fluents, a distinct and well-formed
+  initial state (predicate atoms \<^emph>\<open>and\<close> function assignments), and a well-formed goal. This is
+  the numeric twin of \<open>wf_ground_cert_problem\<close>. Plan equivalence for this stage is \<^emph>\<open>not\<close> yet
+  available --- it holds for the instantiation \<^const>\<open>ast_classical_problem.numeric_P\<^sub>V_cert\<close>
+  (\<open>varfree_inst_cert_plan_valid_iff\<close>) and is a follow-up for the fold.\<close>
+lemma numeric_wf_ground_cert_problem:
+  assumes fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.wf_classical_problem numeric_P\<^sub>G_cert"
+proof -
+  interpret cr: certified_reachability_fold_num P\<^sub>T M dc
+    using certified_reachability_fold_num_i[OF nonempty cert fold_cert assms(2,3)] .
+  show ?thesis
+    unfolding numeric_P\<^sub>G_cert_ground_prob[OF assms]
+    using cr.wfg_num.ground_prob_wf_num[unfolded cr.cert_ops'_def cr.cert_facts'_def] by simp
 qed
 
 end

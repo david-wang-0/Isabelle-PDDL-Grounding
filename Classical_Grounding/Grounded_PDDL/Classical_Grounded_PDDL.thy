@@ -532,6 +532,51 @@ proof -
   thus ?thesis using lhs ne by (simp add: ground_neff_def)
 qed
 
+subsubsection \<open> Grounding a numerically-covered formula is well-formed \<close>
+
+text \<open>The numeric-permissive twin of \<open>ground_fmla_wf\<close> above: under \<^const>\<open>covered_num\<close> a formula
+  may contain numeric atoms, and folding them is well-formed because every ground fluent they
+  mention is in \<open>fluents\<close> (so \<open>ground_numexp_wf\<close> applies). This is what the folder needs at the
+  \<^emph>\<open>numeric\<close> layer for preconditions, the goal and the initial state.\<close>
+
+lemma ground_numexp_wf_num:
+  assumes "covered_num \<phi> facts fluents"
+      and "set (enumerate_primitive_numeric_expressions e)
+             \<subseteq> set (formula_enumerate_primitive_numeric_expressions \<phi>)"
+  shows "fdg.wf_numeric_expression tyt (ground_numexp e)"
+  using ground_numexp_wf covered_num_pnes[OF assms(1)] assms(2) by blast
+
+lemma ground_fmla_wf_num:
+  assumes "covered_num \<phi> facts fluents"
+  shows "fdg.wf_fmla tyt (ground_fmla \<phi>)"
+  using assms apply (induction \<phi> rule: ground_fmla.induct)
+                      apply (simp_all add: ground_numexp_wf_num)
+  subgoal for v va
+    using gr_atom_wf[of "Atom (predAtm v va)"]
+          covered_num_predAtm_mem[of "Atom (predAtm v va)" facts fluents v va]
+    by (simp add: fdg.wf_fmla_atom_alt)
+  done
+
+text \<open>Folding is injective on the reachable fluents --- same argument as \<open>ground_fmla_inj\<close>: the
+  generated \<^const>\<open>fluent_names\<close> are pairwise distinct, so the \<open>fluents\<close>\<open>\<rightarrow>\<close>names lookup is
+  injective on the domain of the zip.\<close>
+lemma ground_pne_inj: "inj_on ground_pne (set fluents)"
+proof -
+  have "ground_pne a \<noteq> ground_pne b" if ab: "a \<in> set fluents" "b \<in> set fluents" "a \<noteq> b" for a b
+  proof -
+    have "the (fluent_map a) \<noteq> the (fluent_map b)"
+      unfolding fluent_map_def
+      using mapof_distinct_zip_neq[OF fluent_names_len[symmetric] fluent_names_dis ab] .
+    thus ?thesis unfolding ground_pne_def by simp
+  qed
+  thus ?thesis unfolding inj_on_def by fast
+qed
+
+text \<open>The folded goal is well-formed already at the \<^emph>\<open>covered numeric\<close> layer (the propositional
+  \<open>fold_goal_wf\<close> below is the same statement under the stronger \<^const>\<open>covered\<close>).\<close>
+lemma fold_goal_wf_num: "fpg.wf_fmla fpg.objT (goal fold_prob)"
+  unfolding fold_prob_sel using goal_covered_num ground_fmla_wf_num by blast
+
 subsubsection \<open> Folded action-schema and domain well-formedness \<close>
 
 lemma ground_eff_wf_cov:
@@ -562,9 +607,10 @@ lemma fold_ac_wf:
   shows "fdg.wf_classical_action_schema (fold_ac a)"
 proof (intro fdg.wf_classical_action_schemaI)
   show "distinct (map fst (ac_params (fold_ac a)))" by (simp add: fold_ac_sel)
-  have "covered (precondition (the (res_inst (ac_pa a)))) facts" using assms pres_covered by blast
+  have "covered_num (precondition (the (res_inst (ac_pa a)))) facts fluents"
+    using assms pres_covered_num by blast
   thus "fdg.wf_fmla (fdg.ac_tyt (fold_ac a)) (ac_pre (fold_ac a))"
-    using ground_fmla_wf by (simp add: fold_ac_sel ga_pre_alt)
+    using ground_fmla_wf_num by (simp add: fold_ac_sel ga_pre_alt)
   show "fdg.wf_effect (fdg.ac_tyt (fold_ac a)) (ac_eff (fold_ac a))"
     using ground_eff_wf_cov[OF assms] by (simp add: fold_ac_sel)
 qed
@@ -594,6 +640,12 @@ end
 
 sublocale wf_fact_folder_cov \<subseteq> fdg: wf_ast_classical_domain fold_dom
   using fold_dom_wf by unfold_locales
+
+text \<open>The folded problem's signature is the folded domain's, so its well-formedness is already
+  available at the covered numeric layer (both the propositional \<open>fold_prob_wf\<close> and the numeric
+  \<open>fold_prob_wf_num\<close> consume it).\<close>
+lemma (in wf_fact_folder_cov) fpg_wf_dom_sig: "fpg.wf_domain_signature"
+  using fold_dom_wf unfolding fdg.wf_classical_domain_def by (simp add: fold_prob_sel)
 
 subsection \<open> Propositional fact folder: problem well-formedness \<close>
 
@@ -643,9 +695,6 @@ qed
 lemma fold_goal_wf: "fpg.wf_fmla fpg.objT (goal fold_prob)"
   unfolding fold_prob_sel using goal_covered ground_fmla_wf by blast
 
-lemma fpg_wf_dom_sig: "fpg.wf_domain_signature"
-  using fold_dom_wf unfolding fdg.wf_classical_domain_def by (simp add: fold_prob_sel)
-
 theorem fold_prob_wf: "fpg.wf_classical_problem"
 proof (intro fpg.wf_classical_problemI)
   show "fpg.wf_classical_domain" using fold_dom_wf by (simp add: fold_prob_sel)
@@ -662,5 +711,139 @@ end
 
 sublocale wf_fact_folder \<subseteq> fpg: grounded_problem fold_prob
   using fold_prob_wf fold_prob_grounded by unfold_locales
+
+subsection \<open> Numeric fact folder: problem well-formedness with fluents retained \<close>
+
+text \<open>The numeric twin of the propositional problem-level block above. Where
+  \<^locale>\<open>wf_fact_folder\<close> assumes the initial state is purely propositional
+  (so every folded init entry is a nullary \<^const>\<open>predAtm\<close>), \<^locale>\<open>wf_fact_folder_num\<close> only
+  assumes each init formula is \<^const>\<open>covered_num\<close>: a predicate atom whose fact is in \<open>facts\<close>,
+  or a function assignment whose fluent is in \<open>fluents\<close>. Both fold to well-formed entries of the
+  folded problem --- the first to a nullary predicate atom, the second to a nullary function
+  assignment --- and folding stays injective on the initial state, which is what keeps
+  \<open>distinct (init fold_prob)\<close>.\<close>
+
+context wf_fact_folder_num begin
+
+lemma init_covered:
+  assumes "f \<in> set (init P)"
+  shows "covered_num f facts fluents"
+  using assms init_covered_num by blast
+
+text \<open>Well-formedness of the input problem splits every initial-state formula into a predicate
+  atom or a function assignment; \<open>init_covered_num\<close> then places its fact in \<open>facts\<close> resp. its
+  fluent in \<open>fluents\<close>.\<close>
+lemma init_shape:
+  assumes "f \<in> set (init P)"
+  shows "(\<exists>p xs. f = Atom (predAtm p xs) \<and> f \<in> set facts)
+       \<or> (\<exists>l r. f = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r)) \<and> l \<in> set fluents)"
+proof -
+  have "wf_fmla_atom objT f \<or> wf_func_assign f"
+    using wf_problem assms unfolding wf_classical_problem_def by blast
+  thus ?thesis
+  proof
+    assume "wf_fmla_atom objT f"
+    hence "is_predAtom f" using wf_fmla_atom_pred by blast
+    then obtain p xs where f: "f = Atom (predAtm p xs)" using is_predAtom_decomp by blast
+    have "predAtm p xs \<in> atoms f" unfolding f by simp
+    hence "f \<in> set facts"
+      using covered_num_predAtm_mem[OF init_covered[OF assms]] f by simp
+    thus ?thesis using f by blast
+  next
+    assume "wf_func_assign f"
+    then obtain l r where f: "f = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r))"
+      by (cases f rule: wf_func_assign.cases) auto
+    have "numericEqAtm (FunctionExpr l) (ConstantExpr r) \<in> atoms f" unfolding f by simp
+    hence "l \<in> set fluents"
+      using covered_num_fluent_mem[OF init_covered[OF assms]] by simp
+    thus ?thesis using f by blast
+  qed
+qed
+
+text \<open>Folding is injective on the initial state: the two shapes never collide (a folded predicate
+  atom is a \<^const>\<open>predAtm\<close>, a folded assignment a \<^const>\<open>numericEqAtm\<close>), folded facts are
+  distinct by \<open>ground_fmla_inj\<close>, and folded assignments by \<open>ground_pne_inj\<close>.\<close>
+lemma ground_fmla_inj_init: "inj_on ground_fmla (set (init P))"
+proof (rule inj_onI)
+  fix a b
+  assume mem: "a \<in> set (init P)" "b \<in> set (init P)"
+     and eq: "ground_fmla a = ground_fmla b"
+  consider
+      (pp) p xs q ys where "a = Atom (predAtm p xs)" "a \<in> set facts"
+                          "b = Atom (predAtm q ys)" "b \<in> set facts"
+    | (pn) p xs l r where "a = Atom (predAtm p xs)"
+                         "b = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r))"
+    | (np) l r q ys where "a = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r))"
+                         "b = Atom (predAtm q ys)"
+    | (nn) l r l' r' where "a = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r))" "l \<in> set fluents"
+                          "b = Atom (numericEqAtm (FunctionExpr l') (ConstantExpr r'))" "l' \<in> set fluents"
+    using init_shape[OF mem(1)] init_shape[OF mem(2)] by blast
+  thus "a = b"
+  proof cases
+    case pp
+    show ?thesis using inj_onD[OF ground_fmla_inj eq pp(2) pp(4)] .
+  next
+    case pn
+    show ?thesis using eq unfolding pn(1,2) by simp
+  next
+    case np
+    show ?thesis using eq unfolding np(1,2) by simp
+  next
+    case nn
+    have "ground_pne l = ground_pne l'" and "r = r'"
+      using eq unfolding nn(1,3) by (simp_all add: ground_pne_def)
+    thus ?thesis using inj_onD[OF ground_pne_inj] nn by simp
+  qed
+qed
+
+lemma fold_init_dis_num: "distinct (init fold_prob)"
+proof -
+  have "distinct (init P)" using wf_problem unfolding wf_classical_problem_def by simp
+  thus ?thesis unfolding fold_prob_sel using ground_fmla_inj_init distinct_map by blast
+qed
+
+lemma fold_init_wf_num:
+  "\<forall>f \<in> set (init fold_prob). fpg.wf_fmla_atom fpg.objT f \<or> fpg.wf_func_assign f"
+proof
+  fix f assume "f \<in> set (init fold_prob)"
+  then obtain g where g: "g \<in> set (init P)" "f = ground_fmla g"
+    unfolding fold_prob_sel by auto
+  show "fpg.wf_fmla_atom fpg.objT f \<or> fpg.wf_func_assign f"
+    using init_shape[OF g(1)]
+  proof
+    assume "\<exists>p xs. g = Atom (predAtm p xs) \<and> g \<in> set facts"
+    hence "g \<in> set facts" by blast
+    hence "fpg.wf_fmla_atom fpg.objT f" using gr_atom_wf g(2) by (simp add: fold_prob_sel)
+    thus ?thesis by blast
+  next
+    assume "\<exists>l r. g = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r)) \<and> l \<in> set fluents"
+    then obtain l r where
+      lr: "g = Atom (numericEqAtm (FunctionExpr l) (ConstantExpr r))"
+      and l: "l \<in> set fluents" by blast
+    have f: "f = Atom (numericEqAtm (FunctionExpr (ground_pne l)) (ConstantExpr r))"
+      using g(2) lr by simp
+    have "fpg.wf_primitive_numeric_expression fpg.objT (ground_pne l)"
+      using ground_pne_wf[OF l] by (simp add: fold_prob_sel)
+    hence "fpg.wf_func_assign f" unfolding f by (simp only: fpg.wf_func_assign.simps)
+    thus ?thesis by blast
+  qed
+qed
+
+theorem fold_prob_wf_num: "fpg.wf_classical_problem"
+proof (intro fpg.wf_classical_problemI)
+  show "fpg.wf_classical_domain" using fold_dom_wf by (simp add: fold_prob_sel)
+  show "fpg.wf_problem_signature"
+    unfolding fpg.wf_problem_signature_def
+    using fpg_wf_dom_sig by (simp add: fold_prob_sel fold_dom_sel)
+  show "distinct (init fold_prob)" using fold_init_dis_num .
+  show "\<forall>f \<in> set (init fold_prob). fpg.wf_fmla_atom fpg.objT f \<or> fpg.wf_func_assign f"
+    using fold_init_wf_num .
+  show "fpg.wf_fmla fpg.objT (goal fold_prob)" using fold_goal_wf_num .
+qed
+
+end
+
+sublocale wf_fact_folder_num \<subseteq> fpg: grounded_problem fold_prob
+  using fold_prob_wf_num fold_prob_grounded by unfold_locales
 
 end

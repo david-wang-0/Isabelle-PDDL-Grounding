@@ -9,8 +9,15 @@ text \<open>The Helmert-2009 running example (\<^theory>\<open>Classical_Groundi
   \<open>from \<noteq> to\<close> (an \<^const>\<open>eqAtm\<close> inequality guard, translated to a datalog \<open>Neql\<close>) and
   \<open>decrease\<close>s fuel by 1. Everything else is reused verbatim (types, predicates, consts, objects,
   goal, and the other operators). We then thread it through the \<^emph>\<open>same\<close> grounding pipeline and run
-  the numeric-fluent-retaining grounder \<^const>\<open>instantiate_all_actions_dfs_e\<close>, stopping \<^emph>\<open>before\<close> the
-  STRIPS conversion.
+  \<^bold>\<open>both\<close> numeric grounding stages, stopping \<^emph>\<open>before\<close> the STRIPS conversion:
+
+  \<^item> \<^bold>\<open>stage 1\<close> --- the Variable_Freeness instantiation \<^const>\<open>instantiate_all_actions_dfs_e\<close>:
+    every certified-reachable op becomes a \<^emph>\<open>nullary schema\<close> whose body still mentions the
+    original ground atoms and \<open>fuel(c)\<close> fluents. Its product is \<open>my_varfree_num\<close> below.
+  \<^item> \<^bold>\<open>stage 2\<close> --- the fact/fluent fold \<^const>\<open>ground_all_actions_dfs_e\<close>: those ground atoms and
+    fluents are re-indexed onto fresh \<^emph>\<open>nullary\<close> predicates and functions, giving the fully
+    grounded numeric problem \<open>my_grounded_num\<close> (proven well-formed by
+    \<open>ground_all_actions_dfs_e_wf\<close>).
 
   What the pipeline does to the numerics (Option B --- faithful numeric-\<^emph>\<open>effect\<close> retention):
   definedness translation \<^emph>\<open>keeps\<close> \<open>P\<^sub>T\<close>'s real numerics (the \<open>fuel >= 1\<close> guard and the
@@ -67,7 +74,11 @@ text \<open>Probes: the normalized problem \<open>P\<^sub>T\<close> (retains the
   certificate is accepted (\<^const>\<open>dl_certified_model_dfs\<close> holds on the numeric-free \<open>P\<^sub>R\<close>); the
   \<^emph>\<open>propositional\<close> re-check \<^const>\<open>grounding_checks_exec\<close> is \<^const>\<open>False\<close> (its \<open>ops_no_num\<close>/\<open>init_props\<close>
   conjuncts fail on \<open>P\<^sub>T\<close>'s retained numerics), while the numeric-fluent-retaining re-check
-  \<^const>\<open>numeric_grounding_checks_exec\<close> is \<^const>\<open>True\<close>.\<close>
+  \<^const>\<open>numeric_grounding_checks_exec\<close> is \<^const>\<open>True\<close>, and so is the strictly stronger
+  \<^const>\<open>numeric_fold_checks_exec\<close> that additionally gates the second (fold) stage --- its
+  numeric-permissive \<^const>\<open>covered_num\<close> obligations on preconditions, goal and \<^emph>\<open>initial
+  state\<close> all hold, the last one because the three \<open>fuel(c)\<close> assignments in \<open>init\<close> are exactly the
+  fluents the reachable ops mention.\<close>
 value "my_P\<^sub>T_num"
 value "my_P\<^sub>R_num"
 value "my_cert_num"
@@ -85,58 +96,83 @@ text \<open>The fast single-sweep global-visited DFS (\<^const>\<open>dl_acyclic
 value "dl_certified_model_gdfs my_dl_rules_num my_const_names_num (fst my_cert_num) (snd my_cert_num)"
 value "grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 value "numeric_grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
+value "numeric_fold_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 
-subsection \<open>Numeric grounding, retaining the fuel fluent (before STRIPS)\<close>
+subsection \<open>The certified inputs both stages consume\<close>
 
-text \<open>The error-monad fluent grounder returns \<^const>\<open>Inr\<close> of the grounded (pre-STRIPS) PDDL problem
-  whose nullary \<open>drive\<close> schemas retain the real \<open>decrease (fuel c) 1\<close> \<^const>\<open>NumericEffect\<close> and the
-  \<open>fuel >= 1\<close> guard, over the certified reachable ops (a failing check would give \<^const>\<open>Inl\<close> of a
-  diagnostic string instead).\<close>
-definition "my_grounded_num \<equiv> instantiate_all_actions_dfs_e (\<lambda>_. my_cert_num) my_problem_num"
-value "my_grounded_num"
+text \<open>Both grounding stages are driven by the same certified data the pipeline entry points read
+  off the certificate: the reachable ops list, the reachable facts list, and --- for the numerics
+  --- the ground fluents enumerated from those ops.\<close>
 
-text \<open>The grounded (pre-STRIPS) action schemas themselves: each is nullary (empty parameters) and
-  retains the real numeric \<open>fuel >= 1\<close> guard, the \<open>from \<noteq> to\<close> inequality, and the
-  \<open>decrease (fuel c) 1\<close> \<^const>\<open>NumericEffect\<close>. \<^const>\<open>map_sum\<close> projects the \<^const>\<open>Inr\<close> grounded
-  problem to its action list (an \<^const>\<open>Inl\<close> diagnostic would pass through unchanged).\<close>
-value "map_sum id (\<lambda>P. actions (domain P)) my_grounded_num"
+definition "my_cert_facts_num \<equiv> cert_facts_of_exec my_P\<^sub>T_num (fst my_cert_num)"
+definition "my_cert_ops_num \<equiv> canon (cert_ops_of_exec_fast my_P\<^sub>T_num (fst my_cert_num))"
+definition "my_fluents_num \<equiv> grounder.fluents my_P\<^sub>T_num my_cert_ops_num"
 
-subsection \<open>The two-stage grounding path, concretely\<close>
-
-text \<open>The propositional grounder factors into the two pipeline stages
-  (\<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Factorization\<close>,
-  theorem \<open>ground_prob_factors\<close>): first the Variable_Freeness stage
-  \<^const>\<open>varfree.varfree_inst_prob\<close> instantiates every certified-reachable op into a
-  \<^emph>\<open>nullary schema\<close> (parameters gone, but the ground atoms and the \<open>fuel(c)\<close> numerics still
-  there), then the fact folder \<^const>\<open>fact_folder.fold_prob\<close> collapses the ground atoms onto fresh
-  nullary predicates and the ground fluents onto fresh nullary functions. The numeric grounder run
-  above is \<^emph>\<open>exactly\<close> stage one; composing stage two on top of it reproduces the one-shot
-  propositional \<^const>\<open>ground_by_cert\<close>. Both stages consume the same certified data as the pipeline
-  entry points: the ops list \<^term>\<open>canon (cert_ops_of_exec_fast N M)\<close> and the fact list
-  \<^term>\<open>cert_facts_of_exec N M\<close>.\<close>
-
-definition "my_cert_facts \<equiv> cert_facts_of_exec my_P\<^sub>T_num (fst my_cert_num)"
-definition "my_cert_ops \<equiv> canon (cert_ops_of_exec_fast my_P\<^sub>T_num (fst my_cert_num))"
-definition "my_fluents \<equiv> grounder.fluents my_P\<^sub>T_num my_cert_ops"
-definition "my_varfree \<equiv> varfree.varfree_inst_prob my_P\<^sub>T_num my_cert_ops"
-definition "my_folded \<equiv> fact_folder.fold_prob my_varfree my_cert_facts my_fluents"
+value "my_cert_facts_num"
+value "my_cert_ops_num"
 
 text \<open>The reachable fluents enumerated off the certified ops: the three ground \<open>fuel(c)\<close> PNEs, one
   per Car. These are what stage two turns into nullary function names.\<close>
-value "my_fluents"
+value "my_fluents_num"
 
-text \<open>Stage one's output is literally the numeric grounder's output: the error monad's \<^const>\<open>Inr\<close>
-  payload \<^emph>\<open>is\<close> \<^const>\<open>varfree.varfree_inst_prob\<close> at the same ops list (\<^const>\<open>True\<close>).\<close>
-value "my_grounded_num = Inr my_varfree"
+subsection \<open>Stage 1: the variable-free instantiation (fuel fluent retained)\<close>
 
-text \<open>Stage two's output: everything is nullary --- the predicates are the fresh names of the
-  certified facts, the functions are the fresh names of the \<open>fuel(c)\<close> fluents above, and each
-  action's precondition/effect is stated purely over those nullary names.\<close>
-value "my_folded"
+text \<open>Stage one instantiates every certified-reachable op into a \<^emph>\<open>nullary schema\<close> --- parameters
+  gone, but the ground atoms and the \<open>fuel(c)\<close> numerics still there. Its output is a full PDDL
+  problem, and it is exactly what the error-monad entry point
+  \<^const>\<open>instantiate_all_actions_dfs_e\<close> returns inside its \<^const>\<open>Inr\<close> (a failing check would give
+  \<^const>\<open>Inl\<close> of a diagnostic string instead).\<close>
+
+definition "my_varfree_num \<equiv> varfree.varfree_inst_prob my_P\<^sub>T_num my_cert_ops_num"
+
+value "my_varfree_num"
+
+text \<open>The instantiated action schemas themselves: each is nullary (empty parameters) and retains the
+  real numeric \<open>fuel >= 1\<close> guard, the \<open>from \<noteq> to\<close> inequality, and the \<open>decrease (fuel c) 1\<close>
+  \<^const>\<open>NumericEffect\<close>; the domain keeps the original \<open>fuel\<close> function declaration.\<close>
+value "actions (domain my_varfree_num)"
+
+text \<open>The connecting identity: the stage-1 entry point's \<^const>\<open>Inr\<close> payload \<^emph>\<open>is\<close> this problem
+  (\<^const>\<open>True\<close>).\<close>
+value "instantiate_all_actions_dfs_e (\<lambda>_. my_cert_num) my_problem_num = Inr my_varfree_num"
+
+subsection \<open>Stage 2: the fact/fluent fold --- the fully grounded numeric problem\<close>
+
+text \<open>Stage two collapses the ground atoms onto fresh nullary predicates and the ground fluents
+  onto fresh nullary functions (\<^const>\<open>fact_folder.fold_prob\<close>), yielding the \<^emph>\<open>fully grounded\<close>
+  numeric problem --- the abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close>, proven
+  well-formed by \<open>numeric_wf_ground_cert_problem\<close>. It is what the stage-2 entry point
+  \<^const>\<open>ground_all_actions_dfs_e\<close> returns.\<close>
+
+definition "my_grounded_num \<equiv> fact_folder.fold_prob my_varfree_num my_cert_facts_num my_fluents_num"
+
+value "my_grounded_num"
+
+text \<open>The numeric-specific components (the propositional counterparts --- predicates, goal, and the
+  empty types/consts/objects --- are already shown for the propositional example in
+  \<^theory>\<open>Classical_Grounding.Running_Example\<close>, so they are not repeated here). The function table
+  is one \<^emph>\<open>nullary\<close> \<open>FuncDecl\<close> per reachable \<open>fuel(c)\<close> fluent, named by the readable encoding
+  plus its index (\<open>fuel_c1_0\<close>, \<dots>).\<close>
+value "functions (domain my_grounded_num)"
+
+text \<open>Each grounded action is nullary over nullary names only: the \<open>at\<close>/\<open>road\<close> atoms have become
+  nullary predicates and the \<open>decrease (fuel c) 1\<close> effect now decreases the nullary function.\<close>
+value "actions (domain my_grounded_num)"
+
+text \<open>The folded initial state: the propositional atoms are nullary predicate atoms, and each
+  initial function assignment \<open>(= (fuel c) 10)\<close> has been folded onto its nullary function ---
+  which is exactly the \<open>init_covered_num\<close> obligation of \<^const>\<open>numeric_fold_checks_exec\<close> at
+  work.\<close>
+value "init my_grounded_num"
+
+text \<open>The connecting identity for stage 2: the stage-2 entry point's \<^const>\<open>Inr\<close> payload \<^emph>\<open>is\<close>
+  the folded problem (\<^const>\<open>True\<close>).\<close>
+value "ground_all_actions_dfs_e (\<lambda>_. my_cert_num) my_problem_num = Inr my_grounded_num"
 
 text \<open>And the factorization made concrete: folding stage one's output equals the one-shot
-  propositional grounder \<^const>\<open>ground_by_cert\<close> on the original problem (\<^const>\<open>True\<close>) --- the
-  evaluation counterpart of \<open>ground_prob_factors\<close>.\<close>
-value "my_folded = ground_by_cert my_problem_num (fst my_cert_num)"
+  grounder \<^const>\<open>ground_by_cert\<close> on the original problem (\<^const>\<open>True\<close>) --- the evaluation
+  counterpart of \<open>ground_prob_factors\<close>, and the definitional identity behind
+  \<open>ground_by_cert_numeric_eq\<close>.\<close>
+value "my_grounded_num = ground_by_cert my_problem_num (fst my_cert_num)"
 
 end
