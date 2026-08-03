@@ -9,6 +9,10 @@
         -- run the verified numeric grounder `instantiate_all_actions_dfs`
            (up to, not including, the STRIPS conversion) and print the grounded
            PDDL problem via GroundedPddlPrinter.
+     <bin> ground --folded <domain.pddl> <problem.pddl>
+        -- run the verified FOLDING grounder `ground_all_actions_dfs_e` instead and
+           print the fully ground, purely 0-ary product (folded nullary facts +
+           nullary numeric functions).
 
    Both oracle outputs (Nemo certificate, SAT assignment) are re-checked inside
    the verified kernel, so a non-error answer is correct by theorem
@@ -186,31 +190,91 @@ fun doGround mode domFile probFile outOpt =
         end
   end
 
+(* `ground --folded`: instead of the variable-free instantiation (nullary action
+   SCHEMAS whose bodies still mention objects), run the verified FOLDING grounder
+   `E.ground_all_actions_*_e`, whose right-hand result is the fully grounded,
+   purely 0-ary product -- every predicate folded to a nullary fact (at_p1_G_72)
+   and every numeric fluent to a nullary function (fuel_c1_0). The folded problem
+   is materialized in full (it is small per action) and printed with the
+   non-streaming `GroundedPddlPrinter.problemToStream`. *)
+fun doGroundFolded mode domFile probFile outOpt =
+  let
+    val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
+    val () = rssParse := vmhwm ()
+    val timedCertify = (fn prog =>
+      Prof.time "nemo" (fn () =>
+        let val (m, dc) = NemoDriver.certify prog
+        in modelSize := length m;
+           rssNemo := vmhwm ();
+           profMark ("nemo-done model=" ^ Int.toString (length m));
+           (m, dc) end))
+    val gres = Prof.time "ground_total"
+                 (fn () => withNemo (fn () =>
+                    (case mode of
+                        ChkDFS  => E.ground_all_actions_dfs_e
+                      | ChkTopo => E.ground_all_actions_exec_e
+                      | ChkGDFS => E.ground_all_actions_gdfs_e)
+                       timedCertify isaProb))
+    val () = rssGround := vmhwm ()
+  in
+    case gres of
+      E.Inl msg =>
+        (eprintln ("Grounding rejected by the verified kernel: " ^ msg);
+         printProfile ();
+         OS.Process.exit OS.Process.failure)
+    | E.Inr gprob =>
+        (Prof.time "render" (fn () =>
+           case outOpt of
+               NONE      => GroundedPddlPrinter.problemToStream TextIO.stdOut gprob
+             | SOME path =>
+                 let val out = TextIO.openOut path
+                 in GroundedPddlPrinter.problemToStream out gprob;
+                    TextIO.closeOut out;
+                    eprintln ("Wrote grounded PDDL to " ^ path)
+                 end);
+         printProfile ())
+  end
+
 fun help () =
   eprintln ("Usage:\n  " ^ CommandLine.name () ^ " plan   <domain.pddl> <problem.pddl> [t_max (default 30)] [out.plan]\n"
-            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] <domain.pddl> <problem.pddl> [out.pddl]\n"
+            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] [--folded] <domain.pddl> <problem.pddl> [out.pddl]\n"
             ^ "    (reachability-certificate foundedness check: --dfs (default) = per-vertex directed-cycle\n"
             ^ "     DFS; --topo = ordered linear scan over Nemo's topological order; --gdfs = fast\n"
-            ^ "     single-sweep global-visited directed-cycle DFS)")
+            ^ "     single-sweep global-visited directed-cycle DFS)\n"
+            ^ "    (--folded: print the FULLY GROUND 0-ary product -- folded nullary predicates and\n"
+            ^ "     nullary numeric functions -- instead of the variable-free instantiation)")
 
 fun withTMax t k =
   case Int.fromString t of SOME tMax => k tMax | NONE => (help (); OS.Process.exit OS.Process.failure)
+
+(* `ground` argument parsing: the `--`-prefixed words are options (order-insensitive,
+   and independent of where they sit relative to the positional arguments), the rest are
+   the positional <domain> <problem> [out]. `--dfs|--topo|--gdfs` select the foundedness
+   check (last one wins, default --dfs); `--folded` switches to the fully-ground 0-ary
+   product. Any unrecognised option is a usage error. *)
+fun doGroundArgs args =
+  let
+    val (flags, positional) = List.partition (String.isPrefix "--") args
+    fun opts acc [] = SOME acc
+      | opts (_, folded) ("--dfs" :: r)  = opts (ChkDFS, folded) r
+      | opts (_, folded) ("--topo" :: r) = opts (ChkTopo, folded) r
+      | opts (_, folded) ("--gdfs" :: r) = opts (ChkGDFS, folded) r
+      | opts (mode, _) ("--folded" :: r) = opts (mode, true) r
+      | opts _ _ = NONE
+    fun run (mode, folded) = if folded then doGroundFolded mode else doGround mode
+  in
+    case (opts (ChkDFS, false) flags, positional) of
+        (SOME cfg, [d, p])      => run cfg d p NONE
+      | (SOME cfg, [d, p, out]) => run cfg d p (SOME out)
+      | _ => (help (); OS.Process.exit OS.Process.failure)
+  end
 
 val _ =
   case CommandLine.arguments () of
     ["plan", d, p]         => doPlan d p 30 NONE
   | ["plan", d, p, t]      => withTMax t (fn tMax => doPlan d p tMax NONE)
   | ["plan", d, p, t, out] => withTMax t (fn tMax => doPlan d p tMax (SOME out))
-  (* The specific --dfs/--topo/--gdfs clauses MUST precede the general ground clauses: SML takes the
-     first matching clause, and ["ground", d, p, out] would otherwise bind d to the flag string. *)
-  | ["ground", "--dfs", d, p]        => doGround ChkDFS d p NONE
-  | ["ground", "--dfs", d, p, out]   => doGround ChkDFS d p (SOME out)
-  | ["ground", "--topo", d, p]       => doGround ChkTopo d p NONE
-  | ["ground", "--topo", d, p, out]  => doGround ChkTopo d p (SOME out)
-  | ["ground", "--gdfs", d, p]       => doGround ChkGDFS d p NONE
-  | ["ground", "--gdfs", d, p, out]  => doGround ChkGDFS d p (SOME out)
-  | ["ground", d, p]                 => doGround ChkDFS d p NONE
-  | ["ground", d, p, out]            => doGround ChkDFS d p (SOME out)
+  | ("ground" :: rest)     => doGroundArgs rest
   | _                      => (help (); OS.Process.exit OS.Process.failure)
 
 val _ = OS.Process.exit OS.Process.success
