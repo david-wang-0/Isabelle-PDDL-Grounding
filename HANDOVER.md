@@ -38,14 +38,16 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   `certified_reachability_fold_num` (**must** extend `certified_reachability_base` only, else the
   `grounder` interpretation deduplicates); factorization block moved into the new assumption-free
   `grounder_inst` locale. Pipeline theorem `numeric_wf_ground_cert_problem`.
-  **OPEN (tier 3, follow-up): plan equivalence across the fold under numerics.** The whole
-  `wf_fact_folder` semantics chain carries `snd M` unchanged; with fluents it must carry a renaming
-  (`fold_nstate`, inverting `ground_pne` on `fluents`). ~22 obligations, two of them hard:
-  `numeric_update_function (ground_neff ne) (fold_nstate N) (fold_nstate N') =
-  fold_nstate (numeric_update_function ne N N')` and the `action_numeric_update_function`
-  (`fold (∘)` over the effect list) commutation. Until then the grounded numeric output is proven
-  well-formed but plan-equivalence is available for the *instantiation* only. Plan:
-  `/tmp/plan_numeric_grounded_output.md` §Tier 3.
+  **DONE (tier 3): plan equivalence across the fold under numerics.** Numeric states transfer via
+  the renaming `fold_nstate` (inverting `ground_pne` on `fluents`); semantic core
+  (`ground_numexp_val`, `ground_fmla_sem_num`, the `ground_neff_update_num`/`fold_action_update_num`
+  update commutations) and the full transfer chain (`fold_init_num`, `fold_enabled_iff_num`,
+  `fold_exec_right_num`, path/validity, `fold_valid_classical_plan_iff_num`) live in
+  `Classical_Grounded_PDDL_Semantics.thy`; lifted through `wf_grounder_num.valid_classical_plan_iff_num`
+  (Factorization) to the pipeline (`numeric_ground_cert_plan_valid_iff`/`_plan_reconstruct`) and the
+  entry points (`ground_all_actions_*_e_plan_valid_iff`/`_plan_restore`). The CLI prints the folded
+  product via `ground --folded`. Next up: rebase the numeric-free (STRIPS) pipeline on the numeric
+  pipeline (numeric-freeness-preservation lemmas + a final grounded-product→STRIPS stage).
 - **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
   bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
   still *theorems* (no new locale assumptions, no gate checks). The machinery lives in

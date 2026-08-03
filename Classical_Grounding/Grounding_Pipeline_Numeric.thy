@@ -774,9 +774,8 @@ text \<open>\<^bold>\<open>Well-formedness of the grounded numeric problem\<clos
   product is a well-formed classical problem --- nullary predicate declarations for the certified
   facts, nullary function declarations for the reachable fluents, a distinct and well-formed
   initial state (predicate atoms \<^emph>\<open>and\<close> function assignments), and a well-formed goal. This is
-  the numeric twin of \<open>wf_ground_cert_problem\<close>. Plan equivalence for this stage is \<^emph>\<open>not\<close> yet
-  available --- it holds for the instantiation \<^const>\<open>ast_classical_problem.numeric_P\<^sub>V_cert\<close>
-  (\<open>varfree_inst_cert_plan_valid_iff\<close>) and is a follow-up for the fold.\<close>
+  the numeric twin of \<open>wf_ground_cert_problem\<close>. Plan equivalence for the fold is
+  \<open>numeric_ground_cert_plan_valid_iff\<close> / \<open>numeric_ground_cert_plan_reconstruct\<close> below.\<close>
 lemma numeric_wf_ground_cert_problem:
   assumes fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
       and "restrict_prob" "wf_classical_problem"
@@ -787,6 +786,56 @@ proof -
   show ?thesis
     unfolding numeric_P\<^sub>G_cert_ground_prob[OF assms]
     using cr.wfg_num.ground_prob_wf_num[unfolded cr.cert_ops'_def cr.cert_facts'_def] by simp
+qed
+
+text \<open>\<^bold>\<open>Plan-existence equivalence for the grounded numeric problem\<close>: under the fold
+  re-checks the folded product has a valid plan iff the original problem does --- the numeric
+  grounder's \<open>valid_classical_plan_iff_num\<close> composed with the normalization and
+  definedness-translation equivalences. This completes the plan-preservation story for the
+  numeric pipeline's \<^emph>\<open>second\<close> stage.\<close>
+lemma numeric_ground_cert_plan_valid_iff:
+  assumes fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and "restrict_prob" "wf_classical_problem"
+  shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow>
+    (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
+proof -
+  interpret cr: certified_reachability_fold_num P\<^sub>T M dc
+    using certified_reachability_fold_num_i[OF nonempty cert fold_cert assms(2,3)] .
+  have "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
+    using assms(2,3) normalization_valid_iff by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
+    using ast_classical_problem.def_translate_valid_iff_compact[OF normalization_wf[OF assms(2,3)] P\<^sub>N_def_explicated_conj[OF assms(2,3)]]
+    unfolding P\<^sub>T_def by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s')"
+    unfolding numeric_P\<^sub>G_cert_ground_prob[OF assms]
+    using cr.wfg_num.valid_classical_plan_iff_num[unfolded cr.cert_ops'_def cr.cert_facts'_def] by simp
+  finally show ?thesis .
+qed
+
+text \<open>Plan restoration for the grounded numeric problem: the fold keeps the nullary plan-action
+  list verbatim, so the \<^emph>\<open>same\<close> restorer as for the instantiation
+  (\<^const>\<open>numeric_reconstruct_plan_varfree_cert\<close>) applies --- no new restore map.\<close>
+lemma numeric_ground_cert_plan_reconstruct:
+  assumes fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and "restrict_prob" "wf_classical_problem"
+      and p: "ast_classical_problem.valid_classical_plan2 numeric_P\<^sub>G_cert \<pi>s"
+  shows "valid_classical_plan2 (numeric_reconstruct_plan_varfree_cert \<pi>s)"
+proof -
+  interpret cr: certified_reachability_fold_num P\<^sub>T M dc
+    using certified_reachability_fold_num_i[OF nonempty cert fold_cert assms(2,3)] .
+  let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
+    using p[unfolded numeric_P\<^sub>G_cert_ground_prob[OF assms(1,2,3)]]
+          cr.wfg_num.valid_classical_plan_left_num[unfolded cr.cert_ops'_def cr.cert_facts'_def]
+    by simp
+  hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
+    unfolding P\<^sub>T_def .
+  hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"
+    using ast_classical_problem.restore_plan_def_translate_compact[OF normalization_wf[OF assms(2,3)] P\<^sub>N_def_explicated_conj[OF assms(2,3)]] by blast
+  hence "valid_classical_plan2 (reconstruct_plan_norm (restore_plan_def_translate ?q))"
+    using assms(2,3) normalization_reconstruct by simp
+  thus ?thesis
+    unfolding numeric_reconstruct_plan_varfree_cert_def .
 qed
 
 end

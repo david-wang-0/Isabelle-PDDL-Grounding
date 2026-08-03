@@ -364,6 +364,43 @@ theorem valid_classical_plan_iff:
 
 end
 
+subsection \<open>The numeric grounder's plan equivalence, through the factorization\<close>
+
+text \<open>The numeric one-shot grounder's plan-equivalence theorems: the Variable_Freeness stage's
+  theorems composed with the numeric fact folder's (\<open>fold_valid_plan_right_num\<close> /
+  \<open>fold_valid_plan_left_num\<close> --- the \<^emph>\<open>identity\<close> on plans), rewritten through the
+  factorization equality. Numeric twins of \<open>valid_plan_right\<close> /
+  \<open>valid_classical_plan_left\<close> / \<open>valid_classical_plan_iff\<close>: the fully grounded
+  (nullary, fluent-retaining) problem has a valid plan iff the input does, and any of its valid
+  plans restores to a concrete valid plan of the input.\<close>
+
+context wf_grounder_num
+begin
+
+theorem valid_plan_right_num:
+  assumes "valid_classical_plan2 \<pi>s"
+  shows "pg.valid_classical_plan2 (map ground_pa \<pi>s)"
+proof -
+  have "png.valid_classical_plan2 (map ground_pa \<pi>s)"
+    using varfree_valid_plan_right[OF assms] .
+  thus ?thesis by (rule ff.fold_valid_plan_right_num[unfolded ground_prob_factors])
+qed
+
+theorem valid_classical_plan_left_num:
+  assumes "pg.valid_classical_plan2 \<pi>s'"
+  shows "valid_classical_plan2 (restore_ground_plan \<pi>s')"
+proof -
+  have "png.valid_classical_plan2 \<pi>s'"
+    using assms by (rule ff.fold_valid_plan_left_num[unfolded ground_prob_factors])
+  thus ?thesis by (rule varfree_valid_plan_left)
+qed
+
+theorem valid_classical_plan_iff_num:
+  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. pg.valid_classical_plan2 \<pi>s')"
+  using valid_plan_right_num valid_classical_plan_left_num by blast
+
+end
+
 subsection \<open>Numeric-freeness, re-derived through the factorization\<close>
 
 text \<open>The one-shot grounder's numeric-freeness theorem is the fact folder's stage-local
