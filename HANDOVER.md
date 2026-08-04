@@ -46,8 +46,24 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   `Classical_Grounded_PDDL_Semantics.thy`; lifted through `wf_grounder_num.valid_classical_plan_iff_num`
   (Factorization) to the pipeline (`numeric_ground_cert_plan_valid_iff`/`_plan_reconstruct`) and the
   entry points (`ground_all_actions_*_e_plan_valid_iff`/`_plan_restore`). The CLI prints the folded
-  product via `ground --folded`. Next up: rebase the numeric-free (STRIPS) pipeline on the numeric
-  pipeline (numeric-freeness-preservation lemmas + a final grounded-product→STRIPS stage).
+  product via `ground --folded`.
+- **DONE (tiers 1–4): STRIPS pipeline rebased on the numeric pipeline.** The numeric-free pipeline
+  is the numeric pipeline plus a numeric-freeness gate: the seven-conjunct bridge
+  `grounding_checks_of_num_free` (`numeric_fold_checks + num_free_prob + init_props ⟹
+  grounding_checks`; `is_predAtom` on init stays an explicit conjunct — `eqAtm` in init is
+  numeric-free), the `refl`-shaped product identity `numeric_P⇩G_cert_eq_P⇩G_cert`, the STRIPS
+  block restated on `numeric_P⇩G_cert` (`numeric_P⇩S_cert` + wf/encodable/plan iff/reconstruct,
+  all one-line rewrites), executable entry points
+  `ground_strips_all_actions_{dfs,exec,gdfs}_e : … ⇒ String.literal + name strips_problem`
+  (gate `strips_fold_checks_exec`, deliberately not `[code]` yet) with the six standard
+  companions each, and the input-side chain `P⇩T_num_free` + `init_P⇩T_props` (numeric-freeness
+  and init-props preserved through detype/degoal/explicate/split/def_translate;
+  `explicate_def_fmla` is the *identity* on numeric-free formulas). Plan:
+  `/tmp/plan_strips_rebase.md`. **OPEN (needs sign-off, breaks export byte-identity): tier 5** —
+  add `ground_strips_all_actions_*_e` to `Planner_Export.thy` + a `--strips` CLI mode, regenerate
+  (`isabelle build -c`), re-run smoke baselines. Deferred: stage-local relocation of the tier-4
+  lemmas into `Classical_<Stage>_Num_Free.thy` files at the next heap rebuild;
+  `num_free_prob`/`num_free_ac` dest-rule kit.
 - **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
   bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
   still *theorems* (no new locale assumptions, no gate checks). The machinery lives in
