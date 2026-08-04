@@ -530,4 +530,452 @@ theorem numeric_strips_plan_reconstruct_cert:
 end
 
 end
+
+section \<open>Input-side numeric-freeness preservation through the normalization pipeline\<close>
+
+text \<open>The user-facing guarantee behind the numeric-free (STRIPS) branch: a numeric-free PDDL task
+  stays numeric-free all the way through the normalization chain, so \<^term>\<open>P\<^sub>T\<close> --- the problem the
+  grounding gate is checked against --- inherits \<^const>\<open>ast_classical_problem.num_free_prob\<close> from the
+  input. The chain follows \<^term>\<open>P\<^sub>T\<close>'s own assembly in
+  \<^theory>\<open>Classical_Grounding.Grounding_Pipeline_Numeric\<close>:
+  \<^const>\<open>ast_classical_problem.detype_classical_prob\<close> \<open>\<rightarrow>\<close>
+  \<^const>\<open>ast_classical_problem.degoal_prob\<close> \<open>\<rightarrow>\<close>
+  \<^const>\<open>ast_classical_problem.explicate_def_prob\<close> (\<open>P\<^sub>X\<close>) \<open>\<rightarrow>\<close>
+  \<^const>\<open>ast_classical_problem.split_prob\<close> (\<open>P\<^sub>N\<close>) \<open>\<rightarrow>\<close>
+  \<^const>\<open>ast_classical_problem.def_translate_prob\<close> (\<open>P\<^sub>T\<close>).
+
+  \<^bold>\<open>Placement.\<close> These lemmas belong stage-locally, next to each stage's well-formedness
+  preservation (mirroring \<^verbatim>\<open>Classical_Variable_Freeness_Num_Free\<close>). They are collected here in the
+  top session instead, because every stage theory sits inside a prebuilt session image; the
+  relocation into \<open>Classical_<Stage>/Classical_<Stage>_Num_Free.thy\<close> is deferred to the next heap
+  rebuild.\<close>
+
+subsection \<open>Numeric-freeness of a formula, atom-wise\<close>
+
+text \<open>The introduction rule dual to \<open>num_free_fmla_atoms\<close> above: a formula all of whose atoms are
+  non-numeric is numeric-free. Together the two make \<^const>\<open>num_free_fmla\<close> an atom-set property,
+  which is what carries it through the atom-preserving stages (DNF splitting).\<close>
+lemma num_free_fmla_atomsI:
+  assumes "\<And>a. a \<in> atoms \<phi> \<Longrightarrow> \<not> is_numeric_atom a"
+  shows "num_free_fmla \<phi>"
+  using assms by (induction \<phi>) auto
+
+lemma num_free_fmla_of_predAtom:
+  assumes "is_predAtom \<phi>"
+  shows "num_free_fmla \<phi>"
+  using assms by (cases \<phi> rule: is_predAtom.cases) auto
+
+lemma num_free_fmla_BigAnd:
+  assumes "\<And>f. f \<in> set fs \<Longrightarrow> num_free_fmla f"
+  shows "num_free_fmla (\<^bold>\<And> fs)"
+  using assms by (induction fs) auto
+
+lemma num_free_fmla_BigOr:
+  assumes "\<And>f. f \<in> set fs \<Longrightarrow> num_free_fmla f"
+  shows "num_free_fmla (\<^bold>\<Or> fs)"
+  using assms by (induction fs) auto
+
+subsection \<open>Stage 1: type normalization (detyping)\<close>
+
+text \<open>Detyping rewrites types and parameters only: it conjoins the generated type preconditions onto
+  every action's precondition and appends the supertype facts to the initial state. Both are built
+  from \<^const>\<open>domain_signature.type_atom\<close>, i.e.\ plain \<^const>\<open>predAtm\<close>s, so nothing numeric enters.\<close>
+
+lemma (in domain_signature) num_free_fmla_type_precond: "num_free_fmla (type_precond p)"
+proof (cases p rule: type_precond.cases)
+  case (1 v ts)
+  show ?thesis
+    unfolding 1 type_precond.simps
+    by (rule num_free_fmla_BigOr) auto
+qed
+
+lemma (in domain_signature) num_free_fmla_param_precond: "num_free_fmla (param_precond ps)"
+  unfolding param_precond_def
+  by (rule num_free_fmla_BigAnd) (auto simp: num_free_fmla_type_precond)
+
+lemma (in domain_signature) num_free_ac_detype_classical_ac:
+  assumes "num_free_ac a"
+  shows "num_free_ac (detype_classical_ac a)"
+  using assms unfolding num_free_ac_def by (simp add: num_free_fmla_param_precond)
+
+text \<open>The restriction assumption \<open>restrict_prob\<close> is what makes the supertype facts well defined ---
+  \<^const>\<open>domain_signature.supertype_facts_for\<close> is \<^const>\<open>undefined\<close> on a non-primitive constant type
+  --- so it is needed even though detyping itself is numeric-blind.\<close>
+lemma (in ast_classical_problem) restrict_prob_sigD:
+  assumes restrict_prob
+  shows restrict_prob_sig
+  using assms unfolding restrict_prob_def restrict_dom_def restrict_prob_sig_def by blast
+
+lemma (in ast_classical_problem) supertype_facts_predAtom':
+  assumes rp: restrict_prob
+  shows "\<forall>\<phi> \<in> set (supertype_facts all_consts). is_predAtom \<phi>"
+proof -
+  interpret rp2: restrict_problem_signature
+      "types D" "predicates D" "functions D" "consts D" "objects P"
+    using restrict_prob_sigD[OF rp] by unfold_locales
+  show ?thesis by (rule rp2.supertype_facts_predAtom)
+qed
+
+theorem (in ast_classical_problem) detype_prob_num_free:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob detype_classical_prob"
+proof -
+  have dom: "ast_classical_domain.num_free_dom D2"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a assume "a \<in> set (actions D2)"
+    then obtain a' where a: "a = detype_classical_ac a'"
+      and a'in: "a' \<in> set (actions D)"
+      unfolding detype_classical_dom_sel by auto
+    have "num_free_ac a'" using nf a'in unfolding num_free_prob_def num_free_dom_def by blast
+    thus "num_free_ac a" unfolding a by (rule num_free_ac_detype_classical_ac)
+  qed
+  have init: "\<forall>f \<in> set (init P2). num_free_fmla f"
+  proof
+    fix f assume "f \<in> set (init P2)"
+    hence "f \<in> set (supertype_facts all_consts) \<or> f \<in> set (init P)"
+      unfolding detype_classical_prob_sel by auto
+    thus "num_free_fmla f"
+      using supertype_facts_predAtom'[OF rp] num_free_fmla_of_predAtom
+            nf[unfolded num_free_prob_def] by blast
+  qed
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def
+    using dom init nf unfolding num_free_prob_def by simp
+qed
+
+subsection \<open>Stage 2: goal normalization (degoaling)\<close>
+
+text \<open>Degoaling adds one action whose precondition is the (numeric-free) goal under the
+  \<^const>\<open>term.CONST\<close> lift and whose effect adds the fresh nullary goal predicate; the new goal is
+  that same predicate atom. The initial state is untouched.\<close>
+
+lemma (in ast_classical_problem) num_free_ac_goal_ac:
+  assumes "num_free_fmla g"
+  shows "num_free_ac (goal_ac g)"
+  using assms unfolding num_free_ac_def goal_ac_def by simp
+
+theorem (in ast_classical_problem) degoal_prob_num_free:
+  assumes nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob degoal_prob"
+proof -
+  have tg: "num_free_fmla term_goal"
+    using nf unfolding num_free_prob_def term_goal_def by simp
+  have dom: "ast_classical_domain.num_free_dom D3"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a assume "a \<in> set (actions D3)"
+    hence "a = goal_ac term_goal \<or> a \<in> set (actions D)" unfolding degoal_dom_sel by simp
+    thus "num_free_ac a"
+      using num_free_ac_goal_ac[OF tg] nf unfolding num_free_prob_def num_free_dom_def by blast
+  qed
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def
+    using dom nf unfolding num_free_prob_def by simp
+qed
+
+subsection \<open>Stage 3: definedness explication\<close>
+
+text \<open>The stage with actual content. \<^const>\<open>explicate_def_fmla\<close> conjoins one reflexive numeric
+  equality per primitive numeric expression of the formula and one nonzero witness \<open>\<^bold>\<not>(y = 0)\<close> per
+  divisor sub-expression. Both lists are enumerated \<^emph>\<open>from the numeric atoms\<close>
+  (\<^const>\<open>atom_enumerate_primitive_numeric_expressions\<close> and
+  \<^const>\<open>atom_enumerate_divisor_expressions\<close> return \<^term>\<open>[]\<close> on \<^const>\<open>predAtm\<close>/\<^const>\<open>eqAtm\<close>), so a
+  numeric-free formula enumerates nothing at all and both prefixes are empty: explication is the
+  \<^emph>\<open>identity\<close> on the numeric-free fragment. Preservation is then immediate --- in particular the
+  division-by-zero witnesses, which sit in a second prefix segment after the \<open>f = f\<close> equalities,
+  never appear.\<close>
+
+lemma atom_enumerate_pne_num_free:
+  assumes "\<not> is_numeric_atom a"
+  shows "atom_enumerate_primitive_numeric_expressions a = []"
+  using assms by (cases a) simp_all
+
+lemma atom_enumerate_divisor_num_free:
+  assumes "\<not> is_numeric_atom a"
+  shows "atom_enumerate_divisor_expressions a = []"
+  using assms by (cases a) simp_all
+
+lemma definedness_atoms_num_free:
+  assumes "num_free_fmla \<phi>"
+  shows "definedness_atoms \<phi> = []"
+proof -
+  have "set (formula_enumerate_primitive_numeric_expressions \<phi>) = {}"
+    unfolding set_formula_enumerate_primitive_numeric_expressions_conv
+    using atom_enumerate_pne_num_free num_free_fmla_atoms[OF assms] by auto
+  hence "formula_enumerate_primitive_numeric_expressions \<phi> = []" by simp
+  thus ?thesis unfolding definedness_atoms_def Let_def by simp
+qed
+
+lemma divisor_zero_atoms_num_free:
+  assumes "num_free_fmla \<phi>"
+  shows "divisor_zero_atoms \<phi> = []"
+proof -
+  have "set (formula_enumerate_divisor_expressions \<phi>) = {}"
+    unfolding set_formula_enumerate_divisor_expressions_conv
+    using atom_enumerate_divisor_num_free num_free_fmla_atoms[OF assms] by auto
+  hence "formula_enumerate_divisor_expressions \<phi> = []" by simp
+  thus ?thesis unfolding divisor_zero_atoms_def by simp
+qed
+
+lemma explicate_def_fmla_num_free_id:
+  assumes "num_free_fmla \<phi>"
+  shows "explicate_def_fmla \<phi> = \<phi>"
+  unfolding explicate_def_fmla_def
+            definedness_atoms_num_free[OF assms] divisor_zero_atoms_num_free[OF assms]
+  by simp
+
+lemma num_free_ac_explicate_def_ac:
+  assumes "num_free_ac a"
+  shows "num_free_ac (explicate_def_ac a)"
+  using assms unfolding num_free_ac_def by (simp add: explicate_def_fmla_num_free_id)
+
+theorem (in ast_classical_problem) explicate_def_prob_num_free:
+  assumes nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob explicate_def_prob"
+proof -
+  have dom: "ast_classical_domain.num_free_dom explicate_def_dom"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a assume "a \<in> set (actions explicate_def_dom)"
+    then obtain a' where a: "a = explicate_def_ac a'"
+      and a'in: "a' \<in> set (actions D)"
+      unfolding explicate_def_dom_sel by auto
+    have "num_free_ac a'" using nf a'in unfolding num_free_prob_def num_free_dom_def by blast
+    thus "num_free_ac a" unfolding a by (rule num_free_ac_explicate_def_ac)
+  qed
+  have goal: "num_free_fmla (goal explicate_def_prob)"
+    using nf unfolding num_free_prob_def by (simp add: explicate_def_fmla_num_free_id)
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def
+    using dom goal nf unfolding num_free_prob_def by simp
+qed
+
+subsection \<open>Stage 4: precondition splitting\<close>
+
+text \<open>Splitting copies each action once per DNF disjunct of its precondition, keeping the effect
+  verbatim. Every disjunct's atom set is a subset of the original's (\<open>dnf_list_atoms\<close>), so
+  numeric-freeness --- an atom-set property --- is inherited by each copy.\<close>
+
+lemma num_free_fmla_dnf_list:
+  assumes "num_free_fmla \<phi>"
+      and "c \<in> set (dnf_list \<phi>)"
+  shows "num_free_fmla c"
+proof (rule num_free_fmla_atomsI)
+  fix a assume a: "a \<in> atoms c"
+  have "atoms c \<subseteq> atoms \<phi>" using dnf_list_atoms assms(2) by fast
+  hence "a \<in> atoms \<phi>" using a by blast
+  thus "\<not> is_numeric_atom a" using num_free_fmla_atoms[OF assms(1)] by blast
+qed
+
+lemma (in ast_classical_domain) num_free_ac_split_ac:
+  assumes nfa: "num_free_ac a"
+      and mem: "a' \<in> set (split_ac a)"
+  shows "num_free_ac a'"
+proof -
+  have "num_free_fmla (ac_pre a')"
+    using num_free_fmla_dnf_list split_ac_sel(3)[OF mem] nfa
+    unfolding num_free_ac_def by blast
+  thus ?thesis using nfa split_ac_sel(4)[OF mem] unfolding num_free_ac_def by simp
+qed
+
+theorem (in ast_classical_problem) split_prob_num_free:
+  assumes nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob split_prob"
+proof -
+  have dom: "ast_classical_domain.num_free_dom D4"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a' assume "a' \<in> set (actions D4)"
+    then obtain a where a: "a \<in> set (actions D)"
+      and a': "a' \<in> set (split_ac a)"
+      unfolding split_dom_sel split_acs_def by auto
+    have "num_free_ac a" using nf a unfolding num_free_prob_def num_free_dom_def by blast
+    thus "num_free_ac a'" using a' by (rule num_free_ac_split_ac)
+  qed
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def
+    using dom nf unfolding num_free_prob_def by simp
+qed
+
+subsection \<open>Stage 5: definedness translation\<close>
+
+text \<open>The translation rewrites a reflexive numeric equality \<open>f = f\<close> into the propositional
+  \<open>Defined_f\<close> atom and leaves every other atom alone, so it maps non-numeric atoms to non-numeric
+  atoms. On numeric-free input it additionally has nothing to add: by stage 3 the numeric-effect
+  list of every action is empty, hence the read/written PNE lists are empty and neither the
+  precondition's \<open>Defined_\<close> prefix nor the effect's \<open>Defined_\<close> adds are generated; and no initial
+  fact is a function assignment, so \<^const>\<open>init_def_fact\<close> filters everything out.\<close>
+
+lemma is_numeric_atom_def_translate_atom:
+  assumes "\<not> is_numeric_atom a"
+  shows "\<not> is_numeric_atom (def_translate_atom pfx a)"
+  using assms by (cases a) simp_all
+
+lemma num_free_fmla_def_translate_fmla:
+  assumes "num_free_fmla \<phi>"
+  shows "num_free_fmla (def_translate_fmla pfx \<phi>)"
+  using assms unfolding def_translate_fmla_def
+  by (induction \<phi>) (simp_all add: is_numeric_atom_def_translate_atom)
+
+lemma init_def_fact_num_free:
+  assumes "num_free_fmla f"
+  shows "init_def_fact pfx f = None"
+proof (cases f)
+  case (Atom a)
+  hence "\<not> is_numeric_atom a" using assms by simp
+  thus ?thesis unfolding Atom init_def_fact_def by (cases a) simp_all
+qed (simp_all add: init_def_fact_def)
+
+lemma map_filter_init_def_fact_num_free:
+  assumes "\<And>f. f \<in> set fs \<Longrightarrow> num_free_fmla f"
+  shows "List.map_filter (init_def_fact pfx) fs = []"
+  using assms by (induction fs) (simp_all add: init_def_fact_num_free)
+
+lemma num_free_ac_def_translate_ac:
+  assumes nfa: "num_free_ac a"
+  shows "num_free_ac (def_translate_ac pfx a)"
+proof -
+  obtain h b where a: "a = SimpleActionSchema h b" by (cases a)
+  obtain pre eff where b: "b = SimpleActionBody pre eff" by (cases b)
+  obtain ads dls neffs where e: "eff = Effect ads dls neffs" by (cases eff)
+  have ne: "neffs = []" using nfa unfolding a b e num_free_ac_def by simp
+  have pre_nf: "num_free_fmla pre" using nfa unfolding a b num_free_ac_def by simp
+  show ?thesis
+    unfolding a b e ne def_translate_ac.simps Let_def num_free_ac_def
+    using nfa[unfolded a b e num_free_ac_def]
+    by (simp add: num_free_fmla_def_translate_fmla pre_nf)
+qed
+
+theorem (in ast_classical_problem) def_translate_prob_num_free:
+  assumes nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob def_translate_prob"
+proof -
+  have dom: "ast_classical_domain.num_free_dom DT"
+    unfolding ast_classical_domain.num_free_dom_def
+  proof
+    fix a assume "a \<in> set (actions DT)"
+    then obtain a' where a: "a = def_translate_ac def_prefix a'"
+      and a'in: "a' \<in> set (actions D)"
+      unfolding def_translate_dom_sel by auto
+    have "num_free_ac a'" using nf a'in unfolding num_free_prob_def num_free_dom_def by blast
+    thus "num_free_ac a" unfolding a by (rule num_free_ac_def_translate_ac)
+  qed
+  have goal: "num_free_fmla (goal PT)"
+    using nf unfolding num_free_prob_def by (simp add: num_free_fmla_def_translate_fmla)
+  have init: "\<forall>f \<in> set (init PT). num_free_fmla f"
+    using nf unfolding num_free_prob_def by (simp add: map_filter_init_def_fact_num_free)
+  show ?thesis
+    unfolding ast_classical_problem.num_free_prob_def using dom goal init by simp
+qed
+
+subsection \<open>Composition: the normalized problem \<^term>\<open>P\<^sub>T\<close> is numeric-free\<close>
+
+lemma (in ast_classical_problem) P\<^sub>X_num_free:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob P\<^sub>X"
+  unfolding P\<^sub>X_def
+  using detype_prob_num_free[OF rp nf]
+        ast_classical_problem.degoal_prob_num_free
+        ast_classical_problem.explicate_def_prob_num_free
+  by blast
+
+lemma (in ast_classical_problem) P\<^sub>N_num_free:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob P\<^sub>N"
+  unfolding P\<^sub>N_def
+  using P\<^sub>X_num_free[OF rp nf] ast_classical_problem.split_prob_num_free by blast
+
+text \<open>\<^bold>\<open>The tier-4 headline\<close>: a numeric-free input problem normalizes to a numeric-free \<^term>\<open>P\<^sub>T\<close>.\<close>
+theorem (in ast_classical_problem) P\<^sub>T_num_free:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+  shows "ast_classical_problem.num_free_prob P\<^sub>T"
+  unfolding P\<^sub>T_def
+  using P\<^sub>N_num_free[OF rp nf] ast_classical_problem.def_translate_prob_num_free by blast
+
+subsection \<open>The initial state stays purely propositional\<close>
+
+text \<open>The remaining conjunct of the numeric-free gate, \<open>init_props\<close>, is not implied by
+  numeric-freeness (an object equality \<open>Atom (eqAtm a b)\<close> is numeric-free but not a predicate atom).
+  It is, however, \<^emph>\<open>preserved\<close>: the only facts normalization adds to the initial state are the
+  supertype facts of detyping --- plain predicate atoms --- since on numeric-free input the
+  definedness translation's \<^const>\<open>init_def_fact\<close> filter yields nothing.\<close>
+
+lemma (in ast_classical_problem) init_P\<^sub>N_eq: "init P\<^sub>N = init detype_classical_prob"
+  unfolding P\<^sub>N_def P\<^sub>X_def
+  by (simp add: ast_classical_problem.split_prob_sel(3)
+                ast_classical_problem.explicate_def_prob_sel(3)
+                ast_classical_problem.degoal_prob_sel(3))
+
+lemma (in ast_classical_problem) init_P\<^sub>T_eq:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+  shows "init P\<^sub>T = init detype_classical_prob"
+proof -
+  have nf2: "\<forall>f \<in> set (init detype_classical_prob). num_free_fmla f"
+    using detype_prob_num_free[OF rp nf]
+    unfolding ast_classical_problem.num_free_prob_def by blast
+  have mf: "List.map_filter (init_def_fact pfx) (init detype_classical_prob) = []" for pfx
+    using nf2 by (blast intro: map_filter_init_def_fact_num_free)
+  show ?thesis
+    unfolding P\<^sub>T_def
+    by (simp only: ast_classical_problem.def_translate_prob_sel(3) init_P\<^sub>N_eq mf
+                   remdups.simps(1) append_Nil2)
+qed
+
+theorem (in ast_classical_problem) init_P\<^sub>T_props:
+  assumes rp: restrict_prob
+      and nf: num_free_prob
+      and ip: "\<forall>f \<in> set (init P). is_predAtom f"
+  shows "\<forall>f \<in> set (init P\<^sub>T). is_predAtom f"
+  unfolding init_P\<^sub>T_eq[OF rp nf] detype_classical_prob_sel
+  using supertype_facts_predAtom'[OF rp] ip by auto
+
+subsection \<open>The input-side form of the numeric-free gate\<close>
+
+text \<open>Tier 4 composed with the tier-1 gate bridge: the two numeric-freeness conjuncts of the
+  numeric-free gate are discharged from \<^emph>\<open>input-side\<close> hypotheses, so all that is left to check on
+  the normalized problem is the numeric fold re-check. This is the user-facing statement ``a
+  numeric-free PDDL task with a purely propositional initial state passes the numeric-free grounding
+  gate''.\<close>
+
+theorem (in ast_classical_problem) grounding_checks_P\<^sub>T_of_num_free_input:
+  assumes ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+             (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+             (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and rp: restrict_prob
+      and wf: wf_classical_problem
+      and nf: num_free_prob
+      and ip: "\<forall>f \<in> set (init P). is_predAtom f"
+  shows "normalized_problem_rx.grounding_checks P\<^sub>T M"
+  by (rule grounding_checks_P\<^sub>T_of_num_free[OF ne cert fold_cert
+        P\<^sub>T_num_free[OF rp nf] init_P\<^sub>T_props[OF rp nf ip] rp wf])
+
+theorem (in ast_classical_problem) certified_reachability_i_num_free_input:
+  assumes ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+             (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+             (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and fold_cert: "normalized_problem_rx.numeric_fold_checks P\<^sub>T M"
+      and rp: restrict_prob
+      and wf: wf_classical_problem
+      and nf: num_free_prob
+      and ip: "\<forall>f \<in> set (init P). is_predAtom f"
+  shows "certified_reachability P\<^sub>T M dc"
+  by (rule certified_reachability_i_num_free[OF ne cert fold_cert
+        P\<^sub>T_num_free[OF rp nf] init_P\<^sub>T_props[OF rp nf ip] rp wf])
+
+text \<open>\<^bold>\<open>Executable corollary (deferred).\<close> The executable twin --- from \<open>num_free_prob P\<close> plus
+  \<open>numeric_fold_checks_exec\<close> plus the input \<open>is_predAtom\<close> check conclude \<open>strips_fold_checks_exec\<close>
+  --- is a one-line assembly of \<open>P\<^sub>T_num_free\<close> and \<open>init_P\<^sub>T_props\<close> against
+  \<open>strips_fold_checks_exec_def\<close>, but that gate is defined \<^emph>\<open>downstream\<close> in
+  \<^verbatim>\<open>Grounding_Pipeline_STRIPS_Executable\<close>, so it cannot be stated here. It belongs next to that
+  definition.\<close>
+
 end
