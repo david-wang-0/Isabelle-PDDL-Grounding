@@ -13,6 +13,11 @@
         -- run the verified FOLDING grounder `ground_all_actions_dfs_e` instead and
            print the fully ground, purely 0-ary product (folded nullary facts +
            nullary numeric functions).
+     <bin> ground --strips <domain.pddl> <problem.pddl>
+        -- run the verified STRIPS grounder `ground_strips_all_actions_dfs_e` and
+           print the resulting AFP `strips_problem` as a propositional PDDL
+           fragment. Numeric-free tasks only (the kernel rejects numeric ones).
+           Mutually exclusive with --folded.
 
    Both oracle outputs (Nemo certificate, SAT assignment) are re-checked inside
    the verified kernel, so a non-error answer is correct by theorem
@@ -235,14 +240,60 @@ fun doGroundFolded mode domFile probFile outOpt =
          printProfile ())
   end
 
+(* `ground --strips`: run the verified numeric-free STRIPS grounder
+   `E.ground_strips_all_actions_*_e`, whose right-hand result is the AFP
+   `strips_problem` over string variables (the SAT planner's input format), and
+   print it as a purely propositional PDDL fragment. The kernel gates this on the
+   task being numeric-free (`strips_fold_checks_exec`), so a task with numeric
+   content is REJECTED here rather than silently dropping its numerics. *)
+fun doGroundStrips mode domFile probFile outOpt =
+  let
+    val isaProb = Prof.time "parse" (fn () => parseProb domFile probFile)
+    val () = rssParse := vmhwm ()
+    val timedCertify = (fn prog =>
+      Prof.time "nemo" (fn () =>
+        let val (m, dc) = NemoDriver.certify prog
+        in modelSize := length m;
+           rssNemo := vmhwm ();
+           profMark ("nemo-done model=" ^ Int.toString (length m));
+           (m, dc) end))
+    val gres = Prof.time "ground_total"
+                 (fn () => withNemo (fn () =>
+                    (case mode of
+                        ChkDFS  => E.ground_strips_all_actions_dfs_e
+                      | ChkTopo => E.ground_strips_all_actions_exec_e
+                      | ChkGDFS => E.ground_strips_all_actions_gdfs_e)
+                       timedCertify isaProb))
+    val () = rssGround := vmhwm ()
+  in
+    case gres of
+      E.Inl msg =>
+        (eprintln ("Grounding rejected by the verified kernel: " ^ msg);
+         printProfile ();
+         OS.Process.exit OS.Process.failure)
+    | E.Inr sprob =>
+        (Prof.time "render" (fn () =>
+           case outOpt of
+               NONE      => GroundedPddlPrinter.stripsProblemToStream TextIO.stdOut sprob
+             | SOME path =>
+                 let val out = TextIO.openOut path
+                 in GroundedPddlPrinter.stripsProblemToStream out sprob;
+                    TextIO.closeOut out;
+                    eprintln ("Wrote grounded STRIPS PDDL to " ^ path)
+                 end);
+         printProfile ())
+  end
+
 fun help () =
   eprintln ("Usage:\n  " ^ CommandLine.name () ^ " plan   <domain.pddl> <problem.pddl> [t_max (default 30)] [out.plan]\n"
-            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] [--folded] <domain.pddl> <problem.pddl> [out.pddl]\n"
+            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] [--folded|--strips] <domain.pddl> <problem.pddl> [out.pddl]\n"
             ^ "    (reachability-certificate foundedness check: --dfs (default) = per-vertex directed-cycle\n"
             ^ "     DFS; --topo = ordered linear scan over Nemo's topological order; --gdfs = fast\n"
             ^ "     single-sweep global-visited directed-cycle DFS)\n"
             ^ "    (--folded: print the FULLY GROUND 0-ary product -- folded nullary predicates and\n"
-            ^ "     nullary numeric functions -- instead of the variable-free instantiation)")
+            ^ "     nullary numeric functions -- instead of the variable-free instantiation)\n"
+            ^ "    (--strips: print the verified STRIPS problem (numeric-free tasks only);\n"
+            ^ "     mutually exclusive with --folded)")
 
 fun withTMax t k =
   case Int.fromString t of SOME tMax => k tMax | NONE => (help (); OS.Process.exit OS.Process.failure)
@@ -251,19 +302,34 @@ fun withTMax t k =
    and independent of where they sit relative to the positional arguments), the rest are
    the positional <domain> <problem> [out]. `--dfs|--topo|--gdfs` select the foundedness
    check (last one wins, default --dfs); `--folded` switches to the fully-ground 0-ary
-   product. Any unrecognised option is a usage error. *)
+   product and `--strips` to the verified STRIPS problem. `--folded` and `--strips`
+   are mutually exclusive (each may repeat, but they may not be combined); any
+   unrecognised option is a usage error. *)
+datatype outShape = ShVarfree | ShFolded | ShStrips
+
 fun doGroundArgs args =
   let
     val (flags, positional) = List.partition (String.isPrefix "--") args
+    (* the output shape is set at most once to a non-default value: a second,
+       DIFFERENT shape flag (--folded together with --strips) is a usage error. *)
+    fun setShape (ShVarfree, s) = SOME s
+      | setShape (ShFolded, ShFolded) = SOME ShFolded
+      | setShape (ShStrips, ShStrips) = SOME ShStrips
+      | setShape _ = NONE
     fun opts acc [] = SOME acc
-      | opts (_, folded) ("--dfs" :: r)  = opts (ChkDFS, folded) r
-      | opts (_, folded) ("--topo" :: r) = opts (ChkTopo, folded) r
-      | opts (_, folded) ("--gdfs" :: r) = opts (ChkGDFS, folded) r
-      | opts (mode, _) ("--folded" :: r) = opts (mode, true) r
+      | opts (_, sh) ("--dfs" :: r)  = opts (ChkDFS, sh) r
+      | opts (_, sh) ("--topo" :: r) = opts (ChkTopo, sh) r
+      | opts (_, sh) ("--gdfs" :: r) = opts (ChkGDFS, sh) r
+      | opts (mode, sh) ("--folded" :: r) =
+          (case setShape (sh, ShFolded) of SOME sh' => opts (mode, sh') r | NONE => NONE)
+      | opts (mode, sh) ("--strips" :: r) =
+          (case setShape (sh, ShStrips) of SOME sh' => opts (mode, sh') r | NONE => NONE)
       | opts _ _ = NONE
-    fun run (mode, folded) = if folded then doGroundFolded mode else doGround mode
+    fun run (mode, ShVarfree) = doGround mode
+      | run (mode, ShFolded)  = doGroundFolded mode
+      | run (mode, ShStrips)  = doGroundStrips mode
   in
-    case (opts (ChkDFS, false) flags, positional) of
+    case (opts (ChkDFS, ShVarfree) flags, positional) of
         (SOME cfg, [d, p])      => run cfg d p NONE
       | (SOME cfg, [d, p, out]) => run cfg d p (SOME out)
       | _ => (help (); OS.Process.exit OS.Process.failure)
