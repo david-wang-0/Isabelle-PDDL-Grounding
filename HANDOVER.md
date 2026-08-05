@@ -66,7 +66,8 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   input rejected by the gate) plus numeric-free detection that elides `:numeric-fluents` /
   `(:functions ...)` from the grounded-PDDL printer on numeric-free products. Deferred:
   stage-local relocation of the tier-4 lemmas into `Classical_<Stage>_Num_Free.thy` files at the
-  next heap rebuild; `num_free_prob`/`num_free_ac` dest-rule kit.
+  next heap rebuild, plus the `num_free_prob`/`num_free_ac` dest-rule kit — full
+  what-moves-where table and procedure in `TODO_stage_num_free_relocation.md`.
 - **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
   bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
   still *theorems* (no new locale assumptions, no gate checks). The machinery lives in
