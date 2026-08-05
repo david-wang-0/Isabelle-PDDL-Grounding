@@ -59,11 +59,14 @@ numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
   companions each, and the input-side chain `P⇩T_num_free` + `init_P⇩T_props` (numeric-freeness
   and init-props preserved through detype/degoal/explicate/split/def_translate;
   `explicate_def_fmla` is the *identity* on numeric-free formulas). Plan:
-  `/tmp/plan_strips_rebase.md`. **OPEN (needs sign-off, breaks export byte-identity): tier 5** —
-  add `ground_strips_all_actions_*_e` to `Planner_Export.thy` + a `--strips` CLI mode, regenerate
-  (`isabelle build -c`), re-run smoke baselines. Deferred: stage-local relocation of the tier-4
-  lemmas into `Classical_<Stage>_Num_Free.thy` files at the next heap rebuild;
-  `num_free_prob`/`num_free_ac` dest-rule kit.
+  `/tmp/plan_strips_rebase.md`. Tier 5 shipped too: the entry points +
+  `strips_problem`/`strips_operator` selectors are exported, and the CLI gained `ground --strips`
+  (prints the verified AFP `strips_problem` as the PDDL STRIPS fragment — `as_strips`'s
+  `pos_`/`neg_` twin variables, ops `op_<i>` in folded action order, closed-world init; numeric
+  input rejected by the gate) plus numeric-free detection that elides `:numeric-fluents` /
+  `(:functions ...)` from the grounded-PDDL printer on numeric-free products. Deferred:
+  stage-local relocation of the tier-4 lemmas into `Classical_<Stage>_Num_Free.thy` files at the
+  next heap rebuild; `num_free_prob`/`num_free_ac` dest-rule kit.
 - **DONE (fully verified, 0 `sorry`) — readable generated names everywhere (no underscore-runs, no
   bare-numeral names).** All generated names are now human-readable, with freshness/distinctness
   still *theorems* (no new locale assumptions, no gate checks). The machinery lives in
