@@ -12,7 +12,10 @@ text \<open>\<^bold>\<open>The default SML export of the session\<close> (the on
   printer) and the \<^emph>\<open>fully grounded\<close> numeric twins \<^const>\<open>ground_all_actions_dfs_e\<close> /
   \<^const>\<open>ground_all_actions_exec_e\<close> / \<^const>\<open>ground_all_actions_gdfs_e\<close> (which additionally run
   the fact/fluent fold; not used by the shipped \<open>ground\<close> command, whose output must stay
-  byte-identical),
+  byte-identical), together with the numeric-free STRIPS twins
+  \<^const>\<open>ground_strips_all_actions_dfs_e\<close> / \<open>_exec_e\<close> / \<open>_gdfs_e\<close> (fold + \<open>as_strips\<close>,
+  gated by \<^const>\<open>strips_fold_checks_exec\<close>) and the \<open>strips_problem\<close>/\<open>strips_operator\<close>
+  selectors the CLI's STRIPS printer deconstructs the result with,
   foundedness in both discharged by the verified directed-cycle DFS \<^const>\<open>dl_acyclic_dfs\<close> rather than
   the ordered linear scan. This drags the graph-library RBT / \<^const>\<open>find_dircycle\<close> code into the
   export alongside the PDDL planner code. Regenerate with \<open>isabelle build -e Classical_Grounding\<close> (the
@@ -26,6 +29,10 @@ export_code
   instantiate_all_actions_dfs_e instantiate_all_actions_exec_e instantiate_all_actions_gdfs_e
   instantiate_all_actions_dfs_stream_e instantiate_all_actions_exec_stream_e instantiate_all_actions_gdfs_stream_e
   ground_all_actions_dfs_e ground_all_actions_exec_e ground_all_actions_gdfs_e
+  ground_strips_all_actions_dfs_e ground_strips_all_actions_exec_e ground_strips_all_actions_gdfs_e
+  strips_problem.variables_of strips_problem.operators_of strips_problem.initial_of
+  strips_problem.goal_of
+  strips_operator.precondition_of strips_operator.add_effects_of strips_operator.delete_effects_of
   ast_classical_problem.P\<^sub>T cert_ops_of_exec_fast canon ast_classical_problem.varfree_inst_ac
   varfree.op_names
   ground_via_cert_prop_dfs_e
