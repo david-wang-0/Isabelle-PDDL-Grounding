@@ -331,52 +331,11 @@ lemma (in ast_classical_problem) relaxed_prob_actionD [dest]:
   "relaxed_prob \<Longrightarrow> a \<in> set (actions D) \<Longrightarrow> relaxed_action a"
   unfolding relaxed_prob_def relaxed_dom_def by blast
 
-subsection \<open>Numeric-freeness (the propositional fragment)\<close>
-
-text \<open>Structural predicates identifying the numeric atoms / numeric-free formulas / effects /
-  actions / domains / problems: the arithmetic-comparison atoms are numeric; \<^const>\<open>predAtm\<close> and
-  \<^const>\<open>eqAtm\<close> are not. These identify the propositional fragment the STRIPS backend supports.
-  The \<open>numeric_free_*\<close> locales and the executable-check bundle live downstream in
-  \<^verbatim>\<open>Numeric_Free\<close>; the definitions are here so that \<open>relaxed_problem\<close> (below) can carry
-  numeric-freeness as an assumption.\<close>
-
-fun is_numeric_atom :: "'ent atom \<Rightarrow> bool" where
-  "is_numeric_atom (numericEqAtm _ _) = True"
-| "is_numeric_atom (numericLessAtm _ _) = True"
-| "is_numeric_atom (numericLEAtm _ _) = True"
-| "is_numeric_atom (numericGreaterAtm _ _) = True"
-| "is_numeric_atom (numericGEAtm _ _) = True"
-| "is_numeric_atom _ = False"
-
-fun num_free_fmla :: "'ent atom formula \<Rightarrow> bool" where
-  "num_free_fmla (Atom a) = (\<not> is_numeric_atom a)"
-| "num_free_fmla \<bottom> = True"
-| "num_free_fmla (\<^bold>\<not> \<phi>) = num_free_fmla \<phi>"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<and> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<or> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<rightarrow> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
-
-lemma num_free_fmla_un_and:
-  "num_free_fmla F \<Longrightarrow> \<forall>f \<in> set (un_and F). num_free_fmla f"
-  by (induction F rule: un_and.induct) auto
-
-lemma num_free_fmla_Atom_predAtom:
-  assumes "num_free_fmla (Atom a)" and "\<not> is_eqAtom (Atom a)"
-  shows "is_predAtom (Atom a)"
-  using assms by (cases a) auto
-
-fun num_free_eff :: "'ent ast_effect \<Rightarrow> bool" where
-  "num_free_eff (Effect a d n) =
-     ((\<forall>\<phi> \<in> set a. num_free_fmla \<phi>) \<and> (\<forall>\<phi> \<in> set d. num_free_fmla \<phi>) \<and> n = [])"
-
-definition num_free_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
-  "num_free_ac a \<equiv> num_free_fmla (ac_pre a) \<and> num_free_eff (ac_eff a)"
-
-definition (in ast_classical_domain) num_free_dom :: bool where
-  "num_free_dom \<equiv> \<forall>a \<in> set (actions D). num_free_ac a"
-
-definition (in ast_classical_problem) num_free_prob :: bool where
-  "num_free_prob \<equiv> num_free_dom \<and> num_free_fmla (goal P) \<and> (\<forall>f \<in> set (init P). num_free_fmla f)"
+text \<open>The numeric-freeness predicates (\<^const>\<open>is_numeric_atom\<close>, \<^const>\<open>num_free_fmla\<close>,
+  \<^const>\<open>num_free_eff\<close>, \<^const>\<open>num_free_ac\<close>, \<^const>\<open>ast_classical_domain.num_free_dom\<close>,
+  \<^const>\<open>ast_classical_problem.num_free_prob\<close>) live in
+  \<^verbatim>\<open>Classical_Grounding_Utils.Classical_PDDL_Sema_Supplement\<close>; \<open>relaxed_problem\<close> (below)
+  carries \<open>num_free_prob\<close> as an assumption.\<close>
 
 text \<open>A delete-relaxed problem is additionally \<^emph>\<open>numeric-free\<close> (the STRIPS-branch input restriction):
   every genuine relaxation \<open>relax_prob\<close> satisfies it (\<open>relax_num_free\<close>), so this strengthens

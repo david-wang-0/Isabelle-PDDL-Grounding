@@ -453,4 +453,112 @@ subsection \<open> Formula PNEs \<close>
 
 (* formula_atoms_in_dom_valuation_iff moved to Grounding_Common.PDDL_Sema_Supplement *)
 
+section \<open>Numeric-freeness (the propositional fragment)\<close>
+
+text \<open>Structural predicates identifying the numeric atoms / numeric-free formulas / effects /
+  actions / domains / problems: the arithmetic-comparison atoms are numeric; \<^const>\<open>predAtm\<close> and
+  \<^const>\<open>eqAtm\<close> are not. These identify the propositional fragment the STRIPS backend supports.
+  The \<open>numeric_free_*\<close> locales and the executable-check bundle live downstream in
+  \<^verbatim>\<open>Numeric_Free\<close>, and \<open>relaxed_problem\<close> (in \<^verbatim>\<open>Classical_PDDL_Normalization\<close>) carries
+  numeric-freeness as an assumption.\<close>
+
+fun is_numeric_atom :: "'ent atom \<Rightarrow> bool" where
+  "is_numeric_atom (numericEqAtm _ _) = True"
+| "is_numeric_atom (numericLessAtm _ _) = True"
+| "is_numeric_atom (numericLEAtm _ _) = True"
+| "is_numeric_atom (numericGreaterAtm _ _) = True"
+| "is_numeric_atom (numericGEAtm _ _) = True"
+| "is_numeric_atom _ = False"
+
+fun num_free_fmla :: "'ent atom formula \<Rightarrow> bool" where
+  "num_free_fmla (Atom a) = (\<not> is_numeric_atom a)"
+| "num_free_fmla \<bottom> = True"
+| "num_free_fmla (\<^bold>\<not> \<phi>) = num_free_fmla \<phi>"
+| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<and> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
+| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<or> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
+| "num_free_fmla (\<phi>\<^sub>1 \<^bold>\<rightarrow> \<phi>\<^sub>2) = (num_free_fmla \<phi>\<^sub>1 \<and> num_free_fmla \<phi>\<^sub>2)"
+
+lemma num_free_fmla_un_and:
+  "num_free_fmla F \<Longrightarrow> \<forall>f \<in> set (un_and F). num_free_fmla f"
+  by (induction F rule: un_and.induct) auto
+
+lemma num_free_fmla_Atom_predAtom:
+  assumes "num_free_fmla (Atom a)" and "\<not> is_eqAtom (Atom a)"
+  shows "is_predAtom (Atom a)"
+  using assms by (cases a) auto
+
+lemma num_free_fmla_atoms:
+  assumes "num_free_fmla \<phi>"
+      and "a \<in> atoms \<phi>"
+  shows "\<not> is_numeric_atom a"
+  using assms by (induction \<phi>) auto
+
+fun num_free_eff :: "'ent ast_effect \<Rightarrow> bool" where
+  "num_free_eff (Effect a d n) =
+     ((\<forall>\<phi> \<in> set a. num_free_fmla \<phi>) \<and> (\<forall>\<phi> \<in> set d. num_free_fmla \<phi>) \<and> n = [])"
+
+definition num_free_ac :: "ast_classical_action_schema \<Rightarrow> bool" where
+  "num_free_ac a \<equiv> num_free_fmla (ac_pre a) \<and> num_free_eff (ac_eff a)"
+
+definition (in ast_classical_domain) num_free_dom :: bool where
+  "num_free_dom \<equiv> \<forall>a \<in> set (actions D). num_free_ac a"
+
+definition (in ast_classical_problem) num_free_prob :: bool where
+  "num_free_prob \<equiv> num_free_dom \<and> num_free_fmla (goal P) \<and> (\<forall>f \<in> set (init P). num_free_fmla f)"
+
+subsection \<open>Term-mapping preserves numeric-freeness\<close>
+
+text \<open>Mapping the entity type of an atom / formula / effect (e.g.\ the \<^const>\<open>term.CONST\<close> lift or
+  an \<^const>\<open>ac_tsubst\<close> instantiation) cannot change the atom \<^emph>\<open>constructors\<close>, so it preserves
+  numeric-freeness in both directions. Stated on \<^const>\<open>map_formula\<close>/\<^const>\<open>map_atom\<close> directly
+  (the composed form \<open>map_atom_fmla\<close> normalizes to it under \<open>o_apply\<close>).\<close>
+
+lemma is_numeric_atom_map_atom [simp]:
+  "is_numeric_atom (map_atom f a) = is_numeric_atom a"
+  by (cases a) simp_all
+
+lemma num_free_fmla_map_atom_fmla [simp]:
+  "num_free_fmla (map_formula (map_atom f) \<phi>) = num_free_fmla \<phi>"
+  by (induction \<phi>) simp_all
+
+lemma num_free_eff_map_ast_effect [simp]:
+  "num_free_eff (map_ast_effect f \<epsilon>) = num_free_eff \<epsilon>"
+  by (cases \<epsilon>) simp
+
+subsection \<open>Numeric-freeness of resolved-and-instantiated plan actions\<close>
+
+text \<open>A resolved action-schema name denotes a schema of the domain's action list.\<close>
+lemma (in ast_classical_problem) resolve_schema_mem:
+  assumes "resolve_classical_action_schema n = Some a"
+  shows "a \<in> set (actions D)"
+  using assms unfolding resolve_classical_action_schema_def by (meson index_by_eq_SomeD)
+
+text \<open>A well-formed plan action resolves to a schema of the domain, and instantiation is a
+  \<^const>\<open>map_atom_fmla\<close>/\<^const>\<open>map_ast_effect\<close> term-substitution, so on a numeric-free domain
+  the instantiated ground action's body is numeric-free. Stated with
+  \<open>wf_classical_plan_action\<close> assumed directly (rather than inside a reachable-ops locale), so
+  any consumer can apply it without interpreting one.\<close>
+lemma (in ast_classical_problem) num_free_resinst':
+  assumes wf_pi: "wf_classical_plan_action \<pi>"
+      and nfd: num_free_dom
+  shows "num_free_fmla (precondition (the (res_inst \<pi>)))"
+    and "num_free_eff (effect (the (res_inst \<pi>)))"
+proof -
+  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>)
+  obtain a where a: "resolve_classical_action_schema n = Some a"
+    using wf_pi pi wf_classical_plan_action_simple by (auto split: option.splits)
+  have nfa: "num_free_ac a"
+    using nfd resolve_schema_mem[OF a] unfolding num_free_dom_def by blast
+  have pre: "precondition (the (res_inst \<pi>))
+      = map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a)"
+    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
+  have eff: "effect (the (res_inst \<pi>))
+      = map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a)"
+    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
+  show "num_free_fmla (precondition (the (res_inst \<pi>)))"
+    using nfa unfolding pre num_free_ac_def by simp
+  show "num_free_eff (effect (the (res_inst \<pi>)))"
+    using nfa unfolding eff num_free_ac_def by simp
+qed
+
 end

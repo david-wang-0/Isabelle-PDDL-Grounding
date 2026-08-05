@@ -9,6 +9,22 @@ begin
 
 type_synonym facty = "object atom formula"
 
+text \<open>\<^const>\<open>covered\<close> is \<^const>\<open>facts_covered\<close> plus the outright rejection of numeric atoms, so
+  on a numeric-free formula the two coincide. This is the converse of \<open>covered_imp_covered_num\<close>
+  under numeric-freeness.\<close>
+lemma covered_of_facts_covered:
+  assumes "facts_covered \<phi> facts"
+      and "num_free_fmla \<phi>"
+  shows "covered \<phi> facts"
+  unfolding covered_def
+proof
+  fix a assume a: "a \<in> atoms \<phi>"
+  have nn: "\<not> is_numeric_atom a" using num_free_fmla_atoms[OF assms(2) a] .
+  show "(case a of predAtm p xs \<Rightarrow> Atom (predAtm p xs) \<in> set facts
+          | eqAtm x y \<Rightarrow> True | _ \<Rightarrow> False)"
+    using nn facts_coveredD[OF assms(1)] a by (cases a) auto
+qed
+
 text \<open>The op-fluent enumeration: the ground fluents (primitive numeric expressions) occurring in a
   plan action's instantiated ground action --- precondition, numeric-effect left-hand sides, and
   numeric right-hand-side expressions.\<close>

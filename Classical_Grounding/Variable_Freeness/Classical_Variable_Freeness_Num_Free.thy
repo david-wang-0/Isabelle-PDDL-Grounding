@@ -10,58 +10,22 @@ text \<open>Stage-local preservation property: if the input problem is numeric-f
   instantiation nor the lift introduces a numeric atom or effect; types, predicates, functions,
   init and goal are kept verbatim.\<close>
 
-subsection \<open>Term-mapping preserves numeric-freeness\<close>
-
-text \<open>Mapping the entity type of an atom / formula / effect (e.g.\ the \<^const>\<open>term.CONST\<close> lift or
-  an \<^const>\<open>ac_tsubst\<close> instantiation) cannot change the atom \<^emph>\<open>constructors\<close>, so it preserves
-  numeric-freeness in both directions. Stated on \<^const>\<open>map_formula\<close>/\<^const>\<open>map_atom\<close> directly
-  (the composed form \<open>map_atom_fmla\<close> normalizes to it under \<open>o_apply\<close>).\<close>
-
-lemma is_numeric_atom_map_atom [simp]:
-  "is_numeric_atom (map_atom f a) = is_numeric_atom a"
-  by (cases a) simp_all
-
-lemma num_free_fmla_map_atom_fmla [simp]:
-  "num_free_fmla (map_formula (map_atom f) \<phi>) = num_free_fmla \<phi>"
-  by (induction \<phi>) simp_all
-
-lemma num_free_eff_map_ast_effect [simp]:
-  "num_free_eff (map_ast_effect f \<epsilon>) = num_free_eff \<epsilon>"
-  by (cases \<epsilon>) simp
-
 subsection \<open>Numeric-freeness of the instantiated reachable ops\<close>
 
-text \<open>A resolved action-schema name denotes a schema of the domain's action list.\<close>
-lemma (in ast_classical_problem) resolve_schema_mem:
-  assumes "resolve_classical_action_schema n = Some a"
-  shows "a \<in> set (actions D)"
-  using assms unfolding resolve_classical_action_schema_def by (meson index_by_eq_SomeD)
-
-text \<open>Every reachable op resolves (it is well-formed, by \<open>ops_wf\<close>) to a schema of a numeric-free
-  domain, and instantiation is a \<^const>\<open>map_atom_fmla\<close>/\<^const>\<open>map_ast_effect\<close> term-substitution,
-  so the instantiated ground action's body is numeric-free.\<close>
+text \<open>Every reachable op is well-formed (\<open>ops_wf\<close>), so the general
+  \<open>num_free_resinst'\<close> of \<^verbatim>\<open>Classical_PDDL_Sema_Supplement\<close> applies (the term-mapping
+  preservation lemmas live there too).\<close>
 lemma (in varfree_instantiator) num_free_resinst:
   assumes "\<pi> \<in> set ops"
       and num_free_dom
   shows "num_free_fmla (precondition (the (res_inst \<pi>)))"
     and "num_free_eff (effect (the (res_inst \<pi>)))"
 proof -
-  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>)
-  have "wf_classical_plan_action \<pi>" using assms(1) ops_wf by blast
-  then obtain a where a: "resolve_classical_action_schema n = Some a"
-    using pi wf_classical_plan_action_simple by (auto split: option.splits)
-  have nfa: "num_free_ac a"
-    using assms(2) resolve_schema_mem[OF a] unfolding num_free_dom_def by blast
-  have pre: "precondition (the (res_inst \<pi>))
-      = map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a)"
-    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
-  have eff: "effect (the (res_inst \<pi>))
-      = map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a)"
-    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
+  have wf: "wf_classical_plan_action \<pi>" using assms(1) ops_wf by blast
   show "num_free_fmla (precondition (the (res_inst \<pi>)))"
-    using nfa unfolding pre num_free_ac_def by simp
+    using num_free_resinst'(1)[OF wf assms(2)] .
   show "num_free_eff (effect (the (res_inst \<pi>)))"
-    using nfa unfolding eff num_free_ac_def by simp
+    using num_free_resinst'(2)[OF wf assms(2)] .
 qed
 
 subsection \<open>The stage theorem\<close>

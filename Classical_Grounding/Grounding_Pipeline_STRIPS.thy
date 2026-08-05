@@ -27,55 +27,13 @@ text \<open>The numeric-free (STRIPS) branch is the numeric branch plus a decida
   \<open>Atom (eqAtm a b)\<close> in the initial state is numeric-free but is not a predicate atom --- so it
   stays an explicit assumption of the bridge.\<close>
 
-lemma num_free_fmla_atoms:
-  assumes "num_free_fmla \<phi>"
-      and "a \<in> atoms \<phi>"
-  shows "\<not> is_numeric_atom a"
-  using assms by (induction \<phi>) auto
-
-text \<open>\<^const>\<open>covered\<close> is \<^const>\<open>facts_covered\<close> plus the outright rejection of numeric atoms, so
-  on a numeric-free formula the two coincide. This is the converse of \<open>covered_imp_covered_num\<close>
-  under numeric-freeness.\<close>
-lemma covered_of_facts_covered:
-  assumes "facts_covered \<phi> facts"
-      and "num_free_fmla \<phi>"
-  shows "covered \<phi> facts"
-  unfolding covered_def
-proof
-  fix a assume a: "a \<in> atoms \<phi>"
-  have nn: "\<not> is_numeric_atom a" using num_free_fmla_atoms[OF assms(2) a] .
-  show "(case a of predAtm p xs \<Rightarrow> Atom (predAtm p xs) \<in> set facts
-          | eqAtm x y \<Rightarrow> True | _ \<Rightarrow> False)"
-    using nn facts_coveredD[OF assms(1)] a by (cases a) auto
-qed
-
-text \<open>\<open>num_free_resinst\<close> of \<^verbatim>\<open>Classical_Variable_Freeness_Num_Free\<close> generalized off
-  \<^locale>\<open>varfree_instantiator\<close>: its proof uses the reachable-op well-formedness only, so it is
-  stated here with \<open>wf_classical_plan_action\<close> assumed directly. This is what lets the certificate
-  layer use it without interpreting \<^locale>\<open>varfree_instantiator\<close> --- which would deduplicate the
-  shared \<open>grounder\<close> interpretation of the sibling certificate locales.\<close>
-lemma (in ast_classical_problem) num_free_resinst':
-  assumes wf_pi: "wf_classical_plan_action \<pi>"
-      and nfd: num_free_dom
-  shows "num_free_fmla (precondition (the (res_inst \<pi>)))"
-    and "num_free_eff (effect (the (res_inst \<pi>)))"
-proof -
-  obtain n args where pi: "\<pi> = SimplePlanAction n args" by (cases \<pi>)
-  obtain a where a: "resolve_classical_action_schema n = Some a"
-    using wf_pi pi wf_classical_plan_action_simple by (auto split: option.splits)
-  have nfa: "num_free_ac a"
-    using nfd resolve_schema_mem[OF a] unfolding num_free_dom_def by blast
-  have pre: "precondition (the (res_inst \<pi>))
-      = map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a)"
-    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
-  have eff: "effect (the (res_inst \<pi>))
-      = map_ast_effect (ac_tsubst (ac_params a) args) (ac_eff a)"
-    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
-  show "num_free_fmla (precondition (the (res_inst \<pi>)))"
-    using nfa unfolding pre num_free_ac_def by simp
-  show "num_free_eff (effect (the (res_inst \<pi>)))"
-    using nfa unfolding eff num_free_ac_def by simp
-qed
+text \<open>The generic ingredients --- \<open>num_free_fmla_atoms\<close>, the term-mapping preservation lemmas and
+  the resolution lemma \<open>num_free_resinst'\<close> (stated at \<^locale>\<open>ast_classical_problem\<close> with
+  \<open>wf_classical_plan_action\<close> assumed directly, so the certificate layer can use it without
+  interpreting \<^locale>\<open>varfree_instantiator\<close> --- which would deduplicate the shared \<open>grounder\<close>
+  interpretation of the sibling certificate locales) --- live in
+  \<^verbatim>\<open>Classical_PDDL_Sema_Supplement\<close>; \<open>covered_of_facts_covered\<close> in
+  \<^verbatim>\<open>Classical_Grounded_PDDL_Locales\<close>.\<close>
 
 context certified_reachability_base
 begin
