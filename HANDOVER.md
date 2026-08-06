@@ -24,20 +24,9 @@ A sibling **`Temporal_Grounding/`** tree (numeric temporal grounding, grounding-
 `positive_temporal_problem`), but the reachability/relaxation locales are still placeholders and the
 numeric pipeline is a `consts`-axiomatized sketch with sorried theorems.
 
-Branch `verified-sat-planner` is ~18 commits ahead of `main` and **not pushed**.
-
-## Uncommitted work in the tree
-
-The stage-local relocation of the tier-4 numeric-freeness lemmas: five new
-`Classical_<Stage>_Num_Free.thy` files (Type/Goal/Precondition/Definedness_Normalization,
-Definedness_Translation) added to their stage `ROOT`s, the stage-independent formula helpers moved into
-`Classical_PDDL_Sema_Supplement`, and ~330 lines dropped from `Grounding_Pipeline_STRIPS.thy` (which
-now keeps only the composition, the init-props invariant and the input-side gate).
-`TODO_stage_num_free_relocation.md` is deleted (staged) since the move is done.
-
-**Not verified in the current jEdit session** — re-verify (`jedit-status`: `fully_processed` +
-`consolidated`, 0 errors, 0 sorries) before committing. Note the relocation touches theories baked into
-the `Grounding_Classical_Common` heap, so it wants a heap rebuild rather than a live edit.
+Branch `verified-sat-planner` is ~20 commits ahead of `main`, pushed, and the working tree is clean.
+Last full `isabelle build -d <Isabelle-Graph-Library> -d . Classical_Grounding`: green (2026-08-06,
+covering the stage-local Num_Free relocation).
 
 ## Open work
 
@@ -54,7 +43,8 @@ the `Grounding_Classical_Common` heap, so it wants a heap rebuild rather than a 
 - The two `declare safe_suffix(')...simps [simp del]` in
   `Grounding_Common/Goal_Normalization/Goal_Normalization.thy` (they stop simp looping on the recursive
   index search) belong next to `safe_suffix` in `String_Utils.thy`.
-- Stale prose at `Classical_Grounded_PDDL.thy` lines 7-11 (claims sorries that no longer exist).
+- Stale prose claiming sorries that no longer exist: `Classical_Grounded_PDDL.thy` lines 7-11, and
+  `Classical_PDDL_Reachability_Analysis.thy` lines 26/28/184 ("still `sorry`").
 - The pipeline's `resolve_mem` is duplicated by `resolve_schema_mem`.
 - Duplicate-simp warning in `ground_prob_typeless`.
 - A `def_translate_code` bundle belongs in `Classical_Definedness_Translation_Semantics.thy` — the only
