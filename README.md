@@ -18,9 +18,10 @@ datalog engine + verified certificate checker) → ground → convert to STRIPS 
 
 ## Layout
 
-The repo is two mirrored trees: a reusable, Classical-free `Grounding_Common/` and the classical
-grounder `Classical_Grounding/` built on top of it. Stage directories keep a plain name; the session
-and theories inside the classical half carry a `Classical_` prefix, the reusable half does not.
+The repo is mirrored trees over a shared spine: a reusable, Classical-free `Grounding_Common/`, the
+classical grounder `Classical_Grounding/` built on top of it, and an in-progress `Temporal_Grounding/`
+draft (grounding only, no STRIPS). Stage directories keep a plain name; the session and theories inside
+a tree's half carry that tree's prefix (`Classical_`, `Temporal_`), the reusable half does not.
 
 ```text
 Repository
@@ -36,12 +37,15 @@ Repository
 │   ├── Utils/, Common/  - - - - - - - Classical_PDDL_Sema_Supplement, PDDL_Checker_Utils;
 │   │                                  Classical_PDDL_Normalization, Numeric_Free
 │   ├── <stage>/  - - - - - - - - - - - each stage's classical half: Classical_<stage>{_Locales,,_Semantics}
-│   │                                  (Type/Goal/Precondition/Definedness_Normalization,
-│   │                                   Definedness_Translation, PDDL_Relaxation, Reachability_Analysis, Grounded_PDDL)
+│   │                                  (+ Classical_<stage>_Num_Free where numeric-freeness is preserved)
+│   │                                  (Type/Goal/Precondition/Definedness_Normalization, Definedness_Translation,
+│   │                                   PDDL_Relaxation, Reachability_Analysis, Variable_Freeness, Grounded_PDDL)
 │   ├── PDDL_to_STRIPS/  - - - - - - - conversion of the grounded task to STRIPS + plan restoration
 │   ├── Grounding_Pipeline_{Numeric,STRIPS}.thy  pipeline wiring (with numerics / numeric-free to STRIPS)
 │   ├── Code_Setup.thy, *_Executable.thy, Planner_{STRIPS_,}Export.thy  executable entry points + SML export
 │   └── Running_Example{,_DFS,_Numeric}.thy  project demonstrations (STRIPS plan / DFS / numeric fluent)
+├── Temporal_Grounding/  - - - - - - - - IN-PROGRESS temporal draft, same shape (grounding only, no STRIPS);
+│                                        normalization ladder green, reachability/pipeline still sketched
 └── SMLCodebase/  - - - - - - - - - - - the single SML codebase (top level): verified exported kernel (code/),
                                         untrusted oracle drivers (Nemo, SAT), the Formal-PDDL-Semantics parser
                                         bridge + grounded-PDDL printer, and the pddl_ground_planner_dfs CLI
@@ -55,11 +59,15 @@ conversion, the pipeline wiring, and the executable planner soundness theorem
 the two untrusted oracles) are proven with `0 sorry`. The compiled binary plans the running
 example and its output is confirmed by an independent PDDL plan validator.
 
-A second, **numeric-fluent-retaining** grounding pipeline (`Numeric_Grounder.thy`) grounds a task
-while keeping its real numeric preconditions/effects and function assignments (e.g. `(>= (fuel ?c) 1)`
-and `(decrease (fuel ?c) 1)`) in the grounded PDDL, rather than compiling them away for STRIPS. Its
-well-formedness (`numeric_ground_prob_wf`) and plan-preservation (`numeric_valid_classical_plan_iff`)
-are proven `0 sorry`, and the binary's `ground` subcommand prints the fluent-retaining grounded PDDL.
+A second, **numeric-fluent-retaining** grounding pipeline grounds a task while keeping its real numeric
+preconditions/effects and function assignments (e.g. `(>= (fuel ?c) 1)` and `(decrease (fuel ?c) 1)`) in
+the grounded PDDL, rather than compiling them away for STRIPS. It runs in two proven stages — the
+variable-free instantiation (`Classical_Grounding/Variable_Freeness/`, `varfree_inst_prob`) and the
+fact/fluent fold to a nullary problem (`fact_folder.fold_prob`, fluents becoming nullary functions such
+as `fuel_c1_0`) — with well-formedness and plan-equivalence proven `0 sorry` for both. The binary's
+`ground` subcommand prints the stage-1 fluent-retaining PDDL, `ground --folded` the fully grounded
+product, and `ground --strips` the verified STRIPS problem. The STRIPS path is itself this pipeline plus
+a numeric-freeness gate (the products are equal by `refl`).
 See [ARCHITECTURE_pipeline.md](ARCHITECTURE_pipeline.md#numeric-grounding-pipeline-fluent-retaining).
 
 The PDDL reachability-certificate development

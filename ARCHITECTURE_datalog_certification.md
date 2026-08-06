@@ -45,7 +45,7 @@ relates PDDL reachability to Layer 1's generic checker *semantically* (the minim
 index-free Layer 1's foundedness rank can be supplied either by the cert's rule order
 (`dl_founded_exec`, an executable linear scan) or, **Path-2 (DONE, session `Datalog_Graph`)**,
 reconstructed *inside* the kernel from a verified graph topological order — `acyclic (dl_dep_graph c)
-⟹ dl_founded c` — see `Datalog/HANDOVER.md`.)
+⟹ dl_founded c`.)
 
 The asymmetry matters downstream: the *grounding pipeline's* soundness theorems only need the
 closure (`⊇`) half — an over-approximation of the reachable facts is safe to ground against.

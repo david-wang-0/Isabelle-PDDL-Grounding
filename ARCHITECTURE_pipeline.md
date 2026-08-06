@@ -3,7 +3,7 @@
 One-page summary of the end-to-end pipeline (Helmert-2009-style grounding + SAT planning).
 Details: session layout in `CLAUDE.md`, certification design in
 [ARCHITECTURE_datalog_certification.md](ARCHITECTURE_datalog_certification.md). Last updated
-2026-07-08 (added the numeric-fluent-retaining grounding pipeline).
+2026-08-06 (fold plan-equivalence under numerics; STRIPS path rebased on the numeric pipeline).
 
 There are **two grounding paths** sharing the same normalize → relax → certify front half: the
 **STRIPS planning path** (below), which compiles numerics away and grounds to nullary propositional
@@ -46,12 +46,12 @@ each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md
 | Generic positive-datalog certificate kernel + evaluator | session `Datalog_Certification` (`Grounding_Common/Datalog/`): `Datalog_Certificate.thy`, `Datalog_Evaluation.thy` | 0 sorry |
 | Grounder (propositional) | `Classical_Grounded_PDDL` | fully proven |
 | Numeric stage 1: variable-free instantiation | `Classical_Variable_Freeness` (`varfree.varfree_inst_prob`) | wf + plan-preservation proven, 0 sorry |
-| Numeric stage 2: fact/fluent fold (fully grounded) | `Classical_Grounded_PDDL` (`fact_folder.fold_prob` at `wf_fact_folder_num` / `wf_grounder_num`) | wf proven, 0 sorry; plan-equivalence open (follow-up) |
+| Numeric stage 2: fact/fluent fold (fully grounded) | `Classical_Grounded_PDDL` (`fact_folder.fold_prob` at `wf_fact_folder_num` / `wf_grounder_num`) | wf + plan-equivalence proven, 0 sorry |
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`instantiate_all_actions_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
 | Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`, ordered scan), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, per-vertex DFS), `Datalog_Cycle_DFS_Global.thy` (`dl_certified_model_gdfs`, fast `O(V+E)` global-sweep DFS) — three verified foundedness re-checks | 0 sorry |
-| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo\|--gdfs]`) |
+| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo\|--gdfs] [--folded\|--strips]`) |
 | End-to-end demos | `Running_Example.thy`, `Running_Example_DFS.thy`, `Running_Example_Numeric.thy` | green; in-Isabelle `(M, dc)` cert demos (`naive_cert`) |
 
 ## Numeric grounding pipeline (fluent-retaining)
@@ -111,10 +111,24 @@ is admissible as long as every ground fluent in it is one of the reachable `flue
 `fluents_covered` are its two named halves, with `covered_numI/E/D` reaching element level). The folded
 problem's well-formedness is `wf_fact_folder_num.fold_prob_wf_num`, lifted to the one-shot grounder as
 `wf_grounder_num.ground_prob_wf_num` through the factorization `ground_prob_factors`, and to the pipeline
-as `numeric_wf_ground_cert_problem`. **Plan-equivalence across the fold is not yet proven under
-numerics** — it holds for stage 1 only (`varfree_inst_cert_plan_valid_iff` /
-`varfree_inst_cert_plan_reconstruct`); the fold's state relation must rename the numeric component
-(`snd M`) rather than carry it unchanged, which is a scheduled follow-up.
+as `numeric_wf_ground_cert_problem`. **Plan-equivalence across the fold is proven under numerics too**
+(`0 sorry`): the state relation renames the numeric component of `M` via `fold_nstate` (inverting
+`ground_pne` on `fluents`) rather than carrying it unchanged, giving the semantic core
+(`ground_numexp_val`, `ground_fmla_sem_num`, the `ground_neff_update_num` / `fold_action_update_num`
+update commutations) and the transfer chain `fold_init_num` → `fold_enabled_iff_num` →
+`fold_exec_right_num` → `fold_valid_classical_plan_iff_num` in
+`Classical_Grounded_PDDL_Semantics.thy`. It is lifted through
+`wf_grounder_num.valid_classical_plan_iff_num` to the pipeline
+(`numeric_ground_cert_plan_valid_iff` / `_plan_reconstruct`) and to the executable entry points
+(`ground_all_actions_*_e_plan_valid_iff` / `_plan_restore`). Stage 1 has the analogous
+`varfree_inst_cert_plan_valid_iff` / `varfree_inst_cert_plan_reconstruct`.
+
+**STRIPS from the numeric pipeline.** The propositional STRIPS path is now the *same* pipeline plus a
+numeric-freeness gate rather than a parallel development: `numeric_P_G_cert = P_G_cert` holds by `refl`
+under the seven-conjunct bridge `grounding_checks_of_num_free`, so the STRIPS block
+(`numeric_P_S_cert` + wf / encodable / plan-iff / reconstruct) is a set of one-line rewrites over the
+folded numeric product, with executable entry points `ground_strips_all_actions_{dfs,exec,gdfs}_e`
+(gate `strips_fold_checks_exec`) exposed as CLI `ground --strips`.
 
 **Locale plumbing.** The propositional grounder's `covered` re-check rejects numeric atoms outright, and
 stage 1 needs none of the facts/coverage obligations, so `varfree_instantiator` is the **minimal**

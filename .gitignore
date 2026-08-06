@@ -20,3 +20,5 @@ SMLCodebase/bin/
 SMLCodebase/nemo_tmp/
 SMLCodebase/sat_tmp/
 SMLCodebase/**/plan.txt
+# Nemo oracle scratch dir (repo root, when the binary is run from here)
+/nemo_tmp/
