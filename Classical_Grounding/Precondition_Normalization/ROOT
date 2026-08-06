@@ -8,3 +8,4 @@ session Classical_Precondition_Normalization = Grounding_Classical_Common +
     Classical_Precondition_Normalization_Locales
     Classical_Precondition_Normalization
     Classical_Precondition_Normalization_Semantics
+    Classical_Precondition_Normalization_Num_Free

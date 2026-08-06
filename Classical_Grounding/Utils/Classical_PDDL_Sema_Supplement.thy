@@ -493,6 +493,29 @@ lemma num_free_fmla_atoms:
   shows "\<not> is_numeric_atom a"
   using assms by (induction \<phi>) auto
 
+text \<open>The introduction rule dual to \<open>num_free_fmla_atoms\<close>: a formula all of whose atoms are
+  non-numeric is numeric-free. Together the two make \<^const>\<open>num_free_fmla\<close> an atom-set property,
+  which is what carries it through the atom-preserving pipeline stages (DNF splitting).\<close>
+lemma num_free_fmla_atomsI:
+  assumes "\<And>a. a \<in> atoms \<phi> \<Longrightarrow> \<not> is_numeric_atom a"
+  shows "num_free_fmla \<phi>"
+  using assms by (induction \<phi>) auto
+
+lemma num_free_fmla_of_predAtom:
+  assumes "is_predAtom \<phi>"
+  shows "num_free_fmla \<phi>"
+  using assms by (cases \<phi> rule: is_predAtom.cases) auto
+
+lemma num_free_fmla_BigAnd:
+  assumes "\<And>f. f \<in> set fs \<Longrightarrow> num_free_fmla f"
+  shows "num_free_fmla (\<^bold>\<And> fs)"
+  using assms by (induction fs) auto
+
+lemma num_free_fmla_BigOr:
+  assumes "\<And>f. f \<in> set fs \<Longrightarrow> num_free_fmla f"
+  shows "num_free_fmla (\<^bold>\<Or> fs)"
+  using assms by (induction fs) auto
+
 fun num_free_eff :: "'ent ast_effect \<Rightarrow> bool" where
   "num_free_eff (Effect a d n) =
      ((\<forall>\<phi> \<in> set a. num_free_fmla \<phi>) \<and> (\<forall>\<phi> \<in> set d. num_free_fmla \<phi>) \<and> n = [])"

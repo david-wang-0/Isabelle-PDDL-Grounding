@@ -11,3 +11,4 @@ session Classical_Goal_Normalization = Grounding_Classical_Common +
     Classical_Goal_Normalization_Locales
     Classical_Goal_Normalization
     Classical_Goal_Normalization_Semantics
+    Classical_Goal_Normalization_Num_Free

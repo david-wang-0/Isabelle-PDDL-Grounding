@@ -9,3 +9,4 @@ session Classical_Definedness_Translation = Grounding_Classical_Common +
     Classical_Definedness_Translation_Locales
     Classical_Definedness_Translation
     Classical_Definedness_Translation_Semantics
+    Classical_Definedness_Translation_Num_Free

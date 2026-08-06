@@ -11,3 +11,4 @@ session Classical_Type_Normalization = Grounding_Classical_Common +
     Classical_Type_Normalization_Locales
     Classical_Type_Normalization
     Classical_Type_Normalization_Semantics
+    Classical_Type_Normalization_Num_Free

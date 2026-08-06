@@ -12,3 +12,4 @@ session Classical_Definedness_Normalization = Grounding_Classical_Common +
     Classical_Definedness_Normalization_Locales
     Classical_Definedness_Normalization
     Classical_Definedness_Normalization_Semantics
+    Classical_Definedness_Normalization_Num_Free
