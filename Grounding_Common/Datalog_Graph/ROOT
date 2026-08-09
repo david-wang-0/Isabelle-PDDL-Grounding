@@ -7,7 +7,13 @@ session Datalog_Graph = Datalog_Certification +
     the graph library's \<open>dgraph\<close> support graph and discharge the foundedness obligation
     \<open>dl_founded\<close> from acyclicity of that graph (\<open>Datalog_To_Graph\<close>). The graph library
     (Directed_Set_Graphs) is pulled in HERE -- and only here -- so its imperative/Separation_Logic
-    stack never meets the AFP Collections/ODE tower of the PDDL branch.\<close>
+    stack never meets the AFP Collections/ODE tower of the PDDL branch.
+
+    \<open>DFS_DirCycle_Linear{_Aux}\<close> are PDDL-free graph-library extensions rather than datalog
+    theories: the directed counterpart of the library's \<open>DFS_Cycles\<close>, i.e. a whole-graph
+    (linear) cycle search whose outer loop seeds each inner directed-cycle DFS with the region
+    the earlier calls already finished. They live here because this is the session that owns
+    the graph-library dependency; they belong upstream once stable.\<close>
   options [timeout = 600]
   sessions
     "Directed_Set_Graphs"
@@ -18,3 +24,5 @@ session Datalog_Graph = Datalog_Certification +
     Datalog_Cycle_DFS
     Datalog_Cycle_DFS_Global
     Datalog_Certificate_Index
+    DFS_DirCycle_Linear_Aux
+    DFS_DirCycle_Linear
