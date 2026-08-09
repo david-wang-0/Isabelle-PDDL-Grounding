@@ -17,7 +17,7 @@ Both grounding products are fully verified: the propositional STRIPS path and th
 fluent-retaining path, the latter in two stages (variable-free instantiation → fact/fluent fold), each
 with well-formedness *and* plan-equivalence at `0 sorry`. The STRIPS path is now the numeric pipeline
 plus a numeric-freeness gate — the products are equal by `refl` — rather than a parallel development.
-The CLI exposes `ground [--dfs|--topo|--gdfs] [--folded|--strips]` and `plan`.
+The CLI exposes `ground [--dfs|--topo] [--folded|--strips]` and `plan`.
 
 A sibling **`Temporal_Grounding/`** tree (numeric temporal grounding, grounding-only — no STRIPS) is an
 **in-progress draft**: the normalization-ladder locales are green (including the positivity-only

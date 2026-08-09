@@ -91,12 +91,11 @@ stronger foundedness story is also done: the `Datalog_Graph` session proves, pur
 that a finite directed graph is acyclic iff it has a topological numbering, converts a certificate to
 its support graph, and derives `acyclic (dl_dep_graph c) ⟹ dl_founded c` — wired into the kernel's
 admissibility check (`dl_admissible_via_acyclic`). Deciding that acyclicity executably is also done
-(`0 sorry`), so foundedness now has **three complementary, verified re-checks** — all kept, all
+(`0 sorry`), so foundedness now has **two complementary, verified re-checks** — both kept, both
 producing byte-identical grounded output, and selectable in the SML binary as
-`ground [--dfs|--topo|--gdfs]`: the fast ordered-cert linear scan (`dl_founded_exec`, `--topo`) when the
-certificate carries a trusted order; the per-vertex directed-cycle DFS (`dl_acyclic_dfs`, `--dfs`); and
-a fast single-sweep global-visited DFS (`dl_acyclic_dfs_global`, `--gdfs`, `O(V+E)`, verified via its
-full 3-colour-DFS completeness proof). The one dominant cost turned out to be graph *construction* — the
+`ground [--dfs|--topo]`: the fast ordered-cert linear scan (`dl_founded_exec`, `--topo`) when the
+certificate carries a trusted order, and the linear whole-graph directed-cycle DFS sweep
+(`dl_acyclic_dfs`, `--dfs`, `O(V+E)`). The one dominant cost turned out to be graph *construction* — the
 support graph rebuilt `dl_cert_facts` (an `O(R²)` `remdups`) per relabelling — now fixed by a
 proven-equal `[code]` refinement, so the acyclicity checks run in milliseconds on the hard-to-ground
 set. The only remaining (optional) piece is a DFS that *produces* the topological numbering rather than

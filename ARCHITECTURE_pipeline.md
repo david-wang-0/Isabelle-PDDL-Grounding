@@ -50,8 +50,8 @@ each stage lives in session `Grounding_<Stage>`. Session layout is in `CLAUDE.md
 | STRIPS conversion + plan restoration + parallel→serial bridge | `PDDL_to_STRIPS/Classical_PDDL_to_STRIPS.thy` | proven |
 | Pipeline wiring (numeric / STRIPS paths) | `Grounding_Pipeline_Numeric`, `Grounding_Pipeline_STRIPS` | green |
 | Executable entry points | `Grounding_Pipeline_STRIPS_Executable.thy` (`ground_via_cert`/`_dfs`, `plan_by_cert_dfs`), `Grounding_Pipeline_Numeric_Executable.thy` (`instantiate_all_actions_dfs`) | green; `plan_by_cert_dfs_sound` 0 sorry |
-| Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`, ordered scan), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, per-vertex DFS), `Datalog_Cycle_DFS_Global.thy` (`dl_certified_model_gdfs`, fast `O(V+E)` global-sweep DFS) — three verified foundedness re-checks | 0 sorry |
-| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo\|--gdfs] [--folded\|--strips]`) |
+| Generic kernel executable refinement | `Datalog_Certificate_Code.thy` (`dl_certified_model_exec`, ordered scan), `Datalog_Cycle_DFS.thy` (`dl_certified_model_dfs`, linear `O(V+E)` whole-graph DFS sweep) — two verified foundedness re-checks | 0 sorry |
+| Code export + SML harness | `Planner_Export.thy` (default, DFS), `Planner_STRIPS_Export.thy` (retained non-DFS); top-level `SMLCodebase/` | `pddl_ground_planner_dfs` (CLI `plan` / `ground [--dfs\|--topo] [--folded\|--strips]`) |
 | End-to-end demos | `Running_Example.thy`, `Running_Example_DFS.thy`, `Running_Example_Numeric.thy` | green; in-Isabelle `(M, dc)` cert demos (`naive_cert`) |
 
 ## Numeric grounding pipeline (fluent-retaining)
@@ -127,7 +127,7 @@ update commutations) and the transfer chain `fold_init_num` → `fold_enabled_if
 numeric-freeness gate rather than a parallel development: `numeric_P_G_cert = P_G_cert` holds by `refl`
 under the seven-conjunct bridge `grounding_checks_of_num_free`, so the STRIPS block
 (`numeric_P_S_cert` + wf / encodable / plan-iff / reconstruct) is a set of one-line rewrites over the
-folded numeric product, with executable entry points `ground_strips_all_actions_{dfs,exec,gdfs}_e`
+folded numeric product, with executable entry points `ground_strips_all_actions_{dfs,exec}_e`
 (gate `strips_fold_checks_exec`) exposed as CLI `ground --strips`.
 
 **Locale plumbing.** The propositional grounder's `covered` re-check rejects numeric atoms outright, and
@@ -144,9 +144,9 @@ decidable check `numeric_grounding_checks`), `certified_reachability_fold_num` (
 `wf_grounder`, check `grounding_checks`) — so the propositional STRIPS pipeline keeps
 `cr.wfg.ground_prob` verbatim.
 
-**Executable + demo.** `instantiate_all_actions_{dfs,exec,gdfs}_e` (and their `_stream_e` twins, which
+**Executable + demo.** `instantiate_all_actions_{dfs,exec}_e` (and their `_stream_e` twins, which
 the shipped `ground` command calls) gate on the weaker `numeric_grounding_checks_exec` and return the
-stage-1 instantiation; `ground_all_actions_{dfs,exec,gdfs}_e` gate on the strictly stronger
+stage-1 instantiation; `ground_all_actions_{dfs,exec}_e` gate on the strictly stronger
 `numeric_fold_checks_exec` and return the fully grounded stage-2 problem (`_wf` corollaries prove it
 well-formed). The shipped CLI's acceptance behaviour and output are unchanged.
 `Running_Example_Numeric.thy` evaluates both stages in-Isabelle on a `fuel` fluent. The exported SML

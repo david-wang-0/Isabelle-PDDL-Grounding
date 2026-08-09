@@ -22,7 +22,6 @@ session Datalog_Graph = Datalog_Certification +
     Graph_Topological_Order
     Datalog_To_Graph
     Datalog_Cycle_DFS
-    Datalog_Cycle_DFS_Global
     Datalog_Certificate_Index
     DFS_DirCycle_Linear_Aux
     DFS_DirCycle_Linear

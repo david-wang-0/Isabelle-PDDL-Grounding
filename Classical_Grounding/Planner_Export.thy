@@ -10,14 +10,15 @@ text \<open>\<^bold>\<open>The default SML export of the session\<close> (the on
   \<^emph>\<open>STRIPS\<close> DFS planner \<^const>\<open>plan_by_cert_dfs\<close> (for the SAT-based planner), the \<^emph>\<open>numeric\<close> DFS
   error-monad \<^emph>\<open>instantiation\<close> \<^const>\<open>instantiate_all_actions_dfs_e\<close> (for the grounded-PDDL
   printer) and the \<^emph>\<open>fully grounded\<close> numeric twins \<^const>\<open>ground_all_actions_dfs_e\<close> /
-  \<^const>\<open>ground_all_actions_exec_e\<close> / \<^const>\<open>ground_all_actions_gdfs_e\<close> (which additionally run
+  \<^const>\<open>ground_all_actions_exec_e\<close> (which additionally run
   the fact/fluent fold; not used by the shipped \<open>ground\<close> command, whose output must stay
   byte-identical), together with the numeric-free STRIPS twins
-  \<^const>\<open>ground_strips_all_actions_dfs_e\<close> / \<open>_exec_e\<close> / \<open>_gdfs_e\<close> (fold + \<open>as_strips\<close>,
+  \<^const>\<open>ground_strips_all_actions_dfs_e\<close> / \<open>_exec_e\<close> (fold + \<open>as_strips\<close>,
   gated by \<^const>\<open>strips_fold_checks_exec\<close>) and the \<open>strips_problem\<close>/\<open>strips_operator\<close>
   selectors the CLI's STRIPS printer deconstructs the result with,
-  foundedness in both discharged by the verified directed-cycle DFS \<^const>\<open>dl_acyclic_dfs\<close> rather than
-  the ordered linear scan. This drags the graph-library RBT / \<^const>\<open>find_dircycle\<close> code into the
+  foundedness in both discharged by the verified directed-cycle DFS \<^const>\<open>dl_acyclic_dfs\<close> (the
+  linear whole-graph sweep) rather than
+  the ordered linear scan. This drags the graph-library RBT / DFS-sweep code into the
   export alongside the PDDL planner code. Regenerate with \<open>isabelle build -e Classical_Grounding\<close> (the
   graph library and this repo are registered components, so no \<open>-d\<close> flags). This is the \<^bold>\<open>single code
   export\<close> of the development --- the SAT planner, both (propositional + numeric) error-monad grounders,
@@ -26,10 +27,10 @@ text \<open>\<^bold>\<open>The default SML export of the session\<close> (the on
 
 export_code
   plan_by_cert_dfs ground_via_cert'_dfs ground_via_cert_dfs
-  instantiate_all_actions_dfs_e instantiate_all_actions_exec_e instantiate_all_actions_gdfs_e
-  instantiate_all_actions_dfs_stream_e instantiate_all_actions_exec_stream_e instantiate_all_actions_gdfs_stream_e
-  ground_all_actions_dfs_e ground_all_actions_exec_e ground_all_actions_gdfs_e
-  ground_strips_all_actions_dfs_e ground_strips_all_actions_exec_e ground_strips_all_actions_gdfs_e
+  instantiate_all_actions_dfs_e instantiate_all_actions_exec_e
+  instantiate_all_actions_dfs_stream_e instantiate_all_actions_exec_stream_e
+  ground_all_actions_dfs_e ground_all_actions_exec_e
+  ground_strips_all_actions_dfs_e ground_strips_all_actions_exec_e
   strips_problem.variables_of strips_problem.operators_of strips_problem.initial_of
   strips_problem.goal_of
   strips_operator.precondition_of strips_operator.add_effects_of strips_operator.delete_effects_of
@@ -38,7 +39,7 @@ export_code
   ground_via_cert_prop_dfs_e
   dl_program_of sat_solve_strips
   reconstruct_plan_by_cert reconstruct_plan_by_cert_numeric
-  dl_acyclic_dfs dl_certified_model_dfs dl_acyclic_dfs_global dl_certified_model_gdfs
+  dl_acyclic_dfs dl_certified_model_dfs
   formula.Atom formula.And
   DLProgram dl_clauses dl_consts
   Cls id.Var id.Cst Eql Neql PosLit NegLit

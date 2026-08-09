@@ -144,7 +144,7 @@ fun printProfile () =
   else ()
 
 (* Which verified foundedness check re-validates the Nemo reachability certificate. *)
-datatype checkMode = ChkDFS | ChkTopo | ChkGDFS
+datatype checkMode = ChkDFS | ChkTopo
 
 fun doGround mode domFile probFile outOpt =
   let
@@ -167,8 +167,7 @@ fun doGround mode domFile probFile outOpt =
                  (fn () => withNemo (fn () =>
                     (case mode of
                         ChkDFS  => E.instantiate_all_actions_dfs_stream_e
-                      | ChkTopo => E.instantiate_all_actions_exec_stream_e
-                      | ChkGDFS => E.instantiate_all_actions_gdfs_stream_e)
+                      | ChkTopo => E.instantiate_all_actions_exec_stream_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
@@ -217,8 +216,7 @@ fun doGroundFolded mode domFile probFile outOpt =
                  (fn () => withNemo (fn () =>
                     (case mode of
                         ChkDFS  => E.ground_all_actions_dfs_e
-                      | ChkTopo => E.ground_all_actions_exec_e
-                      | ChkGDFS => E.ground_all_actions_gdfs_e)
+                      | ChkTopo => E.ground_all_actions_exec_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
@@ -261,8 +259,7 @@ fun doGroundStrips mode domFile probFile outOpt =
                  (fn () => withNemo (fn () =>
                     (case mode of
                         ChkDFS  => E.ground_strips_all_actions_dfs_e
-                      | ChkTopo => E.ground_strips_all_actions_exec_e
-                      | ChkGDFS => E.ground_strips_all_actions_gdfs_e)
+                      | ChkTopo => E.ground_strips_all_actions_exec_e)
                        timedCertify isaProb))
     val () = rssGround := vmhwm ()
   in
@@ -286,10 +283,9 @@ fun doGroundStrips mode domFile probFile outOpt =
 
 fun help () =
   eprintln ("Usage:\n  " ^ CommandLine.name () ^ " plan   <domain.pddl> <problem.pddl> [t_max (default 30)] [out.plan]\n"
-            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo|--gdfs] [--folded|--strips] <domain.pddl> <problem.pddl> [out.pddl]\n"
-            ^ "    (reachability-certificate foundedness check: --dfs (default) = per-vertex directed-cycle\n"
-            ^ "     DFS; --topo = ordered linear scan over Nemo's topological order; --gdfs = fast\n"
-            ^ "     single-sweep global-visited directed-cycle DFS)\n"
+            ^ "  " ^ CommandLine.name () ^ " ground [--dfs|--topo] [--folded|--strips] <domain.pddl> <problem.pddl> [out.pddl]\n"
+            ^ "    (reachability-certificate foundedness check: --dfs (default) = linear whole-graph\n"
+            ^ "     directed-cycle DFS sweep; --topo = ordered linear scan over Nemo's topological order)\n"
             ^ "    (--folded: print the FULLY GROUND 0-ary product -- folded nullary predicates and\n"
             ^ "     nullary numeric functions -- instead of the variable-free instantiation)\n"
             ^ "    (--strips: print the verified STRIPS problem (numeric-free tasks only);\n"
@@ -300,7 +296,7 @@ fun withTMax t k =
 
 (* `ground` argument parsing: the `--`-prefixed words are options (order-insensitive,
    and independent of where they sit relative to the positional arguments), the rest are
-   the positional <domain> <problem> [out]. `--dfs|--topo|--gdfs` select the foundedness
+   the positional <domain> <problem> [out]. `--dfs|--topo` select the foundedness
    check (last one wins, default --dfs); `--folded` switches to the fully-ground 0-ary
    product and `--strips` to the verified STRIPS problem. `--folded` and `--strips`
    are mutually exclusive (each may repeat, but they may not be combined); any
@@ -319,7 +315,6 @@ fun doGroundArgs args =
     fun opts acc [] = SOME acc
       | opts (_, sh) ("--dfs" :: r)  = opts (ChkDFS, sh) r
       | opts (_, sh) ("--topo" :: r) = opts (ChkTopo, sh) r
-      | opts (_, sh) ("--gdfs" :: r) = opts (ChkGDFS, sh) r
       | opts (mode, sh) ("--folded" :: r) =
           (case setShape (sh, ShFolded) of SOME sh' => opts (mode, sh') r | NONE => NONE)
       | opts (mode, sh) ("--strips" :: r) =

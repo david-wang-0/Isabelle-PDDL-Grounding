@@ -1,6 +1,13 @@
 theory DFS_DirCycle_Linear_Aux
-  imports Directed_Cycle_DFS.DFS_DirCycle
+  imports Directed_Cycle_DFS.DFS_Skeleton Directed_Set_Graphs.Component_Defs
 begin
+
+text \<open>This record duplicates the graph library's \<open>DFS_dircycle_state\<close> (from \<open>DFS_DirCycle\<close>) so
+  that this theory depends only on the DFS skeleton, not on the per-vertex directed-cycle
+  detector. Upstream, the two should be shared.\<close>
+record ('ver, 'vset) DFS_dircycle_state = "('ver, 'vset) DFS_skel_state" +
+  finished :: "'vset"
+  cycle    :: bool
 
 locale DFS_dircycle_linear_aux =
   Graph: Pair_Graph_Specs where lookup = lookup +
@@ -25,7 +32,7 @@ definition "cyc_on_backtrack v (dfs_state::('v,'vset) DFS_dircycle_state) = (dfs
 definition "dircycle_linear_initial_state =
   \<lparr>stack = [s], seen = insert s f, finished = f, cycle = False\<rparr>"
 
-text \<open>This is \<^theory>\<open>Directed_Cycle_DFS.DFS_DirCycle\<close> generalized from a \<^emph>\<open>fresh\<close> start to one
+text \<open>This is the library's \<open>DFS_DirCycle\<close> generalized from a \<^emph>\<open>fresh\<close> start to one
   \<^emph>\<open>pre-seeded\<close> with an already-processed region \<open>f\<close>: a single run of the outer loop of a linear
   (whole-graph) directed-cycle search, which sweeps the roots and hands each call the vertices the
   earlier calls already finished. Both \<open>seen\<close> and \<open>finished\<close> start at \<open>f\<close> --- seeding \<^emph>\<open>only\<close>

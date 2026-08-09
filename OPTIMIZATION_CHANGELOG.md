@@ -511,3 +511,10 @@ untrusted output formatting (as always), so no new formatting proof is needed. E
 IDENTICAL (md5: gripper / blocks / rovers / GED × all three modes, and satellite p33's 3.97M-line
 output). Peak RSS on satellite p33 `--topo`: **9.75 GB → 3.70 GB (−6 GB, ~2.6×)** — the saved delta is
 exactly the materialised schema list.
+
+---
+
+**2026-08-09 — `--gdfs` retired.** The fuel-based global-sweep check (`dl_acyclic_dfs_global` /
+`dl_certified_model_gdfs`, entries 14–16 above) was removed: `--dfs` is now the verified linear
+whole-graph sweep (`DFS_DirCycle_Linear`, `O(V+E)`), which subsumes it. Two foundedness re-checks
+remain: `ground [--dfs|--topo]`.

@@ -15,13 +15,12 @@ splits into a **generic datalog layer** and a **PDDL-specific layer**. Last upda
 > (rank from a verified graph topological order) is **DONE** in session `Datalog_Graph` — `acyclic
 > (dl_dep_graph c) ⟹ dl_founded c`, wired into `dl_admissible` via `dl_admissible_via_acyclic`.
 >
-> **2026-07-21 — the executable acyclicity check is DONE too, and `0 sorry`.** Two verified
-> cycle-detecting DFS variants now decide `acyclic (dl_dep_graph c)` executably and discharge
-> `dl_founded`: the per-vertex `dl_acyclic_dfs` (`Datalog_Cycle_DFS`, graph library, `O(V²)`) and a fast
-> single-sweep global-visited `dl_acyclic_dfs_global` (`Datalog_Cycle_DFS_Global`, `O(V+E)`, `0 sorry`
-> incl. the full 3-colour-DFS completeness proof). Together with the ordered scan `dl_founded_exec` this
-> gives **three selectable, byte-identical foundedness re-checks** — surfaced in the SML binary as
-> `ground [--dfs|--topo|--gdfs]`. Only an order-*producing* witness (a DFS that emits the topological
+> **2026-07-21 — the executable acyclicity check is DONE too, and `0 sorry`.** A verified
+> cycle-detecting DFS now decides `acyclic (dl_dep_graph c)` executably and discharges
+> `dl_founded`: `dl_acyclic_dfs` (`Datalog_Cycle_DFS`, graph library), since rebased onto the linear
+> whole-graph sweep `DFS_DirCycle_Linear` (`O(V+E)`). Together with the ordered scan `dl_founded_exec` this
+> gives **two selectable, byte-identical foundedness re-checks** — surfaced in the SML binary as
+> `ground [--dfs|--topo]`. Only an order-*producing* witness (a DFS that emits the topological
 > numbering itself, rather than a bool) remains, and it is optional.
 
 ## The certification idea
@@ -75,9 +74,9 @@ right-hand sides) and the `all_combos` enumeration utility from
   scan, all `[code]` and proven sound, 0 sorry). Constructing the `dl_founded` rank *inside* the
   kernel from support-graph acyclicity (rather than trusting the cert's order) is **Path-2 (DONE,
   session `Datalog_Graph`)**: `acyclic (dl_dep_graph c) ⟹ dl_founded c` + `dl_admissible_via_acyclic`.
-  Deciding that acyclicity executably is **also DONE (`0 sorry`)**: `dl_acyclic_dfs` (per-vertex
-  directed-cycle DFS) and `dl_acyclic_dfs_global` (fast single-sweep global-visited DFS, `O(V+E)`), both
-  `*_imp_dl_founded`, giving `dl_admissible_gdfs` / `dl_certified_model_gdfs` beside the `_dfs` / `_exec`
+  Deciding that acyclicity executably is **also DONE (`0 sorry`)**: `dl_acyclic_dfs` (the linear
+  whole-graph directed-cycle DFS sweep, `O(V+E)`), with `dl_acyclic_dfs_imp_dl_founded` giving
+  `dl_admissible_dfs` / `dl_certified_model_dfs` beside the `_exec`
   variants. Only an order-*producing* DFS witness remains (optional).
 - **Reference semantics**: `datalog_prog.derivable U P f` — an inductive bottom-up least-model
   semantics of a positive program, owned by the **assumption-free** locale `datalog_prog`, with

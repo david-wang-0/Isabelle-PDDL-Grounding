@@ -88,12 +88,10 @@ text \<open>The datalog program \<open>dl_rules P\<^sub>R\<close> that the certi
   \<open>eqAtm\<close> literal translated by \<open>dl_cond_rh\<close>), alongside the positive \<open>road\<close>/type body atoms.\<close>
 value "my_dl_rules_num"
 value "dl_certified_model_dfs my_dl_rules_num my_const_names_num (fst my_cert_num) (snd my_cert_num)"
-text \<open>The ordered-scan (topological-order) alternative: same certificate, accepted in
-  \<open>O(|rules| \<cdot> |body| \<cdot> |facts|)\<close> instead of the per-vertex DFS's \<open>O(|facts|\<^sup>2)\<close>. Both \<^const>\<open>True\<close>.\<close>
+text \<open>The ordered-scan (topological-order) alternative: same certificate, accepted by validating
+  the certificate's rule order instead of the linear directed-cycle DFS sweep. Both foundedness
+  checks agree (\<^const>\<open>True\<close>).\<close>
 value "dl_certified_model_exec my_dl_rules_num my_const_names_num (fst my_cert_num) (snd my_cert_num)"
-text \<open>The fast single-sweep global-visited DFS (\<^const>\<open>dl_acyclic_dfs_global\<close>): one \<open>O(|V|+|E|)\<close>
-  pass, again accepting the same certificate. All three foundedness checks agree (\<^const>\<open>True\<close>).\<close>
-value "dl_certified_model_gdfs my_dl_rules_num my_const_names_num (fst my_cert_num) (snd my_cert_num)"
 value "grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 value "numeric_grounding_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
 value "numeric_fold_checks_exec my_P\<^sub>T_num (fst my_cert_num)"
