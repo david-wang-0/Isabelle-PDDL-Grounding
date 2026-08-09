@@ -3,7 +3,9 @@ theory DFS_DirCycle_Linear
 begin
 
 text \<open>The directed counterpart of \<open>DFS_Cycles\<close>: a whole-graph (linear) cycle search whose outer
-  loop sweeps the vertices and calls a directed-cycle DFS once per remaining root.
+  loop sweeps the vertices and calls a directed-cycle DFS --- the library's \<open>DFS_DirCycle\<close>
+  extended with a pre-seeded initial state, \<^theory>\<open>Datalog_Graph.DFS_DirCycle_Linear_Aux\<close> ---
+  once per remaining root.
 
   \<^bold>\<open>The one structural difference from \<open>DFS_Cycles\<close>.\<close> The undirected version fixes
   \<open>dfs_aux :: 'v \<Rightarrow> 'state\<close> --- the inner call takes only a root, runs on a \<^emph>\<open>fresh\<close> state, and the

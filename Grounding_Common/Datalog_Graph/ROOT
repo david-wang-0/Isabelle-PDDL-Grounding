@@ -10,10 +10,13 @@ session Datalog_Graph = Datalog_Certification +
     stack never meets the AFP Collections/ODE tower of the PDDL branch.
 
     \<open>DFS_DirCycle_Linear{_Aux}\<close> are PDDL-free graph-library extensions rather than datalog
-    theories: the directed counterpart of the library's \<open>DFS_Cycles\<close>, i.e. a whole-graph
-    (linear) cycle search whose outer loop seeds each inner directed-cycle DFS with the region
-    the earlier calls already finished. They live here because this is the session that owns
-    the graph-library dependency; they belong upstream once stable.\<close>
+    theories: \<open>DFS_DirCycle_Linear_Aux\<close> extends the library's directed-cycle detector
+    (\<open>Directed_Cycle_DFS.DFS_DirCycle\<close>, whose invariant machinery it inherits) with an initial
+    state pre-seeded by an already-finished region, and \<open>DFS_DirCycle_Linear\<close> is the directed
+    counterpart of the library's \<open>DFS_Cycles\<close>, i.e. a whole-graph (linear) cycle search whose
+    outer loop seeds each inner directed-cycle DFS with the region the earlier calls already
+    finished. They live here because this is the session that owns the graph-library dependency;
+    they belong upstream once stable.\<close>
   options [timeout = 600]
   sessions
     "Directed_Set_Graphs"

@@ -38,8 +38,8 @@ find_dircycle_linear = dircycle.dc.DFS_skel_impl and
 cyc_found = dircycle.cyc_found and
 neighbourhood = dircycle.Graph.neighbourhood
   using G.Pair_Graph_Specs_axioms RBT.Set2_axioms
-  by(auto intro!: DFS_dircycle_linear_aux.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
-                                           vset_inv_def)
+  by(auto intro!: DFS_dircycle_linear_aux.intro DFS_dircycle.intro simp add: edge_map_update_def
+                                           RBT_Set.empty_def adj_inv_def map_empty_def vset_inv_def)
 
 lemmas find_dircycle_linear_code[code] =
   dircycle.dc.DFS_skel_impl.simps[folded find_dircycle_linear_def[folded cyc_found_def],
@@ -360,8 +360,9 @@ proof (intro ballI allI impI)
   proof
     show "dircycle.DFS_dircycle_linear_aux_axioms TYPE(nat) (a_graph E) s fs"
       using sV snew ok
-      by (simp add: dircycle.DFS_dircycle_linear_aux_axioms_def dclin.seed_ok_def
-                    a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets a_graph_digraph_abs)
+      by (simp add: dircycle.DFS_dircycle_linear_aux_axioms_def dircycle.DFS_dircycle_axioms_def
+                    dclin.seed_ok_def a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets
+                    a_graph_digraph_abs)
   qed
   have impl: "find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)
                 = aux.dircycle_linear_result"
