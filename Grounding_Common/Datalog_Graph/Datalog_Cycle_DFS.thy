@@ -2,7 +2,7 @@ theory Datalog_Cycle_DFS
   imports
     Datalog_To_Graph
     Datalog_Certification.Datalog_Certificate_Code
-    Directed_Cycle_DFS.DFS_DirCycle
+    DFS_DirCycle_Linear
     Directed_Set_Graphs.Pair_Graph_RBT
 begin
 
@@ -10,33 +10,53 @@ section \<open>Discharging datalog foundedness by a verified directed-cycle DFS\
 
 text \<open>\<open>Datalog_To_Graph\<close> proves the mathematical bridge ``\<open>acyclic (dl_dep_graph c)\<close> implies
   \<open>dl_founded c\<close>'' (under \<open>dl_body_closed\<close>) but leaves the acyclicity check itself abstract. Here we
-  discharge it \<^emph>\<open>executably\<close> with the graph library's verified directed-cycle detector
-  \<open>find_dircycle\<close> (session \<open>Directed_Cycle_DFS\<close>): a certificate's support graph is acyclic iff
-  running the single-source DFS from every certified fact reports no back edge.\<close>
+  discharge it \<^emph>\<open>executably\<close> with the verified whole-graph directed-cycle sweep
+  \<open>DFS_DirCycle_Linear\<close>: a certificate's support graph is acyclic iff a single sweep over its
+  vertices --- each inner DFS seeded with the region the earlier calls already finished --- reports
+  no back edge.
+
+  This replaces the earlier \<^emph>\<open>per-vertex\<close> check, which ran an independent single-source DFS from
+  every certified fact and so re-explored the same region once per source (\<open>O(V\<cdot>(V+E))\<close>). The
+  linear sweep visits each vertex once (\<open>O(V+E)\<close>) and, unlike a shared-\<open>seen\<close> hack, is justified
+  by the seed contract \<open>seed_ok\<close> the inner DFS re-establishes for the enlarged region.\<close>
 
 subsection \<open>Executable directed-cycle DFS over RBT adjacency maps\<close>
 
-text \<open>Instantiate the abstract \<^locale>\<open>DFS_dircycle\<close> at the red-black-tree graph representation
-  (\<^theory>\<open>Directed_Set_Graphs.Pair_Graph_RBT\<close>), exactly as the library's example does. This yields
-  executable \<^term>\<open>find_dircycle\<close> / \<^term>\<open>dircycle_initial_state\<close>.\<close>
+text \<open>Instantiate both abstract locales at the red-black-tree graph representation
+  (\<^theory>\<open>Directed_Set_Graphs.Pair_Graph_RBT\<close>): the pre-seeded inner DFS
+  \<^locale>\<open>DFS_dircycle_linear_aux\<close>, then the outer sweep \<^locale>\<open>DFS_DirCycle_Linear\<close> that calls
+  it once per remaining root.\<close>
 
-global_interpretation dircycle: DFS_dircycle where insert = vset_insert and
+global_interpretation dircycle: DFS_dircycle_linear_aux where insert = vset_insert and
  sel = sel and vset_empty = vset_empty and diff = vset_diff and
  lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
 and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
 and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F and
-s = s for F s
-defines dircycle_initial_state = dircycle.dircycle_initial_state and
-find_dircycle = dircycle.dc.DFS_skel_impl and
+s = s and f = f for F s f
+defines dircycle_linear_initial_state = dircycle.dircycle_linear_initial_state and
+find_dircycle_linear = dircycle.dc.DFS_skel_impl and
 cyc_found = dircycle.cyc_found and
 neighbourhood = dircycle.Graph.neighbourhood
   using G.Pair_Graph_Specs_axioms RBT.Set2_axioms
-  by(auto intro!: DFS_dircycle.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
+  by(auto intro!: DFS_dircycle_linear_aux.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
                                            vset_inv_def)
 
-lemmas find_dircycle_code[code] =
-  dircycle.dc.DFS_skel_impl.simps[folded find_dircycle_def[folded cyc_found_def],
+lemmas find_dircycle_linear_code[code] =
+  dircycle.dc.DFS_skel_impl.simps[folded find_dircycle_linear_def[folded cyc_found_def],
     unfolded dircycle.cyc_on_found_def dircycle.cyc_on_empty_def dircycle.cyc_on_backtrack_def]
+
+global_interpretation dclin: DFS_DirCycle_Linear where insert = vset_insert and
+ sel = sel and vset_empty = vset_empty and diff = vset_diff and
+ lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
+and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
+and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F and V = W and
+dfs_aux = "\<lambda>s fs. find_dircycle_linear F (dircycle_linear_initial_state s fs)" and
+fin_aux = finished and cycle_aux = DFS_dircycle_state.cycle for F W
+defines sweep_initial_state = dclin.initial_state and
+sweep_dircycle = dclin.DFS_DirCycle_Linear_impl
+  using G.Pair_Graph_Specs_axioms RBT.Set2_axioms
+  by(auto intro!: DFS_DirCycle_Linear.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
+                                           vset_inv_def)
 
 subsection \<open>The certificate's support graph as an RBT adjacency map\<close>
 
@@ -77,28 +97,31 @@ definition dep_adjmap :: "('p, 'c) dl_certificate \<Rightarrow> _" where
 
 subsection \<open>The executable acyclicity check\<close>
 
-text \<open>The support graph is acyclic iff the single-source directed-cycle DFS reports no back edge when
-  started from \<^emph>\<open>every\<close> fact index: a directed cycle is reachable from each of its own vertices, so
-  some source hits it.\<close>
+text \<open>The sweep needs the support graph's vertex set as a vset. \<^const>\<open>dVs\<close> of an edge set is
+  exactly its set of endpoints, so collecting both projections of the edge list gives it --- and,
+  unlike the fact-index range \<open>[0..<length (dl_cert_facts c)]\<close> the per-vertex check swept, it is
+  the vertex set \<^emph>\<open>exactly\<close>, which is what \<open>DFS_DirCycle_Linear_axioms\<close> demands.\<close>
+
+definition dep_verts :: "('p, 'c) dl_certificate \<Rightarrow> _" where
+  "dep_verts c = foldr (\<lambda>x t. RBT_Set.insert x t)
+                       (map fst (nat_edges c) @ map snd (nat_edges c)) Leaf"
+
+text \<open>Its \<^const>\<open>vset_inv\<close> / \<^const>\<open>t_set\<close> characterisation needs the \<^const>\<open>RBT_Set.insert\<close>
+  lemmas below, so it is proved there (\<open>dep_verts_inv\<close>, \<open>dep_verts_set\<close>).\<close>
+
+text \<open>The support graph is acyclic iff the whole-graph sweep reports no back edge. One pass: each
+  inner DFS is seeded with the region its predecessors finished, so no vertex is explored twice.\<close>
 
 definition dl_acyclic_dfs :: "('p, 'c) dl_certificate \<Rightarrow> bool" where
   "dl_acyclic_dfs c =
-     list_all (\<lambda>i. \<not> DFS_dircycle_state.cycle (find_dircycle (dep_adjmap c) (dircycle_initial_state i)))
-              [0..<length (dl_cert_facts c)]"
+     (\<not> cyc (sweep_dircycle (dep_adjmap c) (dep_verts c) sweep_initial_state))"
 
-text \<open>Code equation hoisting the support graph out of the per-vertex loop: \<^const>\<open>dep_adjmap\<close> does
-  not depend on the source \<open>i\<close>, but as written it sits inside the \<^const>\<open>list_all\<close> lambda, so the
-  generated code rebuilds the whole RBT adjacency map (relabelling every edge through the linear-scan
-  \<^const>\<open>fact_idx\<close>) once per certified fact --- \<open>O(|facts| \<cdot> |edges| \<cdot> |facts|)\<close>. Binding it once with a
-  \<^theory_text>\<open>let\<close> (the code generator emits an SML \<open>let val g = \<dots>\<close>, evaluated once) makes it
-  \<open>O(|edges| \<cdot> |facts|)\<close> plus the per-vertex DFS. Pure refinement: the term is definitionally equal, so
-  every soundness lemma about \<^const>\<open>dl_acyclic_dfs\<close> is untouched.\<close>
-lemma dl_acyclic_dfs_code [code]:
-  "dl_acyclic_dfs c =
-     (let g = dep_adjmap c in
-      list_all (\<lambda>i. \<not> DFS_dircycle_state.cycle (find_dircycle g (dircycle_initial_state i)))
-               [0..<length (dl_cert_facts c)])"
-  by (simp add: dl_acyclic_dfs_def Let_def)
+lemmas dl_acyclic_dfs_code [code] = dl_acyclic_dfs_def
+
+lemmas sweep_dircycle_code [code] =
+  dclin.DFS_DirCycle_Linear_impl.simps[folded sweep_dircycle_def]
+
+lemmas sweep_initial_state_code [code] = sweep_initial_state_def
 
 subsection \<open>Correctness of the acyclicity check\<close>
 
@@ -169,6 +192,13 @@ lemma foldr_rbt_insert_inv: "vset_inv (foldr (\<lambda>x t. RBT_Set.insert x t) 
 lemma foldr_rbt_insert_set:
   "t_set (foldr (\<lambda>x t. RBT_Set.insert x t) xs Leaf) = set xs"
   by (induction xs) (simp_all add: rbt_insert_set foldr_rbt_insert_inv)
+
+lemma dep_verts_inv: "vset_inv (dep_verts c)"
+  unfolding dep_verts_def by (rule foldr_rbt_insert_inv)
+
+lemma dep_verts_set: "t_set (dep_verts c) = dVs (set (nat_edges c))"
+  unfolding dep_verts_def
+  by (simp add: foldr_rbt_insert_set dVs_eq del: foldr_append)
 
 lemma nbs_inv: "vset_inv (nbs E v)"
   unfolding nbs_def by (rule foldr_rbt_insert_inv)
@@ -298,196 +328,99 @@ proof -
     using r hd by (auto simp: dl_cert_facts_def)
 qed
 
-text \<open>Step 5: single-source cycle detection is complete over the support-graph indices. If the
-  support graph carries a cycle, running the DFS from the (in-range) index of one of its vertices
-  reports it; hence \<^const>\<open>dl_acyclic_dfs\<close> failing is equivalent to acyclicity.\<close>
+text \<open>Step 5: the sweep's two locale obligations at the support graph, and then acyclicity. The
+  per-vertex check needed an index-range argument here (every cycle vertex is a certified fact, so
+  some swept source hits the cycle); the sweep needs none, because it is driven by the graph's own
+  vertex set and reports on the \<^emph>\<open>whole\<close> graph in one go.\<close>
 
-text \<open>The DFS started at a vertex of a cycle detects it. This is the completeness argument: at the
-  end of a cycle-free run \<open>seen = finished\<close> is closed under edges and contains the source, so it
-  contains every vertex reachable from the source --- in particular the whole cycle through it --- and
-  the cycle survives in the explored subgraph, contradicting the completeness theorem.\<close>
+lemma dep_adjmap_axioms:
+  "dclin.DFS_DirCycle_Linear_axioms TYPE(nat) (a_graph (nat_edges c)) (dep_verts c)"
+  unfolding dclin.DFS_DirCycle_Linear_axioms_def
+  by (simp add: a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets a_graph_digraph_abs
+                dep_verts_inv dep_verts_set)
 
-lemma dircycle_detects_cycle:
-  assumes ax: "dircycle.DFS_dircycle_axioms TYPE('a :: linorder) (a_graph E) i"
-    and cyc: "(i, i) \<in> (set E)\<^sup>+"
-  shows "DFS_dircycle_state.cycle (find_dircycle (a_graph E) (dircycle_initial_state i))"
-proof -
-  interpret thms: DFS_dircycle_thms where insert = vset_insert and
+text \<open>The inner DFS meets the contract the sweep assumes of it. For a root outside a seed satisfying
+  \<open>seed_ok\<close>, the run's five structural exports together with its own soundness and completeness are
+  exactly the seven conjuncts of \<open>dfs_aux_axioms\<close> --- which is the whole point of stating those
+  exports in \<open>DFS_DirCycle_Linear_Aux\<close>.\<close>
+
+lemma dep_adjmap_aux_axioms: "dclin.dfs_aux_axioms TYPE(nat) (a_graph E)"
+  unfolding dclin.dfs_aux_axioms_def
+proof (intro ballI allI impI)
+  fix s fs
+  assume sV: "s \<in> dVs (dircycle.Graph.digraph_abs (a_graph E))"
+     and ok: "dclin.seed_ok (a_graph E) fs"
+     and snew: "s \<notin> t_set fs"
+  interpret aux: DFS_dircycle_linear_aux_thms where insert = vset_insert and
     sel = sel and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
     and vset_inv = vset_inv and union = vset_union and inter = vset_inter
-    and G = "a_graph E" and s = i
-    using dircycle.DFS_dircycle_axioms ax
-    by (auto intro!: DFS_dircycle_thms.intro DFS_dircycle_thms_axioms.intro)
-  define init where "init = dircycle_initial_state i"
-  define r where "r = thms.dc.DFS_skel init"
-  have dom: "thms.dc.DFS_skel_dom init"
-    unfolding init_def dircycle_initial_state_def using thms.dircycle_initial_dom by simp
-  have bridge: "find_dircycle (a_graph E) (dircycle_initial_state i) = r"
-    unfolding r_def init_def [symmetric]
-    by (simp add: find_dircycle_def thms.dc.DFS_skel_impl_same[OF dom])
-  have init_raw: "init = DFS_dircycle.dircycle_initial_state vset_insert vset_empty i"
-    by (simp add: init_def dircycle_initial_state_def)
-  have DG: "dircycle.Graph.digraph_abs (a_graph E) = set E"
-    by (rule a_graph_digraph_abs)
-  \<comment> \<open>the initial source \<open>i\<close> stays in \<open>seen\<close> throughout the run\<close>
-  have seen_eq: "seen init = vset_insert i vset_empty"
-    unfolding init_def
-    by (simp add: dircycle.dircycle_initial_state_def)
-  have seen_init: "i \<in> t_set (seen init)"
-    unfolding seen_eq
-    by (simp add: set.set_insert[OF set.invar_empty] set.set_empty RBT_Set.empty_def)
-  show ?thesis
-  proof (rule ccontr)
-    assume "\<not> DFS_dircycle_state.cycle (find_dircycle (a_graph E) (dircycle_initial_state i))"
-    hence ncyc: "\<not> DFS_dircycle_state.cycle r" by (simp add: bridge)
-    \<comment> \<open>invariants of the terminated run\<close>
-    have fc: "thms.invar_finished_closed r"
-      unfolding r_def init_raw
-      by (intro thms.invar_finished_closed_holds thms.dircycle_initial_dom
-                thms.initial_invars thms.initial_fin thms.initial_fc)
-    have ssf: "thms.invar_ssf r"
-      unfolding r_def init_raw
-      by (intro thms.invar_ssf_holds thms.dircycle_initial_dom
-                thms.initial_invars thms.initial_fin thms.initial_struct)
-    have "thms.dc.DFS_skel_ret_1_conds r"
-      unfolding r_def
-      using thms.no_cycle_ret_1[OF dom] ncyc unfolding r_def by blast
-    hence empty: "stack r = []"
-      by (auto simp: thms.dc.DFS_skel_ret_1_conds_def split: list.splits)
-    \<comment> \<open>at the end, finished = seen and the source is finished\<close>
-    have fin_seen: "t_set (finished r) = t_set (seen r)"
-      using ssf empty by (auto simp: thms.invar_ssf_def)
-    \<comment> \<open>seen only grows, so the initial source survives to the final state\<close>
-    have set_insert_mono: "t_set s \<subseteq> t_set (vset_insert x s)" if "vset_inv s" for s x
-      by (auto simp: set.set_insert[OF that])
-    have seen_upd1: "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel_upd1 st))"
-      if v: "vset_inv (seen st)" for st
-      unfolding thms.dc.DFS_skel_upd1_def Let_def
-      by simp (rule set_insert_mono[OF v])
-    have inv1_upd1: "thms.dc.invar_1 (thms.dc.DFS_skel_upd1 st)"
-      if "thms.dc.DFS_skel_call_1_conds st" "thms.dc.invar_1 st" for st
-      using that by (rule thms.dc.invar_1_holds_1)
-    have inv1_upd2: "thms.dc.invar_1 (thms.dc.DFS_skel_upd2 st)"
-      if "thms.dc.DFS_skel_call_2_conds st" "thms.dc.invar_1 st" for st
-      using that by (rule thms.dc.invar_1_holds_2)
-    have seen_mono0: "thms.dc.invar_1 st \<longrightarrow> t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-      if dst: "thms.dc.DFS_skel_dom st" for st
-    proof (induction rule: thms.dc.DFS_skel_induct[OF dst])
-      case IH: (1 st)
-      note simps = thms.dc.DFS_skel_simps[OF IH(1)]
-      show ?case
-      proof (intro impI, rule thms.dc.DFS_skel_cases[where dfs_state = st])
-        assume inv: "thms.dc.invar_1 st"
-        assume c: "thms.dc.DFS_skel_call_1_conds st"
-        have v: "vset_inv (seen st)" using inv by (simp add: thms.dc.invar_1_def)
-        have "t_set (seen (thms.dc.DFS_skel_upd1 st))
-                \<subseteq> t_set (seen (thms.dc.DFS_skel (thms.dc.DFS_skel_upd1 st)))"
-          using IH(2)[OF c] inv1_upd1[OF c inv] by (simp add: mp)
-        hence "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel (thms.dc.DFS_skel_upd1 st)))"
-          using seen_upd1[OF v] by (rule subset_trans [rotated])
-        thus "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-          by (simp add: simps(1) c)
-      next
-        assume inv: "thms.dc.invar_1 st"
-        assume c: "thms.dc.DFS_skel_call_2_conds st"
-        have "t_set (seen (thms.dc.DFS_skel_upd2 st))
-                \<subseteq> t_set (seen (thms.dc.DFS_skel (thms.dc.DFS_skel_upd2 st)))"
-          using IH(3)[OF c] inv1_upd2[OF c inv] by (simp add: mp)
-        thus "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-          by (simp add: simps(2) c thms.upd2_unfold)
-      next
-        assume "thms.dc.invar_1 st" and c: "thms.dc.DFS_skel_ret_1_conds st"
-        thus "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-          by (simp add: simps(3) thms.dc.DFS_skel_ret1_def)
-      next
-        assume "thms.dc.invar_1 st" and c: "thms.dc.DFS_skel_ret_2_conds st"
-        thus "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-          by (simp add: simps(4) thms.dc.DFS_skel_ret2_def)
-      qed
-    qed
-    have seen_mono: "t_set (seen st) \<subseteq> t_set (seen (thms.dc.DFS_skel st))"
-      if "thms.dc.DFS_skel_dom st" and "thms.dc.invar_1 st" for st
-      using seen_mono0[OF that(1)] that(2) by blast
-    have inv1_init: "thms.dc.invar_1 init"
-      unfolding init_raw by (rule thms.initial_invars(1))
-    have i_seen_r: "i \<in> t_set (seen r)"
-      unfolding r_def using seen_init seen_mono[OF dom inv1_init] by auto
-    have i_fin: "i \<in> t_set (finished r)"
-      using i_seen_r fin_seen by simp
-    \<comment> \<open>finished is closed under edges, so all vertices reachable from \<open>i\<close> are finished\<close>
-    have closed: "\<And>u w. u \<in> t_set (finished r) \<Longrightarrow> (u, w) \<in> set E \<Longrightarrow> w \<in> t_set (finished r)"
-      using fc DG by (auto simp: thms.invar_finished_closed_def)
-    have reach_fin: "w \<in> t_set (finished r)" if "(i, w) \<in> (set E)\<^sup>+" for w
-      using that i_fin by (induction rule: trancl_induct) (auto intro: closed)
-    \<comment> \<open>the cycle through \<open>i\<close> survives in the subgraph induced on the finished vertices\<close>
-    have loop_induced: "(i, i) \<in> (set E \<downharpoonright> t_set (finished r))\<^sup>+"
-    proof -
-      have "(i, w) \<in> (set E \<downharpoonright> t_set (finished r))\<^sup>+" if "(i, w) \<in> (set E)\<^sup>+" for w
-        using that
-      proof (induction rule: trancl_induct)
-        case (base w)
-        thus ?case
-          using i_fin reach_fin[OF r_into_trancl[OF base]]
-          by (auto simp: induce_subgraph_def)
-      next
-        case (step w z)
-        have "(w, z) \<in> set E \<downharpoonright> t_set (finished r)"
-          using step.hyps(2) reach_fin[OF step.hyps(1)]
-                reach_fin[OF trancl_into_trancl[OF step.hyps(1,2)]]
-          by (auto simp: induce_subgraph_def)
-        thus ?case using step.IH by (auto intro: trancl_into_trancl)
-      qed
-      thus ?thesis using cyc by blast
-    qed
-    have "\<not> acyclic (dircycle.Graph.digraph_abs (a_graph E) \<downharpoonright> t_set (seen r))"
-      using loop_induced by (auto simp: acyclic_def DG fin_seen)
-    hence "\<exists>c. Awalk_Defs.cycle (dircycle.Graph.digraph_abs (a_graph E) \<downharpoonright> t_set (seen r)) c"
-      by (rule not_acyclic_imp_cycle)
-    moreover have "\<nexists>c. Awalk_Defs.cycle (dircycle.Graph.digraph_abs (a_graph E) \<downharpoonright> t_set (seen r)) c"
-      using thms.DFS_dircycle_complete[OF ncyc[unfolded r_def init_raw]]
-      unfolding r_def init_raw [symmetric] .
-    ultimately show False by blast
+    and G = "a_graph E" and s = s and f = fs
+  proof
+    show "dircycle.DFS_dircycle_linear_aux_axioms TYPE(nat) (a_graph E) s fs"
+      using sV snew ok
+      by (simp add: dircycle.DFS_dircycle_linear_aux_axioms_def dclin.seed_ok_def
+                    a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets a_graph_digraph_abs)
   qed
+  have impl: "find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)
+                = aux.dircycle_linear_result"
+    unfolding find_dircycle_linear_def dircycle_linear_initial_state_def
+    by (rule aux.dc.DFS_skel_impl_same[OF aux.dircycle_linear_initial_dom])
+  show "vset_inv (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
+        \<and> t_set fs \<subseteq> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
+        \<and> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
+             \<subseteq> dVs (dircycle.Graph.digraph_abs (a_graph E))
+        \<and> (\<forall>u w. u \<in> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs))) \<longrightarrow>
+              (u, w) \<in> dircycle.Graph.digraph_abs (a_graph E) \<longrightarrow>
+              w \<in> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs))))
+        \<and> (DFS_dircycle_state.cycle (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)) \<longrightarrow>
+              (\<exists>p. Awalk_Defs.cycle (dircycle.Graph.digraph_abs (a_graph E)) p))
+        \<and> (\<not> DFS_dircycle_state.cycle (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)) \<longrightarrow>
+              s \<in> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
+              \<and> (\<nexists>p. Awalk_Defs.cycle (dircycle.Graph.digraph_abs (a_graph E) \<downharpoonright>
+                        t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))) p))"
+    unfolding impl
+    using aux.dircycle_linear_finished_inv aux.dircycle_linear_seed_subset
+    using aux.dircycle_linear_finished_subset_dVs aux.dircycle_linear_finished_closed
+    using aux.DFS_dircycle_linear_sound aux.dircycle_linear_root_finished
+    using aux.DFS_dircycle_linear_complete
+    by blast
 qed
 
-lemma dep_adjmap_axioms:
-  assumes "i \<in> dVs (set (nat_edges c))"
-  shows "dircycle.DFS_dircycle_axioms TYPE(nat) (a_graph (nat_edges c)) i"
-  unfolding dircycle.DFS_dircycle_axioms_def
-  using assms
-  by (simp add: a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets a_graph_digraph_abs)
+text \<open>Step 6: a clean sweep means the whole support graph is acyclic.\<close>
 
 lemma dl_acyclic_dfs_imp_acyclic:
-  assumes bc: "dl_body_closed c" and dfs: "dl_acyclic_dfs c"
+  assumes dfs: "dl_acyclic_dfs c"
   shows "acyclic (dl_dep_graph c)"
 proof (rule ccontr)
+  let ?E = "nat_edges c"
+  interpret sweep: DFS_DirCycle_Linear_thms where insert = vset_insert and
+    sel = sel and vset_empty = vset_empty and diff = vset_diff and
+    lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
+    and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
+    and vset_inv = vset_inv and union = vset_union and inter = vset_inter
+    and G = "a_graph ?E" and V = "dep_verts c"
+    and dfs_aux = "\<lambda>s fs. find_dircycle_linear (a_graph ?E) (dircycle_linear_initial_state s fs)"
+    and fin_aux = finished and cycle_aux = DFS_dircycle_state.cycle
+  proof
+    show "dclin.DFS_DirCycle_Linear_axioms TYPE(nat) (a_graph ?E) (dep_verts c)"
+      by (rule dep_adjmap_axioms)
+    show "dclin.dfs_aux_axioms TYPE(nat) (a_graph ?E)"
+      by (rule dep_adjmap_aux_axioms)
+  qed
+  have impl: "sweep_dircycle (a_graph ?E) (dep_verts c) sweep_initial_state
+                = dclin.DFS_DirCycle_Linear (dep_verts c) (a_graph ?E) sweep_initial_state"
+    unfolding sweep_initial_state_def
+    by (rule dclin.DFS_DirCycle_Linear_impl_same[OF sweep.initial_state_props(4)])
+  have "\<nexists>p. Awalk_Defs.cycle (set ?E) p"
+    using sweep.DFS_DirCycle_Linear_complete[folded sweep_initial_state_def] dfs
+    by (simp add: dl_acyclic_dfs_def dep_adjmap_def impl a_graph_digraph_abs)
+  moreover
   assume "\<not> acyclic (dl_dep_graph c)"
-  then obtain x where xx: "(x, x) \<in> (dl_dep_graph c)\<^sup>+"
-    by (auto simp: acyclic_def)
-  \<comment> \<open>the cycle vertex is a certified fact, so its index is in range\<close>
-  obtain u v where "(u, v) \<in> dl_dep_graph c" and "x = u"
-    using xx by (metis converse_tranclE)
-  hence xfact: "x \<in> set (dl_cert_facts c)"
-    using bc dl_dep_graph_vertex_cert_fact(1) by blast
-  let ?i = "fact_idx c x"
-  have irange: "?i \<in> set [0..<length (dl_cert_facts c)]"
-    using xfact by (simp add: fact_idx_def idx_of_less)
-  \<comment> \<open>the relabelled cycle lives in the natural-number edge set\<close>
-  have loop: "(?i, ?i) \<in> (set (nat_edges c))\<^sup>+"
-    using trancl_map_prod[OF xx, of "fact_idx c"] by (simp add: set_nat_edges)
-  have "\<exists>z. (?i, z) \<in> set (nat_edges c)"
-    using loop by (metis tranclD)
-  hence "?i \<in> dVs (set (nat_edges c))"
-    by (auto simp: dVs_def)
-  \<comment> \<open>hence the DFS from that source detects a cycle, refuting the acyclicity check\<close>
-  hence "DFS_dircycle_state.cycle
-           (find_dircycle (a_graph (nat_edges c)) (dircycle_initial_state ?i))"
-    using dircycle_detects_cycle[OF dep_adjmap_axioms loop] by blast
-  hence "\<not> dl_acyclic_dfs c"
-    using irange by (auto simp: dl_acyclic_dfs_def dep_adjmap_def list_all_iff)
-  thus False using dfs by blast
+  hence "\<not> acyclic (set ?E)" by (rule not_acyclic_dep_graph_imp_nat_edges)
+  hence "\<exists>p. Awalk_Defs.cycle (set ?E) p" by (rule not_acyclic_imp_cycle)
+  ultimately show False by blast
 qed
 
 subsection \<open>The certificate's support graph is founded when the DFS reports acyclic\<close>
@@ -495,7 +428,7 @@ subsection \<open>The certificate's support graph is founded when the DFS report
 theorem dl_acyclic_dfs_imp_dl_founded:
   assumes "dl_body_closed c" and "dl_acyclic_dfs c"
   shows "dl_founded c"
-  using acyclic_dep_graph_imp_dl_founded[OF assms(1) dl_acyclic_dfs_imp_acyclic[OF assms]] .
+  using acyclic_dep_graph_imp_dl_founded[OF assms(1) dl_acyclic_dfs_imp_acyclic[OF assms(2)]] .
 
 subsection \<open>A DFS-founded executable certified-model check\<close>
 
