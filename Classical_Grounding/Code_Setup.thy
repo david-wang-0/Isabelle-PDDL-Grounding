@@ -1,5 +1,5 @@
 theory Code_Setup
-  imports Grounding_Pipeline_Numeric
+  imports Grounding_Pipeline_Common
     "Continuous_Planning.PDDL_Checker_Common"
     "HOL-Library.AList_Mapping"
 begin

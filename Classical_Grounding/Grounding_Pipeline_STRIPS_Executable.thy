@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_STRIPS_Executable
-  imports Grounding_Pipeline_Common_Executable
+  imports Grounding_Pipeline_Common_Executable Grounding_Pipeline_STRIPS
     Datalog_Graph.Datalog_Cycle_DFS_Global
 begin
 
@@ -111,6 +111,30 @@ definition reconstruct_plan_by_cert where
                 (ast_classical_problem.I (ground_by_cert P M)) ops)))"
 
 subsection \<open>STRIPS exec \<open>\<leftrightarrow>\<close> locale bridges\<close>
+
+text \<open>Under the (re-checked) kernel checks, the executable grounding agrees with the verified
+  \<open>P\<^sub>G_cert\<close> of the pipeline. Stated here rather than with \<^const>\<open>ground_by_cert\<close> itself
+  (\<^verbatim>\<open>Grounding_Pipeline_Common_Executable\<close>): \<open>ground_by_cert\<close> is branch-neutral --- the numeric
+  branch bridges the same function to its folded product --- whereas \<open>P\<^sub>G_cert\<close> belongs to the
+  propositional branch, so only this theory may mention it.\<close>
+lemma ground_by_cert_eq:
+  assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
+      and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
+      and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
+  shows "ground_by_cert P M = ast_classical_problem.P\<^sub>G_cert P M"
+proof -
+  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
+    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
+  have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
+    using gc unfolding grounding_checks_exec_eq[OF rx] .
+  show ?thesis
+    unfolding ground_by_cert_def ast_classical_problem.P\<^sub>G_cert_def[OF ne cert gc']
+              cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
+    by (rule refl)
+qed
 
 lemma ground_by_cert_strips_eq:
   assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"

@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_Common_Executable
-  imports Grounding_Pipeline_STRIPS Code_Setup
+  imports Grounding_Pipeline_Common Code_Setup
     Datalog_Certification.Datalog_Certificate_Code
     Datalog_Certification.Datalog_Certificate_Code_Index
     Datalog_Graph.Datalog_Certificate_Index
@@ -111,7 +111,7 @@ text \<open>The \<^emph>\<open>fold\<close> re-check: executable twin of
   points. It is \<^const>\<open>grounding_checks_exec\<close> with the two numeric-freeness conjuncts replaced by
   their \<^const>\<open>covered_num\<close> counterparts (preconditions, goal, and --- the extra obligation the
   problem level needs --- every initial-state formula), all measured against the ops-derived
-  fluent list \<^term>\<open>grounder.fluents N (canon (cert_ops_of_exec_fast N M))\<close>. It does \<^bold>\<open>not\<close>
+  fluent list \<^term>\<open>varfree.fluents N (canon (cert_ops_of_exec_fast N M))\<close>. It does \<^bold>\<open>not\<close>
   replace \<^const>\<open>numeric_grounding_checks_exec\<close>: the shipped streaming CLI keeps gating on that
   one, so its acceptance behaviour is unchanged.\<close>
 definition numeric_fold_checks_exec where
@@ -129,23 +129,30 @@ definition numeric_fold_checks_exec where
         covered_num (ground_action.precondition (the (simple_action_instantiations.res_inst
                    (ast_classical_domain.resolve_classical_action_schema (domain N))
                    instantiate_classical_action_schema \<pi>)))
-          (cert_facts_of_exec N M) (grounder.fluents N (canon (cert_ops_of_exec_fast N M))))
+          (cert_facts_of_exec N M) (varfree.fluents N (canon (cert_ops_of_exec_fast N M))))
    \<and> covered_num (goal N) (cert_facts_of_exec N M)
-        (grounder.fluents N (canon (cert_ops_of_exec_fast N M)))
+        (varfree.fluents N (canon (cert_ops_of_exec_fast N M)))
    \<and> (\<forall>f \<in> set (init N). covered_num f (cert_facts_of_exec N M)
-        (grounder.fluents N (canon (cert_ops_of_exec_fast N M))))"
+        (varfree.fluents N (canon (cert_ops_of_exec_fast N M))))"
 
 subsection \<open>Grounding a problem against a certified fact list\<close>
 
-text \<open>Unconditional executable twin of \<^verbatim>\<open>P\<^sub>G_cert\<close>, replayed at the top level as a code-generable
-  function keyed on the certified facts \<open>M\<close>. This is the \<^emph>\<open>propositional\<close> grounder
-  (\<^const>\<open>grounder.ground_prob\<close>, numerics compiled away); the fluent-retaining twin
-  \<open>instantiate_all_actions_by_cert\<close> lives with the numeric grounder.\<close>
+text \<open>Unconditional executable twin of \<^verbatim>\<open>P\<^sub>G_cert\<close> / \<^verbatim>\<open>numeric_P\<^sub>G_cert\<close>,
+  replayed at the top level as a code-generable function keyed on the certified facts \<open>M\<close>. It is
+  the two-stage grounder --- the variable-free instantiation \<^const>\<open>varfree.varfree_inst_prob\<close> at
+  the certified ops, folded by \<^const>\<open>fact_folder.fold_prob\<close> at the certified facts and the
+  ops-derived fluents --- and therefore serves \<^emph>\<open>both\<close> branches: on a numeric-free task the
+  fluent list is empty and the fold declares no functions, which is exactly the propositional
+  product. Stopping after stage one instead gives \<open>instantiate_all_actions_by_cert\<close>, with the
+  numeric grounder.\<close>
 definition ground_by_cert where
   [code]: "ground_by_cert P M \<equiv>
-     grounder.ground_prob (ast_classical_problem.P\<^sub>T P)
-       (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M))
-       (cert_facts_of_exec (ast_classical_problem.P\<^sub>T P) M)"
+     fact_folder.fold_prob
+       (varfree.varfree_inst_prob (ast_classical_problem.P\<^sub>T P)
+          (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))
+       (cert_facts_of_exec (ast_classical_problem.P\<^sub>T P) M)
+       (varfree.fluents (ast_classical_problem.P\<^sub>T P)
+          (canon (cert_ops_of_exec_fast (ast_classical_problem.P\<^sub>T P) M)))"
 
 subsection \<open>Shared code equations for plan reconstruction\<close>
 
@@ -160,8 +167,8 @@ declare ast_classical_problem.reconstruct_plan_norm_def[code]
 
 subsection \<open>Grounded-plan restoration (no STRIPS prefix; shared by both grounders)\<close>
 
-text \<open>Executable twin of the abstract reconstructors \<^const>\<open>ast_classical_problem.reconstruct_plan_ground_cert\<close>
-  (propositional) and \<open>ast_classical_problem.numeric_reconstruct_plan_varfree_cert\<close> (numeric, downstream):
+text \<open>Executable twin of the abstract reconstructors \<open>ast_classical_problem.reconstruct_plan_ground_cert\<close>
+  (propositional, downstream) and \<open>ast_classical_problem.numeric_reconstruct_plan_varfree_cert\<close> (numeric, downstream):
   a plan of a grounded PDDL problem is restored to a plan of the original \<open>P\<close> by undoing grounding
   (\<^const>\<open>varfree.restore_ground_plan\<close>) \<open>\<rightarrow>\<close> def-translation \<open>\<rightarrow>\<close> normalization. Unlike the STRIPS
   \<open>reconstruct_plan_by_cert\<close> there is no \<open>restore_prefix\<close> step: the input is already a grounded-problem
@@ -276,25 +283,11 @@ lemma grounding_checks_exec_P\<^sub>T:
   using assms(3)
   unfolding grounding_checks_exec_eq[OF P_T_normalized_problem_rx_unconditional[OF assms(1,2)]] .
 
-text \<open>Under the (re-checked) kernel checks, the executable grounding agrees with the verified
-  \<open>P\<^sub>G_cert\<close> of the pipeline.\<close>
-lemma ground_by_cert_eq:
-  assumes rp: "ast_classical_problem.restrict_prob P" and wf: "ast_classical_problem.wf_classical_problem P"
-      and ne: "ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)) \<noteq> []"
-      and cert: "dl_certified_model
-                   (set (dl_rules (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P))))
-                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob (ast_classical_problem.P\<^sub>T P)))) M dc"
-      and gc: "grounding_checks_exec (ast_classical_problem.P\<^sub>T P) M"
-  shows "ground_by_cert P M = ast_classical_problem.P\<^sub>G_cert P M"
-proof -
-  have rx: "normalized_problem_rx (ast_classical_problem.P\<^sub>T P)"
-    by (rule P_T_normalized_problem_rx_unconditional[OF rp wf])
-  have gc': "normalized_problem_rx.grounding_checks (ast_classical_problem.P\<^sub>T P) M"
-    using gc unfolding grounding_checks_exec_eq[OF rx] .
-  show ?thesis
-    unfolding ground_by_cert_def ast_classical_problem.P\<^sub>G_cert_def[OF ne cert gc']
-              cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
-    by (rule refl)
-qed
+text \<open>The bridge to the pipeline's \<open>P\<^sub>G_cert\<close> (\<open>ground_by_cert_eq\<close>) is \<^emph>\<open>not\<close> stated here:
+  \<open>P\<^sub>G_cert\<close> is a product of the propositional branch, defined in
+  \<^verbatim>\<open>Grounding_Pipeline_STRIPS\<close>, so the bridge lives with that branch's executable theory ---
+  keeping this theory on \<^verbatim>\<open>Grounding_Pipeline_Common\<close> alone. The numeric branch's
+  corresponding bridge (\<open>ground_by_cert_numeric_eq\<close>) sits in its own executable theory for the
+  same reason.\<close>
 
 end

@@ -34,11 +34,6 @@ text \<open>
     generic positive-datalog checker of \<^theory>\<open>Datalog_Certification.Datalog_Certificate\<close>.
 \<close>
 
-text \<open>Lift a \<^typ>\<open>fact\<close> to the corresponding \<^typ>\<open>facty\<close> formula. This matches the
-  \<open>fact_to_facty\<close> abbreviation used inside \<^locale>\<open>grounder\<close>; we also need it at theory scope.\<close>
-abbreviation fact_to_facty :: "fact \<Rightarrow> facty" where
-  "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
-
 
 text \<open>Round-trip for the executable fact store: over a list of predicate atoms, membership in
   \<open>organize_facts\<close> coincides with list membership. Lets us read the closure check (phrased over

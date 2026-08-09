@@ -10,7 +10,23 @@ begin
 
 text \<open>The numeric-free specialization of the grounding pipeline: it imports the general
   (with-numerics) pipeline \<^verbatim>\<open>Grounding_Pipeline_Numeric\<close> and, on top of the certificate-grounded
-  problem \<^term>\<open>P\<^sub>G_cert\<close>, converts it to STRIPS. This branch requires \<^const>\<open>ast_classical_problem.num_free_prob\<close>.\<close>
+  problem \<^term>\<open>P\<^sub>G_cert\<close>, converts it to STRIPS. This branch requires \<^const>\<open>ast_classical_problem.num_free_prob\<close>.
+
+  \<^bold>\<open>What this branch adds to the chain.\<close> After the shared stages 1--6 and the two grounding
+  stages of the numeric branch, three further steps happen here:
+  \<^item> \<^emph>\<open>the numeric-freeness gate\<close> --- a decidable check turning the numeric-permissive re-check
+    into the propositional one (\<open>grounding_checks_of_num_free\<close>), so a numeric-free task may be
+    grounded by the propositional grounder;
+  \<^item> \<^emph>\<open>the propositional grounding product\<close> \<open>P\<^sub>G_cert\<close> --- the two-stage grounder at the
+    certified ops/facts, which is \<^emph>\<open>definitionally\<close> the numeric branch's folded product
+    (\<open>numeric_P\<^sub>G_cert_eq_P\<^sub>G_cert\<close>), so the whole STRIPS story transfers to either;
+  \<^item> \<^emph>\<open>the STRIPS conversion\<close> \<open>P\<^sub>S_cert\<close> --- the nullary PDDL problem re-expressed in the AFP
+    SAT planner's input format, with soundness, solvability equivalence and a concrete plan
+    decoder back to the original task.
+
+  The final section closes the loop on the input side: a numeric-free \<^emph>\<open>input\<close> problem stays
+  numeric-free through stages 1--5, so the gate can be discharged from hypotheses about \<open>P\<close>
+  rather than about \<open>P\<^sub>T\<close>.\<close>
 
 subsection \<open>The grounder's predicate names are nonempty\<close>
 
@@ -92,6 +108,15 @@ end
 
 context ast_classical_problem begin
 
+text \<open>\<^bold>\<open>The STRIPS conversion stage.\<close> \<open>as_strips\<close> re-expresses a PDDL problem in the AFP SAT
+  planner's format: predicates become STRIPS variables, each action's conjunctive precondition
+  becomes a precondition list, and its add/delete lists become the operator's effects. It is only
+  meaningful on a problem that is simultaneously well-formed, \<^emph>\<open>grounded\<close> (no parameters),
+  \<^emph>\<open>normalized\<close> (conjunctive preconditions and goal) and \<^emph>\<open>numeric-free\<close> --- exactly the four
+  invariants the pipeline has been maintaining. The two lemmas below package that: one collapses
+  the four into validity of the encoding, the other assembles the
+  \<^locale>\<open>strips_encodable_problem\<close> interpretation, adding the two conversion-specific
+  side-conditions (predicate names are nonempty, and the goal literals are consistent).\<close>
 lemma wf_as_strips_compact:
   "wf_classical_problem \<Longrightarrow> grounded_prob \<Longrightarrow> normalized_prob \<Longrightarrow> num_free_prob \<Longrightarrow> is_valid_problem_strips as_strips"
   using grounded_normalized_numeric_free_problem.wf_as_strips
@@ -144,6 +169,141 @@ proof unfold_locales
        \<Longrightarrow> snd (lit_as_goal l1) = snd (lit_as_goal l2)" using gnc by blast
 qed
 
+subsection \<open> Reachability Analysis & Grounding via Certificate Checking \<close>
+
+text \<open>The propositional grounding stage. The context below fixes the same untrusted pair \<open>(M, dc)\<close>
+  as the numeric branch --- a claimed reachable-fact list and its datalog certificate --- under the
+  \<^emph>\<open>propositional\<close> re-check \<open>grounding_checks\<close>, which additionally demands that reachable
+  operators carry no numeric effects and that the initial state is purely propositional.
+
+  Inside it, \<open>P\<^sub>G_cert\<close> is the grounder applied in one shot to \<open>P\<^sub>T\<close> at the certified
+  operators and facts: every reachable operator becomes a parameterless action and every certified
+  fact a fresh nullary predicate, so the result is purely propositional. Its correctness comes in
+  the usual three parts --- \<open>wf_ground_cert_problem\<close> (well-formed, still normalized, and now
+  grounded), \<open>ground_cert_plan_valid_iff\<close> (solvable iff the original task is) and
+  \<open>ground_cert_plan_reconstruct\<close> (a plan of it maps back through the grounder and the whole
+  normalization chain via \<open>reconstruct_plan_ground_cert\<close>).\<close>
+
+context
+  fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
+  assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T M"
+begin
+
+lemma certified_reachability_i:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "certified_reachability P\<^sub>T M dc"
+proof -
+  interpret rx: normalized_problem_rx P\<^sub>T using normalized_problem_rx_P\<^sub>T[OF assms(1) assms(2)] .
+  show ?thesis
+    apply unfold_locales
+    using nonempty cert grounding_cert
+    by simp_all
+qed
+
+text \<open>The propositional grounding product. Since the grounder is the two-stage composite, this is
+  \<^emph>\<open>the same construction\<close> as the numeric branch's \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close>
+  --- the variable-free instantiation at the certified ops, folded at the certified facts and the
+  ops-derived fluents. On this branch the input is numeric-free, so the fluent list is empty and the
+  fold declares no functions; \<open>numeric_P\<^sub>G_cert_eq_P\<^sub>G_cert\<close> below is therefore \<open>refl\<close>.\<close>
+definition "P\<^sub>G_cert \<equiv> fact_folder.fold_prob
+  (varfree.varfree_inst_prob P\<^sub>T (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)))
+  (normalized_problem_rx.cert_facts_of P\<^sub>T M)
+  (varfree.fluents P\<^sub>T (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)))"
+
+definition "reconstruct_plan_ground_cert \<pi>s \<equiv>
+  reconstruct_plan_norm (restore_plan_def_translate
+    (varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s))"
+
+lemma wf_ground_cert_problem:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.wf_classical_problem P\<^sub>G_cert"
+    "ast_classical_problem.normalized_prob P\<^sub>G_cert"
+    "ast_classical_problem.grounded_prob P\<^sub>G_cert"
+proof -
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
+  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
+    using normalization_normalizes[OF assms] unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
+  have pg_eq: "P\<^sub>G_cert = cr.wfg.P\<^sub>G"
+    unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
+  show "ast_classical_problem.wf_classical_problem P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ground_prob_wf by simp
+  show "ast_classical_problem.normalized_prob P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ground_prob_normed[OF norm_T] by simp
+  show "ast_classical_problem.grounded_prob P\<^sub>G_cert"
+    unfolding pg_eq using cr.wfg.ff.fold_prob_grounded by simp
+qed
+
+lemma ground_cert_plan_valid_iff:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
+proof -
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
+  have pg_eq: "P\<^sub>G_cert = cr.wfg.P\<^sub>G"
+    unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
+  have "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>N \<pi>s')"
+    using assms normalization_valid_iff by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>T \<pi>s')"
+    using ast_classical_problem.def_translate_valid_iff_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]]
+    unfolding P\<^sub>T_def by simp
+  also have "... \<longleftrightarrow> (\<exists>\<pi>s'. ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s')"
+    unfolding pg_eq using cr.wfg.valid_classical_plan_iff by simp
+  finally show ?thesis .
+qed
+
+lemma ground_cert_plan_reconstruct:
+  assumes "restrict_prob" "wf_classical_problem"
+  shows "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s \<Longrightarrow>
+    valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
+proof -
+  assume p: "ast_classical_problem.valid_classical_plan2 P\<^sub>G_cert \<pi>s"
+  interpret cr: certified_reachability P\<^sub>T M dc using certified_reachability_i[OF assms] .
+  have pg_eq: "P\<^sub>G_cert = cr.wfg.P\<^sub>G"
+    unfolding P\<^sub>G_cert_def cr.cert_facts'_def cr.cert_ops'_def by simp
+  let ?q = "varfree.restore_ground_plan (canon (normalized_problem_rx.cert_ops_of P\<^sub>T M)) \<pi>s"
+  have "ast_classical_problem.valid_classical_plan2 P\<^sub>T ?q"
+    using cr.wfg.valid_classical_plan_left[OF p[unfolded pg_eq]]
+    unfolding cr.cert_ops'_def by simp
+  hence "ast_classical_problem.valid_classical_plan2 (ast_classical_problem.def_translate_prob P\<^sub>N) ?q"
+    unfolding P\<^sub>T_def .
+  hence "ast_classical_problem.valid_classical_plan2 P\<^sub>N (restore_plan_def_translate ?q)"
+    using ast_classical_problem.restore_plan_def_translate_compact[OF normalization_wf[OF assms] P\<^sub>N_def_explicated_conj[OF assms]] by blast
+  hence "valid_classical_plan2 (reconstruct_plan_norm (restore_plan_def_translate ?q))"
+    using assms normalization_reconstruct by simp
+  thus "valid_classical_plan2 (reconstruct_plan_ground_cert \<pi>s)"
+    unfolding reconstruct_plan_ground_cert_def .
+qed
+
+end
+
+text \<open>Numeric-freeness of the certificate-grounded problem. Only the STRIPS branch needs it --- the
+  numeric pipeline deliberately retains numeric fluents --- so it is stated here rather than in
+  \<^verbatim>\<open>Grounding_Pipeline_Numeric\<close>. It is kept at the \<^emph>\<open>top level\<close>, with the
+  certificate hypotheses explicit, because both certificate contexts below use it: the propositional
+  one under its own \<open>grounding_cert\<close>, and the numeric-free one under the re-derived
+  \<open>grounding_cert_nf\<close>.\<close>
+lemma ground_cert_num_free:
+  fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
+  assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
+      and cert: "dl_certified_model
+                   (set (dl_rules (ast_classical_problem.relax_prob P\<^sub>T)))
+                   (set (ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T))) M dc"
+      and grounding_cert: "normalized_problem_rx.grounding_checks P\<^sub>T M"
+      and rp: "restrict_prob"
+      and wf: "wf_classical_problem"
+  shows "ast_classical_problem.num_free_prob (P\<^sub>G_cert M)"
+proof -
+  interpret cr: certified_reachability P\<^sub>T M dc
+    using certified_reachability_i[OF nonempty cert grounding_cert rp wf] .
+  have pg_eq: "P\<^sub>G_cert M = cr.wfg.P\<^sub>G"
+    unfolding P\<^sub>G_cert_def[OF nonempty cert grounding_cert]
+              cr.cert_facts'_def cr.cert_ops'_def by simp
+  show ?thesis unfolding pg_eq using cr.wfg.ground_prob_num_free by simp
+qed
+
 context
   fixes M :: "fact list" and dc :: "(predicate, object) dl_certificate"
   assumes nonempty: "ast_classical_problem.const_names (ast_classical_problem.relax_prob P\<^sub>T) \<noteq> []"
@@ -155,6 +315,12 @@ begin
 
 subsection \<open> Conversion to STRIPS (Certificate-based) \<close>
 
+text \<open>The pipeline's output problem: the certificate-grounded PDDL task in the AFP SAT planner's
+  STRIPS format. From here on the statements are about \<^emph>\<open>the planner's\<close> notion of solution
+  (\<open>is_serial_solution_for_problem\<close>) rather than PDDL plans, and the four results below carry it
+  back to the input task: validity of the encoding (\<open>wf_as_strips_cert\<close>), soundness in existence
+  form (\<open>strips_plan_sound_cert\<close>), solvability equivalence (\<open>strips_plan_iff_cert\<close>) and the
+  executable decoder (\<open>strips_plan_reconstruct_cert\<close>).\<close>
 definition "P\<^sub>S_cert \<equiv> ast_classical_problem.as_strips (P\<^sub>G_cert M)"
 
 lemma wf_as_strips_cert:
@@ -177,13 +343,13 @@ lemma goal_P\<^sub>G_cert_single:
 proof -
   interpret cr: certified_reachability P\<^sub>T M dc
     using certified_reachability_i[OF nonempty cert grounding_cert assms] .
-  have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
+  have pg_eq: "P\<^sub>G_cert M = cr.wfg.P\<^sub>G"
     unfolding P\<^sub>G_cert_def[OF nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
   obtain gp where g: "goal P\<^sub>T = Atom (predAtm gp [])" using goal_P\<^sub>T_single by blast
-  have "goal (P\<^sub>G_cert M) = cr.wfg.ground_fmla (goal P\<^sub>T)"
-    unfolding pg_eq using cr.wfg.ground_prob_sel(4) by simp
-  also have "\<dots> = Atom (predAtm (the (cr.wfg.fact_map (Atom (predAtm gp [])))) [])"
+  have "goal (P\<^sub>G_cert M) = cr.wfg.ff.ground_fmla (goal P\<^sub>T)"
+    unfolding pg_eq using cr.wfg.ff.fold_prob_sel(4) by simp
+  also have "\<dots> = Atom (predAtm (the (cr.wfg.ff.fact_map (Atom (predAtm gp [])))) [])"
     unfolding g by simp
   finally show ?thesis by blast
 qed
@@ -197,15 +363,15 @@ lemma pg_cert_pred_nonempty:
 proof -
   interpret cr: certified_reachability P\<^sub>T M dc
     using certified_reachability_i[OF nonempty cert grounding_cert assms(1,2)] .
-  have pg_eq: "P\<^sub>G_cert M = cr.wfg.ground_prob"
+  have pg_eq: "P\<^sub>G_cert M = cr.wfg.P\<^sub>G"
     unfolding P\<^sub>G_cert_def[OF nonempty cert grounding_cert]
               cr.cert_facts'_def cr.cert_ops'_def by simp
   from assms(3) have "PredDecl n [] \<in> set (predicates (ast_problem.domain (P\<^sub>G_cert M)))"
     unfolding ast_classical_domain.wf_pred_def .
-  hence "PredDecl n [] \<in> set (map (\<lambda>p. PredDecl p []) cr.wfg.fact_names)"
-    unfolding pg_eq using cr.wfg.ground_prob_sel(1) cr.wfg.ground_dom_sel(2) by simp
-  hence nfn: "n \<in> set cr.wfg.fact_names" by auto
-  thus ?thesis using cr.wfg.fact_names_nonempty by blast
+  hence "PredDecl n [] \<in> set (map (\<lambda>p. PredDecl p []) cr.wfg.ff.fact_names)"
+    unfolding pg_eq using cr.wfg.ff.fold_prob_sel(1) cr.wfg.ff.fold_dom_sel(2) by simp
+  hence nfn: "n \<in> set cr.wfg.ff.fact_names" by auto
+  thus ?thesis using cr.wfg.ff.fact_names_nonempty by blast
 qed
 
 lemma strips_encodable_P\<^sub>G_cert:
@@ -301,25 +467,6 @@ end
 
 subsection \<open>Pipeline-level form of the numeric-free gate bridge\<close>
 
-text \<open>\<open>P\<^sub>T\<close> is a \<^locale>\<open>normalized_problem_rx\<close> as soon as the input problem is restricted and
-  well-formed --- the re-checks play no part in it. Hoisted out of the certificate contexts so
-  that the numeric-free bridge below can use it without assuming either gate.\<close>
-lemma normalized_problem_rx_P\<^sub>T:
-  assumes rp: "restrict_prob"
-      and wf: "wf_classical_problem"
-  shows "normalized_problem_rx P\<^sub>T"
-proof -
-  have wf_N: "ast_classical_problem.wf_classical_problem P\<^sub>N" using rp wf normalization_wf by simp
-  have norm_N: "ast_classical_problem.normalized_prob P\<^sub>N" using rp wf normalization_normalizes by simp
-  have wf_T: "ast_classical_problem.wf_classical_problem P\<^sub>T"
-    using wf_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_prob_wf_compact)
-  have norm_T: "ast_classical_problem.normalized_prob P\<^sub>T"
-    using norm_N unfolding P\<^sub>T_def by (rule ast_classical_problem.def_translate_normed_compact)
-  show ?thesis
-    unfolding normalized_problem_rx_def normalized_problem_def'
-    using wf_T norm_T by blast
-qed
-
 text \<open>The gate bridge at the pipeline level: a certified reachability model that passes the
   \<^emph>\<open>numeric\<close> fold re-check on a numeric-free \<open>P\<^sub>T\<close> with a purely propositional initial state
   passes the \<^emph>\<open>propositional\<close> re-check as well.\<close>
@@ -388,12 +535,13 @@ lemma grounding_cert_nf:
   shows "normalized_problem_rx.grounding_checks P\<^sub>T M"
   by (rule grounding_checks_P\<^sub>T_of_num_free[OF nonempty cert fold_cert num_free_T init_props rp wf])
 
-text \<open>\<^bold>\<open>The product identity\<close>: the folded \<^emph>\<open>numeric\<close> product and the one-shot \<^emph>\<open>propositional\<close>
-  product are the same term. \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close> reduces to
-  \<^const>\<open>grounder.ground_prob\<close> at the certified ops/facts by \<open>numeric_P\<^sub>G_cert_ground_prob\<close>
-  (the pipeline form of \<open>ground_prob_factors\<close>), and that is verbatim the body of
-  \<open>P\<^sub>G_cert_def\<close>. Hence the whole propositional STRIPS block transfers to the numeric product by
-  rewriting, with no re-derivation of the grounder's semantics chain.\<close>
+text \<open>\<^bold>\<open>The product identity\<close>: the folded \<^emph>\<open>numeric\<close> product and the \<^emph>\<open>propositional\<close> one
+  are the same term --- not merely provably equal but \<^emph>\<open>definitionally\<close> so. Both branches ground
+  with the one two-stage grounder (instantiate at the certified ops, then fold at the certified
+  facts and ops-derived fluents), so unfolding the two definitions leaves \<open>refl\<close>: the branches
+  differ only in \<^emph>\<open>which re-check gates them\<close>, never in what they build. Hence the whole
+  propositional STRIPS block transfers to the numeric product by rewriting, with no re-derivation of
+  the grounder's semantics chain.\<close>
 lemma numeric_P\<^sub>G_cert_eq_P\<^sub>G_cert:
   assumes rp: "restrict_prob"
       and wf: "wf_classical_problem"
@@ -402,7 +550,9 @@ proof -
   have gcn: "normalized_problem_rx.numeric_grounding_checks P\<^sub>T M"
     by (rule numeric_fold_checks_imp_grounding_checks[OF normalized_problem_rx_P\<^sub>T[OF rp wf] fold_cert])
   show ?thesis
-    unfolding numeric_P\<^sub>G_cert_ground_prob[OF nonempty cert gcn fold_cert rp wf]
+    unfolding numeric_P\<^sub>G_cert_def[OF nonempty cert gcn]
+              numeric_P\<^sub>V_cert_def[OF nonempty cert gcn]
+              numeric_cert_fluents_def[OF nonempty cert gcn]
               P\<^sub>G_cert_def[OF nonempty cert grounding_cert_nf[OF rp wf]]
     by (rule refl)
 qed

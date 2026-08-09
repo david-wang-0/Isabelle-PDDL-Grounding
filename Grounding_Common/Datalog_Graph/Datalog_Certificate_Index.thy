@@ -12,8 +12,8 @@ text \<open>Datalog matching layer over the generic \<open>Fact_Index\<close>: t
   refined to look up only index candidates, proven equal to the linear scan (\<^bold>\<open>Lemma A\<close>,
   \<open>match_facts_idx_eq\<close>) and installed as the [code] equation for the closure check. The soundness
   bridge \<^const>\<open>dl_closure_check_exec\<close> / \<open>dl_closure_check_exec_imp\<close> mentions only the abstract check
-  and is untouched. Sited in \<open>Datalog_Graph\<close> (not in its ROOT --- loaded live for dev) only because it
-  wants the graph-layer heap; nothing here uses the graph library. WORK IN PROGRESS.\<close>
+  and is untouched. Sited in \<open>Datalog_Graph\<close> only because it wants the graph-layer heap; nothing
+  here uses the graph library.\<close>
 
 subsection \<open>Index-backed candidate selection for one body atom\<close>
 

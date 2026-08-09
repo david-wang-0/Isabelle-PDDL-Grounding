@@ -1366,11 +1366,19 @@ end
 
 subsection \<open> Code Setup \<close>
 
+text \<open>Code equations for \<^emph>\<open>both\<close> grounding stages. The composite grounder runs stage one
+  (the variable-free instantiation) before stage two (the fact/fluent fold), so any executable
+  entry point built on the composite --- including the branch-neutral \<open>ground_by_cert\<close> of
+  \<^verbatim>\<open>Grounding_Pipeline_Common_Executable\<close> --- needs the stage-one equations too. They must
+  therefore live \<^emph>\<open>here\<close>, with the fold's, and not in either branch's executable theory.\<close>
 lemmas pddl_ground_code =
+  ast_classical_problem.varfree_inst_ac_def
+  varfree.varfree_inst_dom_def
+  varfree.varfree_inst_prob_def
   fact_folder.fact_names_def
   fact_folder.fact_map_def
   ast_classical_problem.op_fluents_def
-  grounder.fluents_def
+  varfree.fluents_def
   fact_folder.fluent_names_def
   fact_folder.fluent_map_def
   fact_folder.ground_pne_def
@@ -1383,10 +1391,7 @@ lemmas pddl_ground_code =
   fact_folder.fold_ac_def
   fact_folder.fold_dom_def
   fact_folder.fold_prob_def
-  grounder.ground_ac_def
   varfree.op_names_def
-  grounder.ground_dom_def
-  grounder.ground_prob_def
   varfree.op_map_def
   varfree.restore_ground_pa.simps
 declare pddl_ground_code[code]

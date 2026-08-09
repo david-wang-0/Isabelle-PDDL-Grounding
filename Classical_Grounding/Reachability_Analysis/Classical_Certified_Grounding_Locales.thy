@@ -400,10 +400,10 @@ text \<open>The \<^emph>\<open>fold\<close> re-check: what the numeric grounder 
   replaced by their numeric-permissive counterparts: preconditions, goal \<^bold>\<open>and\<close> the initial state
   are checked with \<^const>\<open>covered_num\<close> against the certified facts and the ops-derived fluents.
 
-  The last conjunct is not derivable: \<^const>\<open>grounder.fluents\<close> is enumerated from the reachable
+  The last conjunct is not derivable: \<^const>\<open>varfree.fluents\<close> is enumerated from the reachable
   \<^emph>\<open>ops\<close>, so an initial assignment to a fluent that no reachable op mentions would have no
   nullary name to fold onto --- it is checked here rather than by widening the fluent list (which
-  would perturb every generated fluent name). Note the arity: \<^const>\<open>grounder.fluents\<close> takes
+  would perturb every generated fluent name). Note the arity: \<^const>\<open>varfree.fluents\<close> takes
   \<open>(P, ops)\<close>; the \<open>facts\<close> parameter is dropped because its body does not use it.\<close>
 definition numeric_fold_checks :: "fact list \<Rightarrow> bool" where
   "numeric_fold_checks M \<equiv>
@@ -412,10 +412,10 @@ definition numeric_fold_checks :: "fact list \<Rightarrow> bool" where
      (\<forall>\<pi> \<in> set (cert_ops_of M). let eff = effect (the (res_inst \<pi>))
         in \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> (cert_facts_of M)) \<and>
      (\<forall>\<pi> \<in> set (cert_ops_of M). covered_num (precondition (the (res_inst \<pi>)))
-        (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M)))) \<and>
-     covered_num (goal P) (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M))) \<and>
+        (cert_facts_of M) (varfree.fluents P (canon (cert_ops_of M)))) \<and>
+     covered_num (goal P) (cert_facts_of M) (varfree.fluents P (canon (cert_ops_of M))) \<and>
      (\<forall>f \<in> set (init P).
-        covered_num f (cert_facts_of M) (grounder.fluents P (canon (cert_ops_of M))))"
+        covered_num f (cert_facts_of M) (varfree.fluents P (canon (cert_ops_of M))))"
 
 definition grounding_checks :: "fact list \<Rightarrow> bool" where
   "grounding_checks M \<equiv>

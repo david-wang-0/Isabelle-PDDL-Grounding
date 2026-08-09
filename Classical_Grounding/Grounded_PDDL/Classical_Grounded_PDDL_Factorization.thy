@@ -3,24 +3,22 @@ theory Classical_Grounded_PDDL_Factorization
     Classical_Variable_Freeness.Classical_Variable_Freeness_Semantics
 begin
 
-section \<open>Factorization: the one-shot grounder is variable-freeness followed by fact folding\<close>
+section \<open>The grounded product: variable-free instantiation followed by fact folding\<close>
 
-text \<open>The propositional grounder \<^const>\<open>grounder.ground_prob\<close> factors through the two pipeline
-  stages: the Variable_Freeness stage's \<^const>\<open>varfree.varfree_inst_prob\<close> (instantiate every
-  reachable op into a nullary schema) followed by the fact folder's
-  \<^const>\<open>fact_folder.fold_prob\<close> (collapse ground atoms and fluents onto fresh nullary
-  predicate/function names). This theory proves the factorization: the folder's input obligations
-  hold at the variable-free problem, the composed output is \<^emph>\<open>syntactically equal\<close> to the
-  one-shot \<^const>\<open>grounder.ground_prob\<close>, and the grounder's well-formedness and plan-preservation
-  theorems re-derive from the two stages' theorems composed.\<close>
+text \<open>The grounded problem is the composite of the two pipeline stages: the Variable_Freeness
+  stage's \<^const>\<open>varfree.varfree_inst_prob\<close> (instantiate every reachable op into a nullary
+  schema) followed by the fact folder's \<^const>\<open>fact_folder.fold_prob\<close> (collapse ground atoms
+  and fluents onto fresh nullary predicate/function names) --- that composite \<^emph>\<open>is\<close>
+  \<open>P\<^sub>G\<close>. This theory discharges the folder's input obligations at the variable-free
+  problem, and derives the grounded problem's well-formedness and plan-preservation theorems from
+  the two stages' theorems composed.\<close>
 
 subsection \<open>The plan-action bridge: zip pairs and \<open>res_inst\<close> transfer\<close>
 
-text \<open>This bridge --- and the factorization equality it feeds --- needs \<^emph>\<open>no\<close> coverage
-  assumptions, only the \<open>res_inst\<close> transfer of the Variable_Freeness stage, so it lives in
-  \<^locale>\<open>grounder_inst\<close> (\<^locale>\<open>grounder\<close> + \<^locale>\<open>varfree_instantiator\<close>). Every
-  \<^locale>\<open>wf_grounder_cov\<close> context inherits it, and the \<^emph>\<open>numeric\<close> pipeline --- which only ever
-  establishes \<^locale>\<open>varfree_instantiator\<close> --- can use it too.\<close>
+text \<open>This bridge needs \<^emph>\<open>no\<close> coverage assumptions, only the \<open>res_inst\<close> transfer of the
+  Variable_Freeness stage, so it lives in \<^locale>\<open>grounder_inst\<close>. Every
+  \<^locale>\<open>wf_grounder_cov\<close> context inherits it, and the \<^emph>\<open>numeric\<close> pipeline --- which only
+  ever establishes \<^locale>\<open>varfree_instantiator\<close> --- can use it too.\<close>
 
 context grounder_inst
 begin
@@ -59,13 +57,13 @@ text \<open>The folder's nullary plan action of a variable-free grounded schema 
   grounder's \<^term>\<open>ground_pa \<pi>\<close> for the paired op, so \<open>res_inst\<close> transfers back to \<open>P\<close>.\<close>
 lemma ac_pa_varfree_inst_ac:
   assumes "op_map_inv \<pi> = Some n"
-  shows "ac_pa (varfree_inst_ac \<pi> n) = ground_pa \<pi>"
-  unfolding ac_pa_def ground_pa_def using assms by simp
+  shows "ff.ac_pa (varfree_inst_ac \<pi> n) = ground_pa \<pi>"
+  unfolding ff.ac_pa_def ground_pa_def using assms by simp
 
 lemma resinst_ac_pa:
   assumes "\<pi> \<in> set ops"
       and "op_map_inv \<pi> = Some n"
-  shows "png.res_inst (ac_pa (varfree_inst_ac \<pi> n)) = res_inst \<pi>"
+  shows "png.res_inst (ff.ac_pa (varfree_inst_ac \<pi> n)) = res_inst \<pi>"
   unfolding ac_pa_varfree_inst_ac[OF assms(2)] using resinst_varfree_inst_pa[OF assms(1)] .
 
 text \<open>The op-fluent enumeration only consumes \<^term>\<open>the (res_inst \<pi>)\<close>, so it transfers along
@@ -73,7 +71,7 @@ text \<open>The op-fluent enumeration only consumes \<^term>\<open>the (res_inst
 lemma png_op_fluents_ac_pa:
   assumes "\<pi> \<in> set ops"
       and "op_map_inv \<pi> = Some n"
-  shows "png.op_fluents (ac_pa (varfree_inst_ac \<pi> n)) = op_fluents \<pi>"
+  shows "png.op_fluents (ff.ac_pa (varfree_inst_ac \<pi> n)) = op_fluents \<pi>"
   unfolding png.op_fluents_def op_fluents_def resinst_ac_pa[OF assms] ..
 
 end
@@ -149,14 +147,12 @@ proof (unfold_locales)
   show "png.wf_classical_problem" using varfree_inst_prob_wf .
   show "png.varfree_prob" using varfree_inst_prob_varfree .
   show "distinct facts" using facts_dist .
-  have "{a. png.achievable a} \<subseteq> {a. achievable a}" using varfree_achievable_sub by blast
-  hence "fact_to_facty ` {a. png.achievable a} \<subseteq> fact_to_facty ` {a. achievable a}"
-    by (rule image_mono)
-  thus "fact_to_facty ` {a. png.achievable a} \<subseteq> set facts" using all_facts by blast
+  show "fact_to_facty ` {a. png.achievable a} \<subseteq> set facts"
+    using all_facts using varfree_achievable_sub by blast
   show "\<forall>a \<in> set facts. png.wf_fmla_atom png.objT a"
     unfolding varfree_png_wf_fmla_atom varfree_png_objT using facts_wf .
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      (let eff = effect (the (png.res_inst (ac_pa a))) in
+      (let eff = effect (the (png.res_inst (ff.ac_pa a))) in
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
@@ -166,15 +162,15 @@ proof (unfold_locales)
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
-    have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
+    have ri: "png.res_inst (ff.ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
     have "(let eff = effect (the (res_inst \<pi>)) in
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)"
       using effs_covered pi by blast
-    thus "(let eff = effect (the (png.res_inst (ac_pa a))) in
+    thus "(let eff = effect (the (png.res_inst (ff.ac_pa a))) in
        \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> facts)" unfolding ri .
   qed
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      covered_num (precondition (the (png.res_inst (ac_pa a)))) facts fluents"
+      covered_num (precondition (the (png.res_inst (ff.ac_pa a)))) facts fluents"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
     hence "a \<in> set (actions varfree_inst_dom)" by simp
@@ -183,8 +179,8 @@ proof (unfold_locales)
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
-    have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
-    show "covered_num (precondition (the (png.res_inst (ac_pa a)))) facts fluents"
+    have ri: "png.res_inst (ff.ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
+    show "covered_num (precondition (the (png.res_inst (ff.ac_pa a)))) facts fluents"
       unfolding ri using pres_covered_num pi by blast
   qed
   show "covered_num (goal varfree_inst_prob) facts fluents" using goal_covered_num by simp
@@ -192,7 +188,7 @@ proof (unfold_locales)
   show "\<forall>fl \<in> set fluents. png.wf_primitive_numeric_expression png.objT fl"
     unfolding varfree_png_wf_pne varfree_png_objT using fluents_wf_orig by blast
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      set (png.op_fluents (ac_pa a)) \<subseteq> set fluents"
+      set (png.op_fluents (ff.ac_pa a)) \<subseteq> set fluents"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
     hence "a \<in> set (actions varfree_inst_dom)" by simp
@@ -201,66 +197,20 @@ proof (unfold_locales)
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
-    have "png.op_fluents (ac_pa a) = op_fluents \<pi>"
+    have "png.op_fluents (ff.ac_pa a) = op_fluents \<pi>"
       unfolding a using png_op_fluents_ac_pa[OF pi n] .
-    thus "set (png.op_fluents (ac_pa a)) \<subseteq> set fluents"
+    thus "set (png.op_fluents (ff.ac_pa a)) \<subseteq> set fluents"
       using op_fluents_subset[OF pi] by simp
   qed
 qed
 
-subsection \<open>The factorization equality\<close>
+subsection \<open>The grounded domain's well-formedness\<close>
 
-context grounder_inst
-begin
+text \<open>\<open>D\<^sub>G\<close> \<^emph>\<open>is\<close> the folder's output at the variable-free instantiation, so its
+  well-formedness is the folder's \<open>fold_dom_wf\<close> verbatim.\<close>
 
-text \<open>Pointwise: folding a variable-free grounded schema yields exactly the one-shot grounded
-  schema for the paired op --- the folder resolves the nullary plan action back to
-  \<^term>\<open>the (res_inst \<pi>)\<close> (the \<open>res_inst\<close> transfer) and re-indexes with the \<^emph>\<open>same\<close>
-  \<open>ga_pre\<close>/\<open>ga_eff\<close> at the same \<open>facts\<close>/\<open>fluents\<close>.\<close>
-lemma fold_ac_varfree_inst_ac:
-  assumes "\<pi> \<in> set ops"
-      and "op_map_inv \<pi> = Some n"
-  shows "ff.fold_ac (varfree_inst_ac \<pi> n) = ground_ac \<pi> n"
-  unfolding ff.fold_ac_def ground_ac_def Let_def resinst_ac_pa[OF assms] by simp
-
-lemma fold_acs_eq:
-  "map ff.fold_ac (map2 varfree_inst_ac ops op_names) = map2 ground_ac ops op_names"
-proof (rule nth_equalityI)
-  show "length (map ff.fold_ac (map2 varfree_inst_ac ops op_names))
-      = length (map2 ground_ac ops op_names)" by simp
-  fix i assume "i < length (map ff.fold_ac (map2 varfree_inst_ac ops op_names))"
-  hence i: "i < length ops" using ops_len by simp
-  have "ops ! i \<in> set ops" using i by simp
-  hence "ff.fold_ac (varfree_inst_ac (ops ! i) (op_names ! i)) = ground_ac (ops ! i) (op_names ! i)"
-    using fold_ac_varfree_inst_ac op_map_inv_nth[OF i] by blast
-  thus "map ff.fold_ac (map2 varfree_inst_ac ops op_names) ! i = map2 ground_ac ops op_names ! i"
-    using i ops_len by simp
-qed
-
-theorem ground_dom_factors: "ff.fold_dom = ground_dom"
-proof -
-  have acts: "actions (ast_problem.domain varfree_inst_prob) = map2 varfree_inst_ac ops op_names"
-    by simp
-  show ?thesis
-    unfolding ff.fold_dom_def ground_dom_def acts fold_acs_eq by simp
-qed
-
-theorem ground_prob_factors: "ff.fold_prob = ground_prob"
-  unfolding ff.fold_prob_def ground_prob_def by (simp add: ground_dom_factors)
-
-end
-
-subsection \<open>The grounder's domain well-formedness, re-derived\<close>
-
-text \<open>The one-shot grounder's \<open>ground_dom_wf\<close> is the folder's \<open>fold_dom_wf\<close> rewritten through
-  the factorization equality, and the \<open>dg\<close> interpretation is promoted to
-  \<^locale>\<open>wf_ast_classical_domain\<close> exactly as the retired monolithic development did.\<close>
-
-theorem (in wf_grounder_cov) ground_dom_wf: "dg.wf_classical_domain"
-  using ff.fold_dom_wf unfolding ground_dom_factors .
-
-sublocale wf_grounder_cov \<subseteq> dg: wf_ast_classical_domain D\<^sub>G
-  using ground_dom_wf by unfold_locales
+theorem (in wf_grounder_cov) ground_dom_wf: "ff.fdg.wf_classical_domain"
+  using ff.fold_dom_wf .
 
 subsection \<open>The propositional folder layer\<close>
 
@@ -270,7 +220,7 @@ text \<open>At \<^locale>\<open>wf_grounder\<close> strength the folder's two pr
 sublocale wf_grounder \<subseteq> ff: wf_fact_folder varfree_inst_prob facts fluents
 proof (unfold_locales)
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      covered (precondition (the (png.res_inst (ac_pa a)))) facts"
+      covered (precondition (the (png.res_inst (ff.ac_pa a)))) facts"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
     hence "a \<in> set (actions varfree_inst_dom)" by simp
@@ -279,14 +229,14 @@ proof (unfold_locales)
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
-    have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
-    show "covered (precondition (the (png.res_inst (ac_pa a)))) facts"
+    have ri: "png.res_inst (ff.ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
+    show "covered (precondition (the (png.res_inst (ff.ac_pa a)))) facts"
       unfolding ri using pres_covered pi by blast
   qed
   show "covered (goal varfree_inst_prob) facts" using goal_covered by simp
   show "\<forall>f \<in> set (init varfree_inst_prob). is_predAtom f" using init_props by simp
   show "\<forall>a \<in> set (actions (ast_problem.domain varfree_inst_prob)).
-      numeric_effects (effect (the (png.res_inst (ac_pa a)))) = []"
+      numeric_effects (effect (the (png.res_inst (ff.ac_pa a)))) = []"
   proof
     fix a assume "a \<in> set (actions (ast_problem.domain varfree_inst_prob))"
     hence "a \<in> set (actions varfree_inst_dom)" by simp
@@ -295,8 +245,8 @@ proof (unfold_locales)
       and pi: "\<pi> \<in> set ops"
       and n: "op_map_inv \<pi> = Some n"
       using vg_acs_obtain by metis
-    have ri: "png.res_inst (ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
-    show "numeric_effects (effect (the (png.res_inst (ac_pa a)))) = []"
+    have ri: "png.res_inst (ff.ac_pa a) = res_inst \<pi>" unfolding a using resinst_ac_pa[OF pi n] .
+    show "numeric_effects (effect (the (png.res_inst (ff.ac_pa a)))) = []"
       unfolding ri using ops_no_num pi by blast
   qed
 qed
@@ -316,60 +266,53 @@ proof (unfold_locales)
     using init_covered_num by simp
 qed
 
-theorem (in wf_grounder_num) ground_prob_wf_num: "pg.wf_classical_problem"
-  using ff.fold_prob_wf_num unfolding ground_prob_factors .
+theorem (in wf_grounder_num) ground_prob_wf_num: "ff.fpg.wf_classical_problem"
+  using ff.fold_prob_wf_num .
 
-sublocale wf_grounder_num \<subseteq> pg: grounded_problem P\<^sub>G
-  using ground_prob_wf_num ground_prob_grounded by unfold_locales
-
-subsection \<open>The grounder's theorems, re-derived through the factorization\<close>
+subsection \<open>The grounded product's headline theorems\<close>
 
 text \<open>The one-shot grounder's headline theorems (\<open>ground_prob_wf\<close>, \<open>valid_plan_right\<close>,
   \<open>valid_classical_plan_left\<close>, \<open>valid_classical_plan_iff\<close>) derive by composing the
   Variable_Freeness stage's theorems (\<open>P \<leftrightarrow> png\<close>, plans mapped by \<open>ground_pa\<close> /
   \<open>restore_ground_pa\<close>) with the fact folder's (\<open>png \<leftrightarrow>\<close> folded, the \<^emph>\<open>identity\<close> on plans),
-  rewritten through the factorization equality \<open>ground_prob_factors\<close>. Each statement is
+  stated directly on the two-stage product \<open>P\<^sub>G\<close>. Each statement is
   literally the retired monolithic original.\<close>
 
-theorem (in wf_grounder) ground_prob_wf: "pg.wf_classical_problem"
-  using ff.fold_prob_wf unfolding ground_prob_factors .
-
-sublocale wf_grounder \<subseteq> pg: grounded_problem P\<^sub>G
-  using ground_prob_wf ground_prob_grounded by unfold_locales
+theorem (in wf_grounder) ground_prob_wf: "ff.fpg.wf_classical_problem"
+  using ff.fold_prob_wf .
 
 context wf_grounder
 begin
 
 theorem valid_plan_right:
   assumes "valid_classical_plan2 \<pi>s"
-  shows "pg.valid_classical_plan2 (map ground_pa \<pi>s)"
+  shows "ff.fpg.valid_classical_plan2 (map ground_pa \<pi>s)"
 proof -
   have "png.valid_classical_plan2 (map ground_pa \<pi>s)"
     using varfree_valid_plan_right[OF assms] .
-  thus ?thesis by (rule ff.fold_valid_plan_right[unfolded ground_prob_factors])
+  thus ?thesis by (rule ff.fold_valid_plan_right)
 qed
 
 theorem valid_classical_plan_left:
-  assumes "pg.valid_classical_plan2 \<pi>s'"
+  assumes "ff.fpg.valid_classical_plan2 \<pi>s'"
   shows "valid_classical_plan2 (restore_ground_plan \<pi>s')"
 proof -
   have "png.valid_classical_plan2 \<pi>s'"
-    using assms by (rule ff.fold_valid_plan_left[unfolded ground_prob_factors])
+    using assms by (rule ff.fold_valid_plan_left)
   thus ?thesis by (rule varfree_valid_plan_left)
 qed
 
 theorem valid_classical_plan_iff:
-  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. pg.valid_classical_plan2 \<pi>s')"
+  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ff.fpg.valid_classical_plan2 \<pi>s')"
   using valid_plan_right valid_classical_plan_left by blast
 
 end
 
-subsection \<open>The numeric grounder's plan equivalence, through the factorization\<close>
+subsection \<open>The numeric product's plan equivalence\<close>
 
 text \<open>The numeric one-shot grounder's plan-equivalence theorems: the Variable_Freeness stage's
   theorems composed with the numeric fact folder's (\<open>fold_valid_plan_right_num\<close> /
-  \<open>fold_valid_plan_left_num\<close> --- the \<^emph>\<open>identity\<close> on plans), rewritten through the
-  factorization equality. Numeric twins of \<open>valid_plan_right\<close> /
+  \<open>fold_valid_plan_left_num\<close> --- the \<^emph>\<open>identity\<close> on plans). Numeric twins of \<open>valid_plan_right\<close> /
   \<open>valid_classical_plan_left\<close> / \<open>valid_classical_plan_iff\<close>: the fully grounded
   (nullary, fluent-retaining) problem has a valid plan iff the input does, and any of its valid
   plans restores to a concrete valid plan of the input.\<close>
@@ -379,36 +322,35 @@ begin
 
 theorem valid_plan_right_num:
   assumes "valid_classical_plan2 \<pi>s"
-  shows "pg.valid_classical_plan2 (map ground_pa \<pi>s)"
+  shows "ff.fpg.valid_classical_plan2 (map ground_pa \<pi>s)"
 proof -
   have "png.valid_classical_plan2 (map ground_pa \<pi>s)"
     using varfree_valid_plan_right[OF assms] .
-  thus ?thesis by (rule ff.fold_valid_plan_right_num[unfolded ground_prob_factors])
+  thus ?thesis by (rule ff.fold_valid_plan_right_num)
 qed
 
 theorem valid_classical_plan_left_num:
-  assumes "pg.valid_classical_plan2 \<pi>s'"
+  assumes "ff.fpg.valid_classical_plan2 \<pi>s'"
   shows "valid_classical_plan2 (restore_ground_plan \<pi>s')"
 proof -
   have "png.valid_classical_plan2 \<pi>s'"
-    using assms by (rule ff.fold_valid_plan_left_num[unfolded ground_prob_factors])
+    using assms by (rule ff.fold_valid_plan_left_num)
   thus ?thesis by (rule varfree_valid_plan_left)
 qed
 
 theorem valid_classical_plan_iff_num:
-  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. pg.valid_classical_plan2 \<pi>s')"
+  "(\<exists>\<pi>s. valid_classical_plan2 \<pi>s) \<longleftrightarrow> (\<exists>\<pi>s'. ff.fpg.valid_classical_plan2 \<pi>s')"
   using valid_plan_right_num valid_classical_plan_left_num by blast
 
 end
 
-subsection \<open>Numeric-freeness, re-derived through the factorization\<close>
+subsection \<open>Numeric-freeness of the grounded product\<close>
 
 text \<open>The one-shot grounder's numeric-freeness theorem is the fact folder's stage-local
   \<open>fold_prob_num_free\<close> (of \<^theory>\<open>Classical_Grounded_PDDL.Classical_Grounded_PDDL_Num_Free\<close>,
-  at the variable-free problem) rewritten through the factorization equality; the statement is
-  literally the retired pipeline original.\<close>
+  at the variable-free problem); the statement is literally the retired pipeline original.\<close>
 
-theorem (in wf_grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob ground_prob"
-  using ff.fold_prob_num_free unfolding ground_prob_factors .
+theorem (in wf_grounder) ground_prob_num_free: "ast_classical_problem.num_free_prob P\<^sub>G"
+  using ff.fold_prob_num_free .
 
 end

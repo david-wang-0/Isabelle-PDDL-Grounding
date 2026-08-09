@@ -1,5 +1,5 @@
 theory Grounding_Pipeline_Numeric_Executable
-  imports Grounding_Pipeline_Common_Executable Grounder_Timing
+  imports Grounding_Pipeline_Common_Executable Grounding_Pipeline_Numeric Grounder_Timing
     Datalog_Graph.Datalog_Cycle_DFS_Global
 begin
 
@@ -36,25 +36,14 @@ lemma dl_admissible_gdfs_timed_code [code]:
 section \<open>Executable numeric grounding (up to, but not including, the STRIPS conversion)\<close>
 
 text \<open>The re-checked grounding pipeline, stopping one step before the propositional STRIPS encoding
-  \<^const>\<open>ast_classical_problem.as_strips\<close>: it returns the grounded \<^emph>\<open>PDDL\<close> problem
+  \<open>as_strips\<close> (which lives in the STRIPS branch, not imported here): it returns the grounded
+  \<^emph>\<open>PDDL\<close> problem
   \<^term>\<open>instantiate_all_actions_by_cert P M\<close> (a full \<^type>\<open>ast_problem\<close>) that \<^bold>\<open>retains numeric fluents\<close> ---
   the \<^emph>\<open>numeric-fluent-retaining\<close> grounder \<^const>\<open>varfree.varfree_inst_prob\<close> (verified in
   \<^theory>\<open>Classical_Variable_Freeness.Classical_Variable_Freeness\<close>: well-formed, and plan-preserving via
-  \<open>ast_classical_problem.varfree_inst_cert_plan_valid_iff\<close>), \<^emph>\<open>not\<close> the propositional
-  \<^const>\<open>ground_by_cert\<close> that drops numerics. Foundedness of the untrusted datalog certificate is
+  \<open>ast_classical_problem.varfree_inst_cert_plan_valid_iff\<close>), stopping short of the second
+  (fact/fluent fold) stage that \<^const>\<open>ground_by_cert\<close> runs. Foundedness of the untrusted datalog certificate is
   discharged by the verified directed-cycle DFS (\<^const>\<open>dl_certified_model_dfs\<close>).\<close>
-
-subsection \<open>Code setup for the fluent grounder\<close>
-
-text \<open>Make the fluent grounder \<^const>\<open>varfree.varfree_inst_prob\<close> (and the domain / action
-  constructors it is built from) code-generable, mirroring the propositional grounder's code
-  equations (\<open>grounder.ground_dom_def[code]\<close> etc. in \<^theory>\<open>Classical_Grounding.Code_Setup\<close>). All the
-  underlying operations (\<^const>\<open>simple_action_instantiations.res_inst\<close>, \<^const>\<open>varfree.op_names\<close>,
-  \<^const>\<open>map2\<close>, \<^const>\<open>map_atom_fmla\<close>, \<^const>\<open>map_ast_effect\<close>) are already executable.\<close>
-
-declare ast_classical_problem.varfree_inst_ac_def[code]
-declare varfree.varfree_inst_dom_def[code]
-declare varfree.varfree_inst_prob_def[code]
 
 subsection \<open>Executable numeric grounder against a certified fact list\<close>
 
@@ -767,9 +756,9 @@ text \<open>The \<^emph>\<open>fully grounded\<close> numeric entry points. Wher
   naming the reachable ground fluents, and an initial state whose function assignments are stated
   over those nullary functions.
 
-  The returned problem is exactly the existing one-shot executable grounder
-  \<^const>\<open>ground_by_cert\<close> --- which already computed the numeric fold, it just had no name at the
-  abstract level --- and equals the abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close>. The
+  The returned problem is exactly the existing executable grounder
+  \<^const>\<open>ground_by_cert\<close> --- which is the two-stage composite, so it already computed the numeric
+  fold --- and equals the abstract \<^const>\<open>ast_classical_problem.numeric_P\<^sub>G_cert\<close> by \<open>refl\<close>. The
   gate is the \<^emph>\<open>separate\<close> \<^const>\<open>numeric_fold_checks_exec\<close>, so the shipped streaming CLI
   (which keeps gating on \<^const>\<open>numeric_grounding_checks_exec\<close>) is untouched.
 
@@ -797,7 +786,9 @@ proof -
     by (rule ast_classical_problem.numeric_fold_checks_imp_grounding_checks[OF rx gcf])
   show ?thesis
     unfolding ground_by_cert_def
-              ast_classical_problem.numeric_P\<^sub>G_cert_ground_prob[OF ne cert gcn gcf rp wf]
+              ast_classical_problem.numeric_P\<^sub>G_cert_def[OF ne cert gcn]
+              ast_classical_problem.numeric_P\<^sub>V_cert_def[OF ne cert gcn]
+              ast_classical_problem.numeric_cert_fluents_def[OF ne cert gcn]
               cert_facts_of_exec_eq[OF rx] cert_ops_of_exec_fast_canon_eq[OF rx]
     by (rule refl)
 qed

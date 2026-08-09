@@ -2,6 +2,12 @@ theory Classical_Grounded_PDDL
   imports Classical_Grounded_PDDL_Locales
 begin
 
+text \<open>A single literal is a (one-element) conjunction. Its natural home is
+  \<^verbatim>\<open>Formula_Utils\<close>, beside \<^const>\<open>is_conj\<close> / \<^const>\<open>is_lit_plus\<close>; it sits here to leave that
+  base session untouched.\<close>
+lemma is_lit_plus_imp_is_conj: "is_lit_plus X \<Longrightarrow> is_conj X"
+  by (cases X rule: is_lit_plus.cases) auto
+
 subsection \<open> Names and distinctness \<close>
 
 text \<open>The folder's generated names: lengths, the positional characterisation
@@ -85,75 +91,6 @@ qed
 
 end
 
-context grounder begin
-
-subsubsection \<open> Alternative definitions (selectors) \<close>
-
-lemma ground_dom_sel:
-  "types D\<^sub>G = []"
-  "predicates D\<^sub>G = map (\<lambda>p. PredDecl p []) fact_names"
-  "consts D\<^sub>G = []"
-  "actions D\<^sub>G = map2 ground_ac ops op_names"
-  unfolding ground_dom_def by simp_all
-
-lemma ground_prob_sel [simp]:
-  "ast_problem.domain P\<^sub>G = D\<^sub>G"
-  "objects P\<^sub>G = []"
-  "init P\<^sub>G = map ground_fmla (init P)"
-  "goal P\<^sub>G = ground_fmla (goal P)"
-  unfolding ground_prob_def by simp_all
-
-lemmas ground_inst_sel = ground_dom_sel ground_prob_sel
-
-lemma ground_ac_sel [simp]:
-  "ac_name (ground_ac \<pi> n) = n"
-  "ac_params (ground_ac \<pi> n) = []"
-  "ac_pre (ground_ac \<pi> n) = ga_pre (the (res_inst \<pi>))"
-  "ac_eff (ground_ac \<pi> n) = ga_eff (the (res_inst \<pi>))"
-  unfolding ground_ac_def Let_def by simp_all
-
-lemma ga_pre_alt: "ga_pre ga = ground_fmla (precondition ga)"
-  by (cases ga; simp)
-
-text \<open>The grounded effect re-indexes the numeric effects onto nullary fluents (empty when the input is
-  numeric-free, i.e. under \<open>ops_no_num\<close>).\<close>
-lemma ga_eff_alt: "ga_eff ga =
-  Effect (map ground_fmla (adds (effect ga))) (map ground_fmla (dels (effect ga)))
-         (map ground_neff (numeric_effects (effect ga)))"
-  by (cases ga rule: ga_eff.cases) simp
-
-lemma ga_eff_sel [simp]:
-  "adds (ga_eff ga) = map ground_fmla (adds (effect ga))"
-  "dels (ga_eff ga) = map ground_fmla (dels (effect ga))"
-  "numeric_effects (ga_eff ga) = map ground_neff (numeric_effects (effect ga))"
-  unfolding ga_eff_alt by simp_all
-
-subsubsection \<open> The output is grounded \<close>
-
-lemma acs_grounded: "(\<forall>x \<in> set (actions D\<^sub>G). grounded_ac x)"
-proof
-  fix x assume "x \<in> set (actions D\<^sub>G)"
-  then obtain op i where "x = ground_ac op i"
-    unfolding ground_dom_sel using map2_obtain by metis
-  hence "ac_params x = []" using ground_ac_sel by simp
-  thus "grounded_ac x" by (cases x rule: grounded_ac.cases) simp_all
-qed
-
-theorem ground_dom_grounded: "dg.grounded_dom"
-proof (intro dg.grounded_domI)
-  show "types D\<^sub>G = []" by (simp add: ground_dom_sel)
-  show "\<forall>p \<in> set (predicates D\<^sub>G). grounded_pred p" by (auto simp: ground_dom_sel)
-  show "consts D\<^sub>G = []" by (simp add: ground_dom_sel)
-  show "\<forall>f \<in> set (functions D\<^sub>G). grounded_func f" by (simp add: ground_dom_def)
-  show "\<forall>a \<in> set (actions D\<^sub>G). grounded_ac a" using acs_grounded .
-qed
-
-theorem ground_prob_grounded: "pg.grounded_prob"
-  using ground_dom_grounded by (intro pg.grounded_probI) (simp_all add: ground_prob_sel)
-
-end
-
-
 subsection \<open> Grounder facts consumed by the factorization \<close>
 
 text \<open>The one-shot grounder's well-formedness chain (domain/problem wf) is no longer proved
@@ -163,16 +100,6 @@ text \<open>The one-shot grounder's well-formedness chain (domain/problem wf) is
   well-formedness, and the op-fluent collection.\<close>
 
 context wf_grounder_cov begin
-
-lemma ground_ac_names: "map ac_name (map2 ground_ac ops op_names) = op_names"
-proof -
-  have "map ac_name (map2 ground_ac xs ys) = ys" if "length xs = length ys" for xs ys
-    using that by (induction xs ys rule: list_induct2) (simp_all add: ground_ac_sel)
-  thus ?thesis using ops_len by simp
-qed
-
-lemma gr_acs_dis: "distinct (map ac_name (actions D\<^sub>G))"
-  using ground_ac_names op_names_dis by (simp add: ground_dom_sel)
 
 lemma wf_ops_resinst:
   "\<forall>\<pi> \<in> set ops. wf_ground_action (the (res_inst \<pi>))"
@@ -222,12 +149,6 @@ proof -
   thus ?thesis by (simp add: fluents_def)
 qed
 
-lemma fluent_names_empty: "fluent_names = []"
-  using fluents_empty unfolding fluent_names_def by simp
-
-lemma ground_dom_funcs: "functions D\<^sub>G = []"
-  unfolding ground_dom_def by (simp add: fluent_names_empty)
-
 end
 
 subsection \<open> The standalone fact folder: selectors and groundedness \<close>
@@ -261,9 +182,8 @@ lemma fold_prob_sel [simp]:
   "goal fold_prob = ground_fmla (goal P)"
   unfolding fold_prob_def by simp_all
 
-text \<open>Restatements of the grounder's generic \<open>ga_pre\<close>/\<open>ga_eff\<close> selectors in
-  \<^locale>\<open>fact_folder\<close>, so the standalone folder development below can use them (their
-  originals above live in \<^locale>\<open>grounder\<close>, which the folder layers do not import).\<close>
+text \<open>The generic \<open>ga_pre\<close>/\<open>ga_eff\<close> selectors, stated in \<^locale>\<open>fact_folder\<close>
+  so the standalone folder development below can use them.\<close>
 
 lemma ga_pre_alt: "ga_pre ga = ground_fmla (precondition ga)"
   by (cases ga; simp)
@@ -300,6 +220,24 @@ qed
 
 theorem fold_prob_grounded: "fpg.grounded_prob"
   using fold_dom_grounded by (intro fpg.grounded_probI) (simp_all add: fold_prob_sel)
+
+subsubsection \<open> The folded output preserves normalization \<close>
+
+text \<open>Folding maps literals to literals --- an equality atom collapses to \<open>\<top>\<close>/\<open>\<bottom>\<close>, a numeric
+  atom keeps its shape, and a predicate atom becomes a nullary one --- hence conjunctions to
+  conjunctions. This is what carries precondition-normalization and the conjunctive goal across the
+  stage; typelessness needs no separate argument, being subsumed by \<open>fold_prob_grounded\<close> via
+  \<open>typeless_classical_problem_of_grounded\<close>.\<close>
+
+lemma is_lit_plus_ground_fmla: "is_lit_plus L \<Longrightarrow> is_lit_plus (ground_fmla L)"
+  apply (cases L rule: is_lit_plus.cases; simp)
+  subgoal for a by (cases a) auto
+  subgoal for a by (cases a) auto
+  done
+
+lemma is_conj_ground_fmla: "is_conj F \<Longrightarrow> is_conj (ground_fmla F)"
+  by (induction F rule: is_conj.induct)
+     (auto simp: is_lit_plus_ground_fmla is_lit_plus_imp_is_conj)
 
 end
 
@@ -347,6 +285,38 @@ lemma wf_acs_resinst:
   "\<forall>a \<in> set (actions (domain P)). wf_fmla objT (precondition (the (res_inst (ac_pa a))))"
   "\<forall>a \<in> set (actions (domain P)). wf_effect objT (effect (the (res_inst (ac_pa a))))"
   using ac_pa_wf wf_resolve_instantiate wf_ground_action_alt by simp_all
+
+subsubsection \<open> Normalization covariance of the fold \<close>
+
+text \<open>Precondition-normalization survives the fold: resolution sends each schema's nullary plan
+  action back to the schema itself (\<open>res_inst_ac\<close>), instantiation at \<open>[]\<close> is a term map, and
+  \<open>ground_fmla\<close> preserves conjunctions.\<close>
+lemma fold_dom_prec_normed:
+  assumes pn: prec_normed_dom
+  shows fdg.prec_normed_dom
+  unfolding ast_classical_domain.prec_normed_dom_def
+proof
+  fix ac assume "ac \<in> set (actions fold_dom)"
+  then obtain a where ac: "ac = fold_ac a" and amem: "a \<in> set (actions (domain P))"
+    unfolding fold_dom_sel(5) by auto
+  have "is_conj (ac_pre a)" using amem pn unfolding prec_normed_dom_def by blast
+  hence "is_conj (precondition (instantiate_classical_action_schema a []))"
+    by (simp add: instantiate_classical_action_schema_alt map_preserves_isconj)
+  hence "is_conj (ground_fmla (precondition (the (res_inst (ac_pa a)))))"
+    using res_inst_ac[OF amem] by (simp add: is_conj_ground_fmla)
+  thus "is_conj (ac_pre ac)" unfolding ac fold_ac_sel(3) ga_pre_alt .
+qed
+
+text \<open>The three conjuncts together: the folded problem is normalized whenever its input is ---
+  typelessness for free from groundedness, preconditions by the lemma above, and the goal because
+  it is folded by the same conjunction-preserving \<open>ground_fmla\<close>.\<close>
+lemma fold_prob_normed:
+  assumes n: normalized_prob
+  shows fpg.normalized_prob
+  unfolding ast_classical_problem.normalized_prob_def
+  using ast_classical_problem.typeless_classical_problem_of_grounded[OF fold_prob_grounded]
+        fold_dom_prec_normed n[unfolded normalized_prob_def]
+  by (simp add: fold_prob_sel is_conj_ground_fmla)
 
 subsubsection \<open> Fluent names, map, and nullary function signature \<close>
 

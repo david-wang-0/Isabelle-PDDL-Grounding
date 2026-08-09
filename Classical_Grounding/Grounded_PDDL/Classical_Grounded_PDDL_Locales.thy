@@ -34,6 +34,11 @@ definition (in ast_classical_problem) op_fluents :: "ast_classical_plan_action \
      @ map (\<lambda>ne. case ne of NumericEffect _ l _ \<Rightarrow> l) (numeric_effects (effect ga))
      @ ast_effect_enumerate_rhs_primitive_numeric_expressions (effect ga))"
 
+text \<open>\<open>achievable\<close> ranges over \<^typ>\<open>fact\<close> (\<open>predicate \<times> object list\<close>) whereas the folder's
+  \<open>facts\<close> are \<^typ>\<open>facty\<close> formulas; this lifts a reachable fact to its formula.\<close>
+abbreviation fact_to_facty :: "fact \<Rightarrow> facty" where
+  "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
+
 subsection \<open>The fact folder: folding ground atoms and fluents to nullary form\<close>
 
 text \<open>The second stage of the propositional grounder, parameterised by the achievable-facts list
@@ -52,8 +57,7 @@ text \<open>Readable string encoders for ground facts and fluents, mirroring \<^
   numeric atom, compound formula) falls through to the empty string. Those shapes never occur under
   \<open>facts_wf\<close>, and the index suffix added by \<open>fact_names\<close> below keeps the generated names distinct
   even if they did, so the encoders themselves need not be injective. They live at theory level, not
-  inside the folder: the names must not depend on the problem parameter, or the factorization
-  equality \<open>ff.fold_dom = ground_dom\<close> would no longer be a syntactic identity.\<close>
+  inside the folder: the names must not depend on the problem parameter.\<close>
 
 fun readable_fact :: "facty \<Rightarrow> String.literal" where
   "readable_fact (Atom (predAtm p args)) =
@@ -147,11 +151,6 @@ fun ga_eff :: "ground_action \<Rightarrow> 'a ast_effect" where
   "ga_eff (GroundAction pre (Effect a d ne)) =
     Effect (map ground_fmla a) (map ground_fmla d) (map ground_neff ne)"
 
-text \<open>\<open>achievable\<close> ranges over \<^typ>\<open>fact\<close> (\<open>predicate \<times> object list\<close>) whereas the folder's
-  \<open>facts\<close> are \<^typ>\<open>facty\<close> formulas; this lifts a reachable fact to its formula.\<close>
-abbreviation fact_to_facty :: "fact \<Rightarrow> facty" where
-  "fact_to_facty f \<equiv> Atom (uncurry predAtm f)"
-
 text \<open>Folding a whole variable-free problem: each nullary action schema resolves-and-instantiates
   at the empty argument list (undoing the \<open>term.CONST\<close> lift of the Variable_Freeness stage), and
   its ground body is re-indexed by \<open>ga_pre\<close>/\<open>ga_eff\<close>; the action \<^emph>\<open>name\<close> is kept verbatim.\<close>
@@ -181,64 +180,33 @@ definition fold_prob :: ast_classical_problem where
 
 end
 
-subsection \<open>The one-shot grounder: variable elimination and folding in one step\<close>
+subsection \<open>The two-stage grounder: variable-free instantiation followed by fact folding\<close>
 
-text \<open>The grounder is parameterised by the achievable-facts list \<open>facts\<close> on top of the
-  variable-freeness name machinery's reachable-op list \<open>ops\<close> (locale \<open>varfree\<close>); its fluents are
-  \<^emph>\<open>derived\<close> from the reachable ops, and the folding machinery is the shared
-  \<^locale>\<open>fact_folder\<close>, imported below at exactly these derived fluents.\<close>
+text \<open>The reachable ops determine the ground fluents the grounded problem must declare. This is
+  the only piece of the (removed) one-shot grounder that the two-stage composite still needs, so it
+  lives directly on the assumption-free name-machinery locale \<^locale>\<open>varfree\<close> --- keeping
+  \<open>fluents_def\<close> unconditional, as the pipeline's \<open>numeric_cert_fluents\<close> relies on.\<close>
+definition (in varfree) "fluents \<equiv> remdups (concat (map op_fluents ops))"
 
-locale grounder = varfree +
+text \<open>The \<^emph>\<open>instantiating\<close> grounder: the Variable_Freeness stage's \<^emph>\<open>minimal\<close> obligations
+  (\<^locale>\<open>varfree_instantiator\<close>) plus the achievable-facts list \<open>facts\<close>, and \<^bold>\<open>no coverage
+  assumptions at all\<close>. The grounded product is the composite of the two stages: the variable-free
+  instantiation \<^const>\<open>varfree.varfree_inst_prob\<close> put through the shared
+  \<^locale>\<open>fact_folder\<close> at \<open>facts\<close>/\<open>fluents\<close>, interpreted as \<open>ff\<close> below.\<close>
+locale grounder_inst = varfree_instantiator +
   fixes facts :: "facty list"
-begin
-
-definition "fluents \<equiv> remdups (concat (map op_fluents ops))"
-
-end
-
-sublocale grounder \<subseteq> fact_folder P facts fluents .
-
-context grounder begin
-
-definition ground_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
-  "ground_ac \<pi> n =
-    (let ga = the (res_inst \<pi>) in
-    SimpleActionSchema (ActionHead n []) (SimpleActionBody (ga_pre ga) (ga_eff ga)))"
-
-definition ground_dom :: "ast_classical_domain" where
-  "ground_dom \<equiv> Domain
-    []
-    (map (\<lambda>p. PredDecl p []) fact_names)
-    (map (\<lambda>f. FuncDecl f []) fluent_names)
-    []
-    (map2 ground_ac ops op_names)"
-
-definition ground_prob :: "ast_classical_problem" where
-  "ground_prob \<equiv> Problem
-    ground_dom
-    []
-    (map ground_fmla (init P))
-    (ground_fmla (goal P))"
-
-end
-
-
-text \<open>The \<^emph>\<open>instantiating\<close> grounder: the one-shot grounder's parameters
-  (\<^locale>\<open>grounder\<close>) together with the Variable_Freeness stage's \<^emph>\<open>minimal\<close> obligations
-  (\<^locale>\<open>varfree_instantiator\<close>) and \<^bold>\<open>no coverage assumptions at all\<close>. This is exactly the layer at
-  which the factorization \<open>ground_prob_factors\<close>
-  (\<open>Classical_Grounded_PDDL_Factorization\<close>) lives: folding the variable-free instantiation
-  reproduces the one-shot grounded problem \<^emph>\<open>syntactically\<close>, which needs only the \<open>res_inst\<close>
-  transfer, never coverage. Keeping the factorization here --- rather than in
-  \<open>wf_grounder_cov\<close> --- is what lets the numeric pipeline, which has only
-  \<^locale>\<open>varfree_instantiator\<close>, name its folded product as the composite of the two stages.\<close>
-locale grounder_inst = grounder + varfree_instantiator
 
 text \<open>The fact folder at the variable-free problem, with the grounder's own \<open>facts\<close>/\<open>fluents\<close>.
   \<^locale>\<open>fact_folder\<close> is assumption-free, so this interpretation costs nothing here;
   \<open>wf_grounder_cov\<close> strengthens the \<^emph>\<open>same\<close> \<open>ff\<close> interpretation to
   \<open>wf_fact_folder_cov\<close>.\<close>
 sublocale grounder_inst \<subseteq> ff: fact_folder varfree_inst_prob facts fluents .
+
+text \<open>The grounded product \<^emph>\<open>is\<close> the composite of the two stages --- there is no separate
+  one-shot construction to relate it to, so \<open>D\<^sub>G\<close>/\<open>P\<^sub>G\<close> are plain abbreviations for the
+  folder's output at the variable-free instantiation.\<close>
+abbreviation (in grounder_inst) "D\<^sub>G \<equiv> ff.fold_dom"
+abbreviation (in grounder_inst) "P\<^sub>G \<equiv> ff.fold_prob"
 
 text \<open>Some of these may follow from one another\<close>
 
@@ -282,7 +250,7 @@ text \<open>The \<^emph>\<open>numeric\<close> grounder: the covered numeric lay
   \<^const>\<open>covered_num\<close>, i.e. its predicate atoms are facts and its ground fluents are reachable
   fluents. This is what lets \<open>fold_prob\<close> fold an initial function assignment such as
   \<open>(= (fuel c1) 10)\<close> onto its nullary form; it cannot be derived, because
-  \<^const>\<open>grounder.fluents\<close> is enumerated from the reachable \<^emph>\<open>ops\<close> only.\<close>
+  \<open>fluents\<close> is enumerated from the reachable \<^emph>\<open>ops\<close> only.\<close>
 locale wf_grounder_num = wf_grounder_cov +
   assumes
     init_covered_num: "\<forall>f \<in> set (init P). covered_num f facts fluents"
@@ -340,11 +308,5 @@ sublocale wf_fact_folder_cov \<subseteq> wf_ast_classical_problem P
 
 sublocale fact_folder \<subseteq> fdg: ast_classical_domain fold_dom .
 sublocale fact_folder \<subseteq> fpg: ast_classical_problem fold_prob .
-
-abbreviation (in grounder) "D\<^sub>G \<equiv> ground_dom"
-abbreviation (in grounder) "P\<^sub>G \<equiv> ground_prob"
-
-sublocale grounder \<subseteq> dg: ast_classical_domain D\<^sub>G .
-sublocale grounder \<subseteq> pg: ast_classical_problem P\<^sub>G .
 
 end

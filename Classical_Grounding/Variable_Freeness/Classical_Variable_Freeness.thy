@@ -28,6 +28,34 @@ lemma grounded_domD [dest]:
     "\<forall>a \<in> set (actions D). grounded_ac a"
   using assms unfolding grounded_dom_def by blast+
 
+text \<open>A grounded domain is \<^emph>\<open>a fortiori\<close> typeless: groundedness empties the type declarations and
+  the constants, and makes every predicate/function argument list and every parameter list nil ---
+  so each \<open>T = \<omega>\<close> obligation of typelessness is vacuous. Proving it once here spares every
+  grounding stage a typelessness proof of its own. (Its natural home is beside
+  \<open>typeless_classical_domain\<close> in \<^verbatim>\<open>Classical_PDDL_Normalization\<close>; it sits here, with the other
+  derived \<open>grounded_*\<close> rules, to leave that base session untouched.)\<close>
+lemma typeless_classical_domain_of_grounded:
+  assumes g: grounded_dom
+  shows typeless_classical_domain
+proof -
+  have p: "\<forall>T \<in> set (predicate_decl.argTs p). T = \<omega>" if "p \<in> set (predicates D)" for p
+    using grounded_domD(2)[OF g] that by (cases p) auto
+  have f: "\<forall>T \<in> set (function_decl.argTs f). T = \<omega>" if "f \<in> set (functions D)" for f
+    using grounded_domD(4)[OF g] that by (cases f) auto
+  have a: "\<forall>(n, T) \<in> set (ac_params ac). T = \<omega>" if "ac \<in> set (actions D)" for ac
+    using grounded_domD(5)[OF g] that by (cases ac rule: grounded_ac.cases) auto
+  show ?thesis
+    unfolding typeless_classical_domain_def domain_signature.typeless_domain_signature_def
+    using grounded_domD(1)[OF g] grounded_domD(3)[OF g] p f a by auto
+qed
+
+text \<open>Resolving an action name yields a schema of the domain --- the one fact about
+  \<^const>\<open>ast_classical_domain.resolve_classical_action_schema\<close> the grounding stages keep needing.\<close>
+lemma resolve_mem:
+  assumes "resolve_classical_action_schema n = Some a"
+  shows "a \<in> set (actions D)"
+  using assms unfolding resolve_classical_action_schema_def by (meson index_by_eq_SomeD)
+
 lemma wf_classical_domainI [intro]:
   assumes wf_domain_signature "distinct (map ac_name (actions D))"
     "\<forall>a \<in> set (actions D). wf_classical_action_schema a"
@@ -58,6 +86,15 @@ lemma grounded_probI [intro]:
 lemma grounded_probD [dest]:
   assumes grounded_prob shows grounded_dom "objects P = []"
   using assms unfolding grounded_prob_def by blast+
+
+text \<open>The problem-level twin: a grounded problem is typeless, its object list being empty.\<close>
+lemma typeless_classical_problem_of_grounded:
+  assumes g: grounded_prob
+  shows typeless_classical_problem
+  unfolding typeless_classical_problem_def
+  using ast_classical_domain.typeless_classical_domain_of_grounded[OF grounded_probD(1)[OF g]]
+        grounded_probD(2)[OF g]
+  by simp
 
 lemma wf_classical_problemI [intro]:
   assumes wf_classical_domain wf_problem_signature "distinct (init P)"
@@ -135,10 +172,11 @@ end
 
 context ast_classical_problem begin
 
-text \<open>Numeric grounder: like the propositional grounder (\<open>grounder.ground_prob\<close>) but keeping
-  the ground actions' numeric effects, numeric preconditions, and the domain's function
-  declarations --- only the action \<^emph>\<open>parameters\<close> are instantiated (via \<^const>\<open>res_inst\<close>), nothing is
-  propositionalised. Grounds the un-relaxed \<open>P\<close> over the (over-approximated) reachable ops \<open>ops\<close>.\<close>
+text \<open>Grounding stage one --- instantiation. It keeps the ground actions' numeric effects, numeric
+  preconditions, and the domain's function declarations: only the action \<^emph>\<open>parameters\<close> are
+  instantiated (via \<^const>\<open>res_inst\<close>), nothing is propositionalised. That second step is stage two,
+  the fact/fluent fold \<open>fact_folder.fold_prob\<close>. Grounds the un-relaxed \<open>P\<close> over the
+  (over-approximated) reachable ops \<open>ops\<close>.\<close>
 
 definition varfree_inst_ac :: "ast_classical_plan_action \<Rightarrow> name \<Rightarrow> ast_classical_action_schema" where
   "varfree_inst_ac \<pi> n =
@@ -180,10 +218,10 @@ end
 
 context varfree begin
 
-text \<open>The numeric grounded domain / problem, aligned with the propositional \<open>grounder.ground_dom\<close>
-  / \<open>grounder.ground_prob\<close>: same nullary action \<^emph>\<open>names\<close> (\<open>op_names\<close>, one per reachable op),
-  but the domain keeps the original types / predicates / functions and each action retains its
-  numeric ground body.\<close>
+text \<open>The instantiated domain / problem. Its actions carry the nullary \<^emph>\<open>names\<close> \<open>op_names\<close> (one
+  per reachable op) that stage two's \<open>fact_folder.fold_dom\<close> / \<open>fact_folder.fold_prob\<close> then keep
+  verbatim, but the domain still holds the original types / predicates / functions and each action
+  retains its numeric ground body.\<close>
 
 text \<open>The grounded actions are nullary schemas whose bodies reference the instantiation's
   \<^emph>\<open>objects\<close> (via \<^const>\<open>term.CONST\<close>). A schema's body is typed by \<^const>\<open>ac_tyt\<close> \<open>= ty_term
@@ -260,6 +298,67 @@ context varfree_instantiator begin
 text \<open>Shared restore/reachability machinery, provable already in \<^locale>\<open>varfree_instantiator\<close> (it needs
   only \<open>all_ops\<close> / \<open>ops_dist\<close> + the \<open>grounder\<close> name machinery \<open>op_map\<close>/\<open>op_map_inv\<close>, not the
   numeric-freeness assumptions).\<close>
+
+subsubsection \<open>Normalization covariance of the instantiation\<close>
+
+text \<open>The instantiation stage preserves the three normalization invariants. It is \<^emph>\<open>not\<close> the
+  folding stage: atoms keep their object arguments here, so typelessness cannot be inherited from
+  groundedness (as it is for the folded product) and has to be traced through the copied
+  declarations --- the domain's types/predicates/functions are kept verbatim, the objects are moved
+  into the constants, and every instantiated schema is parameterless.\<close>
+
+lemma varfree_inst_typeless:
+  assumes t: typeless_classical_problem
+  shows png.typeless_classical_problem
+proof -
+  have d: typeless_classical_domain and o: "\<forall>(n, T) \<in> set (objects P). T = \<omega>"
+    using t unfolding typeless_classical_problem_def by blast+
+  have sig: "types (domain P) = []"
+       and pr: "\<forall>p \<in> set (predicates (domain P)). \<forall>T \<in> set (predicate_decl.argTs p). T = \<omega>"
+       and fn: "\<forall>f \<in> set (functions (domain P)). \<forall>T \<in> set (function_decl.argTs f). T = \<omega>"
+       and cs: "\<forall>(n, T) \<in> set (consts (domain P)). T = \<omega>"
+    using d unfolding typeless_classical_domain_def domain_signature.typeless_domain_signature_def
+    by blast+
+  have ap: "\<forall>(n, T) \<in> set (ac_params ac). T = \<omega>" if "ac \<in> set (actions varfree_inst_dom)" for ac
+    using that by (auto simp: varfree_inst_dom_sel(5) map2_map_map)
+  show ?thesis
+    unfolding ast_classical_problem.typeless_classical_problem_def
+              ast_classical_domain.typeless_classical_domain_def
+              domain_signature.typeless_domain_signature_def
+    using sig pr fn cs o ap by (auto simp: varfree_inst_dom_sel)
+qed
+
+lemma varfree_inst_prec_normed:
+  assumes pn: prec_normed_dom
+  shows png.prec_normed_dom
+  unfolding ast_classical_domain.prec_normed_dom_def
+proof
+  fix ac assume "ac \<in> set (actions (ast_problem.domain varfree_inst_prob))"
+  then obtain \<pi> n where ac: "ac = varfree_inst_ac \<pi> n"
+    and pin: "(\<pi>, n) \<in> set (zip ops op_names)"
+    by (auto simp: map2_map_map)
+  have piops: "\<pi> \<in> set ops" using pin set_zip_leftD by fastforce
+  obtain nm args where pi: "\<pi> = SimplePlanAction nm args" by (cases \<pi>)
+  have "wf_classical_plan_action \<pi>" using piops ops_wf by blast
+  then obtain a where a: "resolve_classical_action_schema nm = Some a"
+    using pi wf_classical_plan_action_simple by (auto split: option.splits)
+  hence "a \<in> set (actions D)" by (rule resolve_mem)
+  hence conj: "is_conj (ac_pre a)" using pn unfolding prec_normed_dom_def by blast
+  have inst: "precondition (the (res_inst \<pi>))
+      = map_atom_fmla (ac_tsubst (ac_params a) args) (ac_pre a)"
+    using a unfolding pi by (simp add: instantiate_classical_action_schema_alt)
+  show "is_conj (ac_pre ac)"
+    unfolding ac varfree_inst_ac_sel(3) inst
+    by (simp add: map_preserves_isconj comp_def conj)
+qed
+
+text \<open>The instantiation keeps the goal verbatim, so the three conjuncts compose.\<close>
+lemma varfree_inst_normed:
+  assumes n: normalized_prob
+  shows png.normalized_prob
+  unfolding ast_classical_problem.normalized_prob_def
+  using varfree_inst_typeless varfree_inst_prec_normed n[unfolded normalized_prob_def]
+  by (simp add: varfree_inst_prob_sel)
 
 lemma plan_in_ops:
   assumes "valid_classical_plan_alt I \<pi>s M'"

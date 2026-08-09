@@ -83,9 +83,9 @@ proof unfold_locales
     by (rule pres_covered_l)
   show "covered (goal P) cert_facts'" by (rule goal_covered_l)
   show "\<forall>\<pi> \<in> set cert_ops'.
-          covered_num (precondition (the (res_inst \<pi>))) cert_facts' (grounder.fluents P cert_ops')"
+          covered_num (precondition (the (res_inst \<pi>))) cert_facts' (varfree.fluents P cert_ops')"
     using pres_covered_l covered_imp_covered_num by blast
-  show "covered_num (goal P) cert_facts' (grounder.fluents P cert_ops')"
+  show "covered_num (goal P) cert_facts' (varfree.fluents P cert_ops')"
     using goal_covered_l covered_imp_covered_num by blast
   show "\<forall>f \<in> set (init P). is_predAtom f" by (rule init_props_l)
   show "\<forall>\<pi> \<in> set cert_ops'. numeric_effects (effect (the (res_inst \<pi>))) = []" by (rule ops_no_num_l)
@@ -117,16 +117,16 @@ lemma effs_covered_lf:
 
 lemma pres_covered_num_lf:
   "\<forall>\<pi> \<in> set cert_ops'.
-     covered_num (precondition (the (res_inst \<pi>))) cert_facts' (grounder.fluents P cert_ops')"
+     covered_num (precondition (the (res_inst \<pi>))) cert_facts' (varfree.fluents P cert_ops')"
   using grounding_cert_fold_num
   unfolding numeric_fold_checks_def cert_ops'_def cert_facts'_def by simp
 
-lemma goal_covered_num_lf: "covered_num (goal P) cert_facts' (grounder.fluents P cert_ops')"
+lemma goal_covered_num_lf: "covered_num (goal P) cert_facts' (varfree.fluents P cert_ops')"
   using grounding_cert_fold_num
   unfolding numeric_fold_checks_def cert_ops'_def cert_facts'_def by simp
 
 lemma init_covered_num_lf:
-  "\<forall>f \<in> set (init P). covered_num f cert_facts' (grounder.fluents P cert_ops')"
+  "\<forall>f \<in> set (init P). covered_num f cert_facts' (varfree.fluents P cert_ops')"
   using grounding_cert_fold_num
   unfolding numeric_fold_checks_def cert_ops'_def cert_facts'_def by simp
 
@@ -144,11 +144,11 @@ proof unfold_locales
   show "\<forall>\<pi> \<in> set cert_ops'. let eff = effect (the (res_inst \<pi>))
           in \<forall>\<phi> \<in> set (adds eff @ dels eff). covered \<phi> cert_facts'" by (rule effs_covered_lf)
   show "\<forall>\<pi> \<in> set cert_ops'.
-          covered_num (precondition (the (res_inst \<pi>))) cert_facts' (grounder.fluents P cert_ops')"
+          covered_num (precondition (the (res_inst \<pi>))) cert_facts' (varfree.fluents P cert_ops')"
     by (rule pres_covered_num_lf)
-  show "covered_num (goal P) cert_facts' (grounder.fluents P cert_ops')"
+  show "covered_num (goal P) cert_facts' (varfree.fluents P cert_ops')"
     by (rule goal_covered_num_lf)
-  show "\<forall>f \<in> set (init P). covered_num f cert_facts' (grounder.fluents P cert_ops')"
+  show "\<forall>f \<in> set (init P). covered_num f cert_facts' (varfree.fluents P cert_ops')"
     by (rule init_covered_num_lf)
 qed
 

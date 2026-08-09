@@ -106,7 +106,7 @@ text \<open>Both grounding stages are driven by the same certified data the pipe
 
 definition "my_cert_facts_num \<equiv> cert_facts_of_exec my_P\<^sub>T_num (fst my_cert_num)"
 definition "my_cert_ops_num \<equiv> canon (cert_ops_of_exec_fast my_P\<^sub>T_num (fst my_cert_num))"
-definition "my_fluents_num \<equiv> grounder.fluents my_P\<^sub>T_num my_cert_ops_num"
+definition "my_fluents_num \<equiv> varfree.fluents my_P\<^sub>T_num my_cert_ops_num"
 
 value "my_cert_facts_num"
 value "my_cert_ops_num"
@@ -169,10 +169,9 @@ text \<open>The connecting identity for stage 2: the stage-2 entry point's \<^co
   the folded problem (\<^const>\<open>True\<close>).\<close>
 value "ground_all_actions_dfs_e (\<lambda>_. my_cert_num) my_problem_num = Inr my_grounded_num"
 
-text \<open>And the factorization made concrete: folding stage one's output equals the one-shot
+text \<open>And the two-stage composite made concrete: folding stage one's output equals the executable
   grounder \<^const>\<open>ground_by_cert\<close> on the original problem (\<^const>\<open>True\<close>) --- the evaluation
-  counterpart of \<open>ground_prob_factors\<close>, and the definitional identity behind
-  \<open>ground_by_cert_numeric_eq\<close>.\<close>
+  counterpart of the definitional identity behind \<open>ground_by_cert_numeric_eq\<close>.\<close>
 value "my_grounded_num = ground_by_cert my_problem_num (fst my_cert_num)"
 
 end
