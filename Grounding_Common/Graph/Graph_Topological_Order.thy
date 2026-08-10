@@ -10,7 +10,8 @@ text \<open>A directed graph in the Isabelle-Graph-Library is a set of arcs
   increases along every edge. The main result: for a finite graph a topological
   numbering exists iff the graph has no \<^const>\<open>cycle\<close> (equivalently, iff it is
   \<^const>\<open>acyclic\<close>). This is the graph-theoretic core behind discharging the datalog
-  foundedness obligation (see \<^file>\<open>Datalog_To_Graph.thy\<close>).\<close>
+  foundedness obligation --- see \<open>Datalog_To_Graph\<close> in the \<open>Datalog_Graph\<close> session, which is
+  where the datalog side of that argument lives; nothing here mentions datalog.\<close>
 
 definition top_num :: "'a dgraph \<Rightarrow> ('a \<Rightarrow> nat) \<Rightarrow> bool" where
   "top_num E \<tau> \<longleftrightarrow> (\<forall>(u, v) \<in> E. \<tau> u < \<tau> v)"

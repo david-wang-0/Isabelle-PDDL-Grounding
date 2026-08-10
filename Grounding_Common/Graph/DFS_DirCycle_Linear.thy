@@ -4,7 +4,7 @@ begin
 
 text \<open>The directed counterpart of \<open>DFS_Cycles\<close>: a whole-graph (linear) cycle search whose outer
   loop sweeps the vertices and calls a directed-cycle DFS --- the library's \<open>DFS_DirCycle\<close>
-  extended with a pre-seeded initial state, \<^theory>\<open>Datalog_Graph.DFS_DirCycle_Linear_Aux\<close> ---
+  extended with a pre-seeded initial state, \<^theory>\<open>Grounding_Graph.DFS_DirCycle_Linear_Aux\<close> ---
   once per remaining root.
 
   \<^bold>\<open>The one structural difference from \<open>DFS_Cycles\<close>.\<close> The undirected version fixes
@@ -58,7 +58,7 @@ definition "seed_ok fs \<longleftrightarrow>
   \<and> (\<nexists>c. Awalk_Defs.cycle (Graph.digraph_abs G \<downharpoonright> t_set fs) c)"
 
 text \<open>What the inner DFS must deliver. Every conjunct is discharged for the concrete DFS by the
-  exports of \<^theory>\<open>Datalog_Graph.DFS_DirCycle_Linear_Aux\<close>: \<open>dircycle_linear_finished_inv\<close>,
+  exports of \<^theory>\<open>Grounding_Graph.DFS_DirCycle_Linear_Aux\<close>: \<open>dircycle_linear_finished_inv\<close>,
   \<open>_seed_subset\<close>, \<open>_finished_subset_dVs\<close>, \<open>_finished_closed\<close>, \<open>DFS_dircycle_linear_sound\<close>,
   \<open>_root_finished\<close> and \<open>DFS_dircycle_linear_complete\<close>, in that order.\<close>
 definition "dfs_aux_axioms = (

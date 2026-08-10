@@ -1,30 +1,32 @@
 chapter AFP
 
 session Datalog_Graph = Datalog_Certification +
-  description \<open>Datalog-to-graph (Path 2 of the certificate foundedness story). First the purely
-    graph-theoretic fact that a finite directed graph has a topological numbering iff it has no
-    (directed) cycle (\<open>Graph_Topological_Order\<close>), then the bridge: convert a datalog certificate to
-    the graph library's \<open>dgraph\<close> support graph and discharge the foundedness obligation
-    \<open>dl_founded\<close> from acyclicity of that graph (\<open>Datalog_To_Graph\<close>). The graph library
-    (Directed_Set_Graphs) is pulled in HERE -- and only here -- so its imperative/Separation_Logic
-    stack never meets the AFP Collections/ODE tower of the PDDL branch.
+  description \<open>Datalog-to-graph (Path 2 of the certificate foundedness story): convert a datalog
+    certificate to the graph library's \<open>dgraph\<close> support graph and discharge the foundedness
+    obligation \<open>dl_founded\<close> from acyclicity of that graph (\<open>Datalog_To_Graph\<close>), then discharge
+    acyclicity itself executably with the verified whole-graph directed-cycle sweep
+    (\<open>Datalog_Cycle_DFS\<close>). The graph library (Directed_Set_Graphs) is pulled in HERE -- and in the
+    \<open>Grounding_Graph\<close> session below it -- and nowhere else, so its imperative/Separation_Logic stack
+    never meets the AFP Collections/ODE tower of the PDDL branch.
 
-    \<open>DFS_DirCycle_Linear{_Aux}\<close> are PDDL-free graph-library extensions rather than datalog
-    theories: \<open>DFS_DirCycle_Linear_Aux\<close> extends the library's directed-cycle detector
-    (\<open>Directed_Cycle_DFS.DFS_DirCycle\<close>, whose invariant machinery it inherits) with an initial
-    state pre-seeded by an already-finished region, and \<open>DFS_DirCycle_Linear\<close> is the directed
-    counterpart of the library's \<open>DFS_Cycles\<close>, i.e. a whole-graph (linear) cycle search whose
-    outer loop seeds each inner directed-cycle DFS with the region the earlier calls already
-    finished. They live here because this is the session that owns the graph-library dependency;
-    they belong upstream once stable.\<close>
+    The graph-theoretic ingredients themselves (the topological-numbering characterisation of
+    acyclicity, and the directed-cycle sweep with its skeleton) carry no datalog and live in
+    \<open>Grounding_Graph\<close>; this session only instantiates them at the certificate's support graph.
+
+    \<^bold>\<open>Which level of the sweep is used where.\<close> \<open>Grounding_Graph\<close> develops the sweep as a chain of
+    refinements. \<open>Datalog_Cycle_DFS\<close> instantiates \<^emph>\<open>level 0\<close> (\<open>DFS_DirCycle_Linear\<close>), the
+    reference implementation: it is the simplest to instantiate and it is what the correctness
+    argument is stated against. \<open>Datalog_Cycle_DFS_Code\<close> then re-instantiates the \<^emph>\<open>most
+    refined\<close> level and inherits that correctness through the chain's equivalence theorems, so the
+    code that actually runs pays for none of the set differences while nothing downstream has to
+    be reproved. Keeping the two apart is deliberate: the specification instance stays stable as
+    further refinements are added below it.\<close>
   options [timeout = 600]
   sessions
     "Directed_Set_Graphs"
     "Directed_Cycle_DFS"
+    "Grounding_Graph"
   theories
-    Graph_Topological_Order
     Datalog_To_Graph
     Datalog_Cycle_DFS
     Datalog_Certificate_Index
-    DFS_DirCycle_Linear_Aux
-    DFS_DirCycle_Linear

@@ -2,7 +2,7 @@ theory Datalog_Cycle_DFS
   imports
     Datalog_To_Graph
     Datalog_Certification.Datalog_Certificate_Code
-    DFS_DirCycle_Linear
+    Grounding_Graph.DFS_DirCycle_Linear
     Directed_Set_Graphs.Pair_Graph_RBT
 begin
 

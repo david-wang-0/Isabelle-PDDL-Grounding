@@ -1,0 +1,57 @@
+chapter AFP
+
+session Grounding_Graph = Directed_Cycle_DFS +
+  description \<open>Purely graph-theoretic material: extensions of the Isabelle-Graph-Library that
+    carry no datalog and no PDDL. Two strands.
+
+    First, \<open>Graph_Topological_Order\<close>: a finite directed graph has a topological numbering iff it
+    has no (directed) cycle. This is the mathematical core the datalog foundedness obligation is
+    discharged through, but the statement mentions only graphs.
+
+    Second, a whole-graph (linear) directed-cycle search --- the directed counterpart of the
+    library's undirected \<open>DFS_Cycles\<close> --- developed as a \<^emph>\<open>chain of refinements\<close>, each level
+    removing one set operation from a hot loop and each justified by an equivalence back to the
+    level below it. Every level ships an inner pre-seeded DFS (\<open>\<dots>_Aux\<close>) and an outer sweep that
+    calls it once per remaining root.
+
+      \<^item> \<^bold>\<open>Level 0\<close> --- \<open>DFS_DirCycle_Linear{_Aux}\<close>, on the library's \<open>DFS_Skeleton\<close> and
+        \<open>DFS_DirCycle\<close> unchanged. The reference implementation: the back-edge test recomputes
+        \<open>seen - finished\<close> at every skeleton step, and the outer loop recomputes \<open>V - finished\<close>
+        at every iteration.
+      \<^item> \<^bold>\<open>Level 1\<close> --- \<open>DFS_Skel_More\<close>, which duplicates \<open>DFS_Skeleton\<close> solely to add an
+        \<open>on_push\<close> callback, and \<open>DFS_DirCycle_Linear_Tracked{_Aux}\<close> on top of it. The gray (on-stack)
+        and unfinished sets become state components maintained incrementally, so both of level 0's
+        differences disappear.
+      \<^item> \<^bold>\<open>Level 2\<close> --- \<open>DFS_Skel_More_Refine\<close>, \<open>DFS_DirCycle_Linear_Tracked_Aux_Refine\<close> and
+        \<open>DFS_DirCycle_Linear_Tracked_Refine\<close> on top of it, where the adjacency map itself moves into the
+        state and \<open>on_push\<close> deletes the pushed vertex's in-edges (via a static reverse adjacency
+        map fixed by the instance, so the deletions cost one pass over the edges in total). The
+        remaining difference, \<open>neighbourhood - seen\<close> (evaluated twice per step), goes too: the
+        loop reads a plain neighbourhood. The outer sweep threads that pruned map from one inner
+        call to the next, so the pruning is done once over the whole run rather than once per
+        root; its state record extends level 1's, and the equivalence back to level 1 is a plain
+        equation under the record package's \<open>truncate\<close>, from which soundness and completeness
+        transport. The \<^emph>\<open>inner\<close> search needs one assumption the vset ADT does not supply,
+        \<open>sel_cong\<close> --- that \<open>sel\<close> is determined by the element set --- because the two levels
+        hand \<open>sel\<close> vsets built by different operations; the sweep does not, since it selects
+        from the very vset level 1 selects from.
+
+    This session exists to be the graph-library dependency's own layer: everything here belongs
+    upstream in the Isabelle-Graph-Library once stable, and keeping it Datalog-free is what makes
+    that move a matter of copying files. It is also a cheap prebuilt heap to develop the datalog
+    layer on top of.\<close>
+  options [timeout = 600]
+  sessions
+    "Directed_Set_Graphs"
+    "Directed_Cycle_DFS"
+  theories
+    Graph_Topological_Order
+    DFS_DirCycle_Linear_Aux
+    DFS_DirCycle_Linear
+    DFS_Skel_More
+    DFS_Skel_More_Refine
+    DFS_DirCycle_Linear_Tracked_Aux
+    DFS_DirCycle_Linear_Tracked
+    DFS_DirCycle_Linear_Tracked_Equiv
+    DFS_DirCycle_Linear_Tracked_Aux_Refine
+    DFS_DirCycle_Linear_Tracked_Refine
