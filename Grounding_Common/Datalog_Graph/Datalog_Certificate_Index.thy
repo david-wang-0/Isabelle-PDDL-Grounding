@@ -1,5 +1,5 @@
 theory Datalog_Certificate_Index
-  imports Datalog_Cycle_DFS Datalog_Certification.Fact_Index
+  imports Datalog_Cycle_DFS_Code Datalog_Certification.Fact_Index
 begin
 
 text \<open>\<^theory>\<open>HOL-Data_Structures.RBT_Map\<close> --- pulled in both by \<open>Datalog_Cycle_DFS\<close> (via the graph

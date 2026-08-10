@@ -29,4 +29,5 @@ session Datalog_Graph = Datalog_Certification +
   theories
     Datalog_To_Graph
     Datalog_Cycle_DFS
+    Datalog_Cycle_DFS_Code
     Datalog_Certificate_Index
