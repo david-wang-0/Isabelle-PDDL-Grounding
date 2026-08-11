@@ -5,15 +5,16 @@ session Datalog_Graph = Datalog_Certification +
     certificate to the graph library's \<open>dgraph\<close> support graph and discharge the foundedness
     obligation \<open>dl_founded\<close> from acyclicity of that graph (\<open>Datalog_To_Graph\<close>), then discharge
     acyclicity itself executably with the verified whole-graph directed-cycle sweep
-    (\<open>Datalog_Cycle_DFS\<close>). The graph library (Directed_Set_Graphs) is pulled in HERE -- and in the
-    \<open>Grounding_Graph\<close> session below it -- and nowhere else, so its imperative/Separation_Logic stack
-    never meets the AFP Collections/ODE tower of the PDDL branch.
+    (\<open>Datalog_Cycle_DFS\<close>). The graph library (Directed_Set_Graphs) is pulled in HERE and nowhere
+    else, so its imperative/Separation_Logic stack never meets the AFP Collections/ODE tower of the
+    PDDL branch.
 
     The graph-theoretic ingredients themselves (the topological-numbering characterisation of
-    acyclicity, and the directed-cycle sweep with its skeleton) carry no datalog and live in
-    \<open>Grounding_Graph\<close>; this session only instantiates them at the certificate's support graph.
+    acyclicity, and the directed-cycle sweep with its skeleton) carry no datalog and live upstream
+    in the graph library's \<open>Directed_Cycle_DFS\<close> session; this session only instantiates them at
+    the certificate's support graph.
 
-    \<^bold>\<open>Which level of the sweep is used where.\<close> \<open>Grounding_Graph\<close> develops the sweep as a chain of
+    \<^bold>\<open>Which level of the sweep is used where.\<close> \<open>Directed_Cycle_DFS\<close> develops the sweep as a chain of
     refinements. \<open>Datalog_Cycle_DFS\<close> instantiates \<^emph>\<open>level 0\<close> (\<open>DFS_DirCycle_Linear\<close>), the
     reference implementation: it is the simplest to instantiate and it is what the correctness
     argument is stated against. \<open>Datalog_Cycle_DFS_Code\<close> then re-instantiates the \<^emph>\<open>most
@@ -25,7 +26,6 @@ session Datalog_Graph = Datalog_Certification +
   sessions
     "Directed_Set_Graphs"
     "Directed_Cycle_DFS"
-    "Grounding_Graph"
   theories
     Datalog_To_Graph
     Datalog_Cycle_DFS

@@ -1,6 +1,6 @@
 theory Datalog_To_Graph
   imports
-    Grounding_Graph.Graph_Topological_Order
+    Directed_Cycle_DFS.Graph_Topological_Order
     Datalog_Certification.Datalog_Certificate
 begin
 

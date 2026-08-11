@@ -1,7 +1,7 @@
 theory Datalog_Cycle_DFS_Code
   imports
     Datalog_Cycle_DFS
-    Grounding_Graph.DFS_DirCycle_Linear_Tracked_Refine
+    Directed_Cycle_DFS.DFS_DirCycle_Linear_Tracked_Refine
 begin
 
 section \<open>The refined directed-cycle sweep at the certificate's support graph\<close>
@@ -332,7 +332,7 @@ text \<open>And the \<^emph>\<open>refined\<close> inner DFS meets the refinemen
   with the tracked one on the three components the sweep reads, and on a clean run hands back a map
   that is again \<open>adj_ok\<close> --- theorems \<open>dircycle_refine_components\<close> and
   \<open>dircycle_refine_adj_abs_finished\<close> of
-  \<^theory>\<open>Grounding_Graph.DFS_DirCycle_Linear_Tracked_Aux_Refine\<close>. This is where the two genuinely
+  \<^theory>\<open>Directed_Cycle_DFS.DFS_DirCycle_Linear_Tracked_Aux_Refine\<close>. This is where the two genuinely
   new ingredients are consumed: \<^const>\<open>dep_radjmap\<close> discharges \<open>R_graph_inv\<close>/\<open>R_preds\<close>, and
   \<^const>\<open>sel_min\<close> discharges \<open>sel_cong\<close>.\<close>
 
@@ -397,7 +397,7 @@ qed
 text \<open>The refined sweep is sound and complete on the support graph, so its verdict \<^emph>\<open>is\<close> the
   graph's acyclicity. Both halves are inherited: they are \<open>DFS_DirCycle_Refine_sound\<close> /
   \<open>DFS_DirCycle_Refine_complete\<close>, which
-  \<^theory>\<open>Grounding_Graph.DFS_DirCycle_Linear_Tracked_Refine\<close> transports from level 1 rather than
+  \<^theory>\<open>Directed_Cycle_DFS.DFS_DirCycle_Linear_Tracked_Refine\<close> transports from level 1 rather than
   re-proving.\<close>
 
 lemma dl_acyclic_dfs_code_iff:

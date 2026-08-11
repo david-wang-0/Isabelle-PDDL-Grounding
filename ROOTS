@@ -10,7 +10,6 @@ Grounding_Common/Goal_Normalization
 Grounding_Common/Definedness_Normalization
 Grounding_Common/Reachability_Analysis
 Grounding_Common/Datalog
-Grounding_Common/Graph
 Grounding_Common/Datalog_Graph
 Classical_Grounding/Base/Classical_Base
 Classical_Grounding/Base/STRIPS_Base

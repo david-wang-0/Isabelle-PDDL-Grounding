@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A partially-verified Isabelle/HOL implementation of the PDDL grounder from **Helmert 2009**. It takes a PDDL task, normalizes it, runs reachability analysis to find the achievable facts / applicable operators, grounds the task to a nullary purely-propositional task, and converts the result to STRIPS (the AFP `Verified_SAT_Based_AI_Planning` input format). Every stage is proven well-formedness- and plan-preserving on the classical pair-world-model PDDL semantics.
 
-The PDDL semantics (input) come entirely from the sibling **Formal-PDDL-Semantics** repo (sessions `Classical_Planning`, `Continuous_Planning`) — which **supersedes** the older AFP `AI_Planning_Languages_Semantics` entry — and must be registered as Isabelle components. STRIPS output targets the AFP **Verified_SAT_Based_AI_Planning** entry. The **Isabelle-Graph-Library** (`Directed_Set_Graphs`, needed only by `Datalog_Graph`) is supplied on the command line via `-d`.
+The PDDL semantics (input) come entirely from the sibling **Formal-PDDL-Semantics** repo (sessions `Classical_Planning`, `Continuous_Planning`) — which **supersedes** the older AFP `AI_Planning_Languages_Semantics` entry — and must be registered as Isabelle components. STRIPS output targets the AFP **Verified_SAT_Based_AI_Planning** entry. The **Isabelle-Graph-Library** (`Directed_Set_Graphs` and `Directed_Cycle_DFS`, needed only by `Datalog_Graph`) is supplied on the command line via `-d`. `Directed_Cycle_DFS` carries the DFS skeleton, the directed-cycle detector and the linear whole-graph cycle sweep with its refinement chain — the graph-theoretic layer this repo used to keep in `Grounding_Common/Graph`, upstreamed in `mabdula/Isabelle-Graph-Library#16`; until that is merged the checkout must be on the `directed-cycle-dfs-refinements` branch.
 
 > `HANDOVER.md` (repo root) is a short pick-up note for **incomplete work** — current open items + gotchas, not documentation. The `ROOT`/`ROOTS` files are authoritative for the current layout.
 
@@ -39,7 +39,7 @@ Stage directories keep a plain name (e.g. `Type_Normalization/`), but the sessio
 |---|---|
 | `Grounding_Utils` (`Utils/`) | PDDL-free utilities: `Graph_Funs`, `Grounding_Utils`, `Nat_Show_Utils`, `String_Utils` |
 | `Grounding_Common` (`Common/`) | AST-agnostic PDDL helpers: `Formula_Utils`, `DNF`, `PDDL_Normalization` (signature locales), `PDDL_Sema_Supplement` (reusable PDDL-semantics + signature supplements + wf-covariance) |
-| `Datalog_Certification` (`Datalog/`), `Datalog_Graph` (`Datalog_Graph/`) | standalone PDDL-free positive-datalog certificate checker + sound forward-chaining evaluator (`Datalog_Evaluation.dl_eval`); the graph-lib (`Directed_Set_Graphs`) is isolated to `Datalog_Graph` |
+| `Datalog_Certification` (`Datalog/`), `Datalog_Graph` (`Datalog_Graph/`) | standalone PDDL-free positive-datalog certificate checker + sound forward-chaining evaluator (`Datalog_Evaluation.dl_eval`); the graph-lib (`Directed_Set_Graphs`, `Directed_Cycle_DFS`) is isolated to `Datalog_Graph` |
 | `Grounding_<Stage>` (`<Stage>/`) | the AST-agnostic half of each pipeline stage (e.g. `Grounding_Type_Normalization`: `Type_Normalization`, `Type_Normalization_Proofs`) |
 
 ### Classical tree — `Classical_Grounding/`
