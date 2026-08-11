@@ -11,7 +11,7 @@ section \<open>Discharging datalog foundedness by a verified directed-cycle DFS\
 text \<open>\<open>Datalog_To_Graph\<close> proves the mathematical bridge ``\<open>acyclic (dl_dep_graph c)\<close> implies
   \<open>dl_founded c\<close>'' (under \<open>dl_body_closed\<close>) but leaves the acyclicity check itself abstract. Here we
   discharge it \<^emph>\<open>executably\<close> with the verified whole-graph directed-cycle sweep
-  \<open>DFS_DirCycle_Linear\<close>: a certificate's support graph is acyclic iff a single sweep over its
+  \<open>DFS_dircycle_linear\<close>: a certificate's support graph is acyclic iff a single sweep over its
   vertices --- each inner DFS seeded with the region the earlier calls already finished --- reports
   no back edge.
 
@@ -24,7 +24,7 @@ subsection \<open>Executable directed-cycle DFS over RBT adjacency maps\<close>
 
 text \<open>Instantiate both abstract locales at the red-black-tree graph representation
   (\<^theory>\<open>Directed_Set_Graphs.Pair_Graph_RBT\<close>): the pre-seeded inner DFS
-  \<^locale>\<open>DFS_dircycle_linear_aux\<close>, then the outer sweep \<^locale>\<open>DFS_DirCycle_Linear\<close> that calls
+  \<^locale>\<open>DFS_dircycle_linear_aux\<close>, then the outer sweep \<^locale>\<open>DFS_dircycle_linear\<close> that calls
   it once per remaining root.\<close>
 
 global_interpretation dircycle: DFS_dircycle_linear_aux where insert = vset_insert and
@@ -45,7 +45,7 @@ lemmas find_dircycle_linear_code[code] =
   dircycle.dc.DFS_skel_impl.simps[folded find_dircycle_linear_def[folded cyc_found_def],
     unfolded dircycle.cyc_on_found_def dircycle.cyc_on_empty_def dircycle.cyc_on_backtrack_def]
 
-global_interpretation dclin: DFS_DirCycle_Linear where insert = vset_insert and
+global_interpretation dclin: DFS_dircycle_linear where insert = vset_insert and
  sel = sel and vset_empty = vset_empty and diff = vset_diff and
  lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
 and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -53,9 +53,9 @@ and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F 
 dfs_aux = "\<lambda>s fs. find_dircycle_linear F (dircycle_linear_initial_state s fs)" and
 fin_aux = finished and cycle_aux = DFS_dircycle_state.cycle for F W
 defines sweep_initial_state = dclin.initial_state and
-sweep_dircycle = dclin.DFS_DirCycle_Linear_impl
+sweep_dircycle = dclin.DFS_dircycle_linear_impl
   using G.Pair_Graph_Specs_axioms RBT.Set2_axioms
-  by(auto intro!: DFS_DirCycle_Linear.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
+  by(auto intro!: DFS_dircycle_linear.intro simp add: edge_map_update_def RBT_Set.empty_def adj_inv_def map_empty_def
                                            vset_inv_def)
 
 subsection \<open>The certificate's support graph as an RBT adjacency map\<close>
@@ -100,7 +100,7 @@ subsection \<open>The executable acyclicity check\<close>
 text \<open>The sweep needs the support graph's vertex set as a vset. \<^const>\<open>dVs\<close> of an edge set is
   exactly its set of endpoints, so collecting both projections of the edge list gives it --- and,
   unlike the fact-index range \<open>[0..<length (dl_cert_facts c)]\<close> the per-vertex check swept, it is
-  the vertex set \<^emph>\<open>exactly\<close>, which is what \<open>DFS_DirCycle_Linear_axioms\<close> demands.\<close>
+  the vertex set \<^emph>\<open>exactly\<close>, which is what \<open>DFS_dircycle_linear_axioms\<close> demands.\<close>
 
 definition dep_verts :: "('p, 'c) dl_certificate \<Rightarrow> _" where
   "dep_verts c = foldr (\<lambda>x t. RBT_Set.insert x t)
@@ -119,7 +119,7 @@ definition dl_acyclic_dfs :: "('p, 'c) dl_certificate \<Rightarrow> bool" where
 lemmas dl_acyclic_dfs_code [code] = dl_acyclic_dfs_def
 
 lemmas sweep_dircycle_code [code] =
-  dclin.DFS_DirCycle_Linear_impl.simps[folded sweep_dircycle_def]
+  dclin.DFS_dircycle_linear_impl.simps[folded sweep_dircycle_def]
 
 lemmas sweep_initial_state_code [code] = sweep_initial_state_def
 
@@ -334,15 +334,15 @@ text \<open>Step 5: the sweep's two locale obligations at the support graph, and
   vertex set and reports on the \<^emph>\<open>whole\<close> graph in one go.\<close>
 
 lemma dep_adjmap_axioms:
-  "dclin.DFS_DirCycle_Linear_axioms TYPE(nat) (a_graph (nat_edges c)) (dep_verts c)"
-  unfolding dclin.DFS_DirCycle_Linear_axioms_def
+  "dclin.DFS_dircycle_linear_axioms TYPE(nat) (a_graph (nat_edges c)) (dep_verts c)"
+  unfolding dclin.DFS_dircycle_linear_axioms_def
   by (simp add: a_graph_graph_inv a_graph_finite_graph a_graph_finite_vsets a_graph_digraph_abs
                 dep_verts_inv dep_verts_set)
 
 text \<open>The inner DFS meets the contract the sweep assumes of it. For a root outside a seed satisfying
   \<open>seed_ok\<close>, the run's five structural exports together with its own soundness and completeness are
   exactly the seven conjuncts of \<open>dfs_aux_axioms\<close> --- which is the whole point of stating those
-  exports in \<open>DFS_DirCycle_Linear_Aux\<close>.\<close>
+  exports in \<open>DFS_dircycle_linear_Aux\<close>.\<close>
 
 lemma dep_adjmap_aux_axioms: "dclin.dfs_aux_axioms TYPE(nat) (a_graph E)"
   unfolding dclin.dfs_aux_axioms_def
@@ -396,7 +396,7 @@ lemma dl_acyclic_dfs_imp_acyclic:
   shows "acyclic (dl_dep_graph c)"
 proof (rule ccontr)
   let ?E = "nat_edges c"
-  interpret sweep: DFS_DirCycle_Linear_thms where insert = vset_insert and
+  interpret sweep: DFS_dircycle_linear_thms where insert = vset_insert and
     sel = sel and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -405,17 +405,17 @@ proof (rule ccontr)
     and dfs_aux = "\<lambda>s fs. find_dircycle_linear (a_graph ?E) (dircycle_linear_initial_state s fs)"
     and fin_aux = finished and cycle_aux = DFS_dircycle_state.cycle
   proof
-    show "dclin.DFS_DirCycle_Linear_axioms TYPE(nat) (a_graph ?E) (dep_verts c)"
+    show "dclin.DFS_dircycle_linear_axioms TYPE(nat) (a_graph ?E) (dep_verts c)"
       by (rule dep_adjmap_axioms)
     show "dclin.dfs_aux_axioms TYPE(nat) (a_graph ?E)"
       by (rule dep_adjmap_aux_axioms)
   qed
   have impl: "sweep_dircycle (a_graph ?E) (dep_verts c) sweep_initial_state
-                = dclin.DFS_DirCycle_Linear (dep_verts c) (a_graph ?E) sweep_initial_state"
+                = dclin.DFS_dircycle_linear (dep_verts c) (a_graph ?E) sweep_initial_state"
     unfolding sweep_initial_state_def
-    by (rule dclin.DFS_DirCycle_Linear_impl_same[OF sweep.initial_state_props(4)])
+    by (rule dclin.DFS_dircycle_linear_impl_same[OF sweep.initial_state_props(4)])
   have "\<nexists>p. Awalk_Defs.cycle (set ?E) p"
-    using sweep.DFS_DirCycle_Linear_complete[folded sweep_initial_state_def] dfs
+    using sweep.DFS_dircycle_linear_complete[folded sweep_initial_state_def] dfs
     by (simp add: dl_acyclic_dfs_def dep_adjmap_def impl a_graph_digraph_abs)
   moreover
   assume "\<not> acyclic (dl_dep_graph c)"

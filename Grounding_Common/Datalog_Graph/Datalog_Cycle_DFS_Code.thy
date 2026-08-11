@@ -153,47 +153,47 @@ text \<open>The four locale predicates the instantiations below discharge. They 
   \<open>definition\<close>s guarded by its own predicate) into plain rewrite rules --- see
   \<open>sweep_defs\<close> below.\<close>
 
-lemma DFS_dircycle_tracked_sel_min:
-  "DFS_dircycle_tracked map_empty delete vset_insert isin t_set sel_min update adj_inv
+lemma DFS_dircycle_linear_tracked_aux_sel_min:
+  "DFS_dircycle_linear_tracked_aux map_empty delete vset_insert isin t_set sel_min update adj_inv
      vset_empty vset_delete vset_inv vset_union vset_inter vset_diff lookup"
   using Pair_Graph_Specs_sel_min RBT.Set2_axioms
-  by (auto intro!: DFS_dircycle_tracked.intro simp add: RBT_Set.empty_def vset_inv_def)
+  by (auto intro!: DFS_dircycle_linear_tracked_aux.intro simp add: RBT_Set.empty_def vset_inv_def)
 
-lemma DFS_dircycle_refine_sel_min:
-  "DFS_dircycle_refine map_empty delete vset_insert isin t_set sel_min update adj_inv
+lemma DFS_dircycle_linear_tracked_aux_refine_sel_min:
+  "DFS_dircycle_linear_tracked_aux_refine map_empty delete vset_insert isin t_set sel_min update adj_inv
      vset_empty vset_delete vset_inv vset_union vset_inter vset_diff lookup"
-  by (rule DFS_dircycle_refine.intro[OF DFS_dircycle_tracked_sel_min])
+  by (rule DFS_dircycle_linear_tracked_aux_refine.intro[OF DFS_dircycle_linear_tracked_aux_sel_min])
 
-lemma DFS_DirCycle_Tracked_sel_min:
-  "DFS_DirCycle_Tracked map_empty delete vset_insert isin t_set sel_min update adj_inv
+lemma DFS_dircycle_linear_tracked_sel_min:
+  "DFS_dircycle_linear_tracked map_empty delete vset_insert isin t_set sel_min update adj_inv
      vset_empty vset_delete vset_inv vset_union vset_inter vset_diff lookup"
   using Pair_Graph_Specs_sel_min RBT.Set2_axioms
-  by (auto intro!: DFS_DirCycle_Tracked.intro simp add: RBT_Set.empty_def vset_inv_def)
+  by (auto intro!: DFS_dircycle_linear_tracked.intro simp add: RBT_Set.empty_def vset_inv_def)
 
-lemma DFS_DirCycle_Refine_sel_min:
-  "DFS_DirCycle_Refine map_empty delete vset_insert isin t_set sel_min update adj_inv
+lemma DFS_dircycle_linear_tracked_refine_sel_min:
+  "DFS_dircycle_linear_tracked_refine map_empty delete vset_insert isin t_set sel_min update adj_inv
      vset_empty vset_delete vset_inv vset_union vset_inter vset_diff lookup"
-  by (rule DFS_DirCycle_Refine.intro[OF DFS_DirCycle_Tracked_sel_min])
+  by (rule DFS_dircycle_linear_tracked_refine.intro[OF DFS_dircycle_linear_tracked_sel_min])
 
 lemmas sweep_defs =
-  DFS_dircycle_tracked.DFS_dircycle_tracked_axioms_def[OF DFS_dircycle_tracked_sel_min]
-  DFS_DirCycle_Tracked.DFS_DirCycle_Tracked_axioms_def[OF DFS_DirCycle_Tracked_sel_min]
-  DFS_DirCycle_Tracked.dfs_aux_axioms_def[OF DFS_DirCycle_Tracked_sel_min]
-  DFS_DirCycle_Tracked.seed_ok_def[OF DFS_DirCycle_Tracked_sel_min]
-  DFS_DirCycle_Tracked.part_ok_def[OF DFS_DirCycle_Tracked_sel_min]
-  DFS_DirCycle_Refine.rdfs_aux_axioms_def[OF DFS_DirCycle_Refine_sel_min]
-  DFS_DirCycle_Refine.adj_ok_def[OF DFS_DirCycle_Refine_sel_min]
+  DFS_dircycle_linear_tracked_aux.DFS_dircycle_linear_tracked_aux_axioms_def[OF DFS_dircycle_linear_tracked_aux_sel_min]
+  DFS_dircycle_linear_tracked.DFS_dircycle_linear_tracked_axioms_def[OF DFS_dircycle_linear_tracked_sel_min]
+  DFS_dircycle_linear_tracked.dfs_aux_axioms_def[OF DFS_dircycle_linear_tracked_sel_min]
+  DFS_dircycle_linear_tracked.seed_ok_def[OF DFS_dircycle_linear_tracked_sel_min]
+  DFS_dircycle_linear_tracked.part_ok_def[OF DFS_dircycle_linear_tracked_sel_min]
+  DFS_dircycle_linear_tracked_refine.rdfs_aux_axioms_def[OF DFS_dircycle_linear_tracked_refine_sel_min]
+  DFS_dircycle_linear_tracked_refine.adj_ok_def[OF DFS_dircycle_linear_tracked_refine_sel_min]
 
 subsection \<open>The refined directed-cycle sweep over RBT adjacency maps\<close>
 
 text \<open>Three instantiations at the red-black-tree representation, all with \<^const>\<open>sel_min\<close>: the
-  \<^emph>\<open>tracked\<close> inner DFS of level 1 (\<^locale>\<open>DFS_dircycle_tracked\<close>) --- which is only ever the
+  \<^emph>\<open>tracked\<close> inner DFS of level 1 (\<^locale>\<open>DFS_dircycle_linear_tracked_aux\<close>) --- which is only ever the
   specification the refinement is measured against, never run --- the \<^emph>\<open>refined\<close> inner DFS of
-  level 2 (\<^locale>\<open>DFS_dircycle_refine\<close>), and the outer sweep
-  \<^locale>\<open>DFS_DirCycle_Refine\<close> that threads the pruned adjacency map from one inner call to the
+  level 2 (\<^locale>\<open>DFS_dircycle_linear_tracked_aux_refine\<close>), and the outer sweep
+  \<^locale>\<open>DFS_dircycle_linear_tracked_refine\<close> that threads the pruned adjacency map from one inner call to the
   next.\<close>
 
-global_interpretation dctracked: DFS_dircycle_tracked where insert = vset_insert and
+global_interpretation dctracked: DFS_dircycle_linear_tracked_aux where insert = vset_insert and
  sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
  lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
 and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -202,9 +202,9 @@ s = s and f = f and uf = uf for F s f uf
 defines tracked_initial_state = dctracked.dircycle_tracked_initial_state and
 find_dircycle_tracked = dctracked.dc.DFS_skel_more_impl and
 rbt_delete_edge = dctracked.Graph.delete_edge
-  by (rule DFS_dircycle_tracked_sel_min)
+  by (rule DFS_dircycle_linear_tracked_aux_sel_min)
 
-global_interpretation rdircycle: DFS_dircycle_refine where insert = vset_insert and
+global_interpretation rdircycle: DFS_dircycle_linear_tracked_aux_refine where insert = vset_insert and
  sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
  lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
 and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -213,9 +213,9 @@ s = s and f = f and uf = uf and R = Rv and A = Av for F s f uf Rv Av
 defines del_preds_rbt = rdircycle.del_preds and
 del_in_edges_rbt = rdircycle.del_in_edges and
 dircycle_refine_init = rdircycle.dircycle_refine_initial_state and
-find_dircycle_refine = rdircycle.rdc.DFS_skel_refine_impl and
+find_dircycle_refine = rdircycle.rdc.DFS_skel_more_refine_impl and
 rcyc_found_rbt = rdircycle.rcyc_found
-  by (rule DFS_dircycle_refine_sel_min)
+  by (rule DFS_dircycle_linear_tracked_aux_refine_sel_min)
 
 text \<open>Code equations. As at level 0, the equations the interpretation exports still mention the
   \<^emph>\<open>locale\<close> constants \<^const>\<open>Pair_Graph_Specs.neighbourhood\<close> and
@@ -233,29 +233,29 @@ lemmas del_in_edges_rbt_code [code] = rdircycle.del_in_edges_def[folded neighbou
 lemmas rcyc_found_rbt_code [code] = rdircycle.rcyc_found_def[folded neighbourhood_def]
 
 lemmas find_dircycle_refine_code [code] =
-  rdircycle.rdc.DFS_skel_refine_impl.simps[folded find_dircycle_refine_def[folded rcyc_found_rbt_def],
+  rdircycle.rdc.DFS_skel_more_refine_impl.simps[folded find_dircycle_refine_def[folded rcyc_found_rbt_def],
     unfolded rdircycle.rcyc_on_found_def rdircycle.rcyc_on_empty_def
              rdircycle.rcyc_on_backtrack_def rdircycle.rcyc_on_push_def,
     folded neighbourhood_def]
 
-global_interpretation rdclin: DFS_DirCycle_Refine where insert = vset_insert and
+global_interpretation rdclin: DFS_dircycle_linear_tracked_refine where insert = vset_insert and
  sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
  lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
 and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
 and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F and V = W and
 dfs_aux = "\<lambda>s fs us. find_dircycle_tracked F (tracked_initial_state s fs us)" and
-fin_aux = DFS_dircycle_tracked_state.finished and
-unfin_aux = DFS_dircycle_tracked_state.unfinished and
-cycle_aux = DFS_dircycle_tracked_state.cycle and
+fin_aux = DFS_dircycle_linear_tracked_aux_state.finished and
+unfin_aux = DFS_dircycle_linear_tracked_aux_state.unfinished and
+cycle_aux = DFS_dircycle_linear_tracked_aux_state.cycle and
 rdfs_aux = "\<lambda>s fs us M. find_dircycle_refine F Rv (dircycle_refine_init s fs us Rv M)" and
-rfin_aux = DFS_dircycle_tracked_state.finished and
-runfin_aux = DFS_dircycle_tracked_state.unfinished and
-rcycle_aux = DFS_dircycle_tracked_state.cycle and
-radj_aux = DFS_dircycle_refine_state.adj
+rfin_aux = DFS_dircycle_linear_tracked_aux_state.finished and
+runfin_aux = DFS_dircycle_linear_tracked_aux_state.unfinished and
+rcycle_aux = DFS_dircycle_linear_tracked_aux_state.cycle and
+radj_aux = DFS_dircycle_linear_tracked_aux_refine_state.adj
 for F W Rv
 defines sweep_refine_init = rdclin.refine_initial_state and
-sweep_dircycle_refine = rdclin.DFS_DirCycle_Refine_impl
-  by (rule DFS_DirCycle_Refine_sel_min)
+sweep_dircycle_refine = rdclin.DFS_dircycle_linear_tracked_refine_impl
+  by (rule DFS_dircycle_linear_tracked_refine_sel_min)
 
 subsection \<open>The support graph's reverse adjacency map\<close>
 
@@ -294,14 +294,14 @@ text \<open>The \<^emph>\<open>tracked\<close> inner DFS meets the sweep's abstr
   soundness and completeness are the seven conjuncts of \<open>dfs_aux_axioms\<close>.\<close>
 
 lemma a_graph_tracked_aux_axioms:
-  "DFS_DirCycle_Tracked.dfs_aux_axioms isin t_set vset_empty vset_inv lookup (a_graph E)
+  "DFS_dircycle_linear_tracked.dfs_aux_axioms isin t_set vset_empty vset_inv lookup (a_graph E)
      (\<lambda>s fs us. find_dircycle_tracked (a_graph E) (tracked_initial_state s fs us))
-     DFS_dircycle_tracked_state.finished DFS_dircycle_tracked_state.unfinished
-     DFS_dircycle_tracked_state.cycle"
+     DFS_dircycle_linear_tracked_aux_state.finished DFS_dircycle_linear_tracked_aux_state.unfinished
+     DFS_dircycle_linear_tracked_aux_state.cycle"
   unfolding sweep_defs(3)
 proof (intro ballI allI impI, goal_cases call)
   case (call s fs us)
-  interpret aux: DFS_dircycle_tracked_thms where insert = vset_insert and
+  interpret aux: DFS_dircycle_linear_tracked_aux_thms where insert = vset_insert and
     sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -322,8 +322,8 @@ proof (intro ballI allI impI, goal_cases call)
     unfolding impl sweep_defs(5)
     using aux.dircycle_tracked_finished_inv aux.dircycle_tracked_seed_subset
     using aux.dircycle_tracked_finished_subset_dVs aux.dircycle_tracked_finished_closed
-    using aux.DFS_dircycle_tracked_sound aux.dircycle_tracked_root_finished
-    using aux.DFS_dircycle_tracked_complete
+    using aux.DFS_dircycle_linear_tracked_aux_sound aux.dircycle_tracked_root_finished
+    using aux.DFS_dircycle_linear_tracked_aux_complete
     using aux.dircycle_tracked_unfinished_inv aux.dircycle_tracked_unfinished_char
     by blast
 qed
@@ -337,19 +337,19 @@ text \<open>And the \<^emph>\<open>refined\<close> inner DFS meets the refinemen
   \<^const>\<open>sel_min\<close> discharges \<open>sel_cong\<close>.\<close>
 
 lemma dep_adjmap_refine_aux_axioms:
-  "DFS_DirCycle_Refine.rdfs_aux_axioms isin t_set adj_inv vset_empty vset_inv
+  "DFS_dircycle_linear_tracked_refine.rdfs_aux_axioms isin t_set adj_inv vset_empty vset_inv
      (a_graph (nat_edges c))
      (\<lambda>s fs us. find_dircycle_tracked (a_graph (nat_edges c)) (tracked_initial_state s fs us))
-     DFS_dircycle_tracked_state.finished DFS_dircycle_tracked_state.unfinished
-     DFS_dircycle_tracked_state.cycle lookup
+     DFS_dircycle_linear_tracked_aux_state.finished DFS_dircycle_linear_tracked_aux_state.unfinished
+     DFS_dircycle_linear_tracked_aux_state.cycle lookup
      (\<lambda>s fs us M. find_dircycle_refine (a_graph (nat_edges c)) (dep_radjmap c)
                     (dircycle_refine_init s fs us (dep_radjmap c) M))
-     DFS_dircycle_tracked_state.finished DFS_dircycle_tracked_state.unfinished
-     DFS_dircycle_tracked_state.cycle DFS_dircycle_refine_state.adj"
+     DFS_dircycle_linear_tracked_aux_state.finished DFS_dircycle_linear_tracked_aux_state.unfinished
+     DFS_dircycle_linear_tracked_aux_state.cycle DFS_dircycle_linear_tracked_aux_refine_state.adj"
   unfolding sweep_defs(6)
 proof (intro ballI allI impI, goal_cases call)
   case (call s fs us M)
-  interpret raux: DFS_dircycle_refine_thms where insert = vset_insert and
+  interpret raux: DFS_dircycle_linear_tracked_aux_refine_thms where insert = vset_insert and
     sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -395,8 +395,8 @@ proof (intro ballI allI impI, goal_cases call)
 qed
 
 text \<open>The refined sweep is sound and complete on the support graph, so its verdict \<^emph>\<open>is\<close> the
-  graph's acyclicity. Both halves are inherited: they are \<open>DFS_DirCycle_Refine_sound\<close> /
-  \<open>DFS_DirCycle_Refine_complete\<close>, which
+  graph's acyclicity. Both halves are inherited: they are \<open>DFS_dircycle_linear_tracked_refine_sound\<close> /
+  \<open>DFS_dircycle_linear_tracked_refine_complete\<close>, which
   \<^theory>\<open>Directed_Cycle_DFS.DFS_DirCycle_Linear_Tracked_Refine\<close> transports from level 1 rather than
   re-proving.\<close>
 
@@ -404,22 +404,22 @@ lemma dl_acyclic_dfs_code_iff:
   "dl_acyclic_dfs_code c = (\<nexists>p. Awalk_Defs.cycle (set (nat_edges c)) p)"
 proof -
   let ?E = "nat_edges c"
-  interpret sweep: DFS_DirCycle_Refine_thms where insert = vset_insert and
+  interpret sweep: DFS_dircycle_linear_tracked_refine_thms where insert = vset_insert and
     sel = sel_min and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
     and vset_inv = vset_inv and union = vset_union and inter = vset_inter
     and G = "a_graph ?E" and V = "dep_verts c"
     and dfs_aux = "\<lambda>s fs us. find_dircycle_tracked (a_graph ?E) (tracked_initial_state s fs us)"
-    and fin_aux = DFS_dircycle_tracked_state.finished
-    and unfin_aux = DFS_dircycle_tracked_state.unfinished
-    and cycle_aux = DFS_dircycle_tracked_state.cycle
+    and fin_aux = DFS_dircycle_linear_tracked_aux_state.finished
+    and unfin_aux = DFS_dircycle_linear_tracked_aux_state.unfinished
+    and cycle_aux = DFS_dircycle_linear_tracked_aux_state.cycle
     and rdfs_aux = "\<lambda>s fs us M. find_dircycle_refine (a_graph ?E) (dep_radjmap c)
                                   (dircycle_refine_init s fs us (dep_radjmap c) M)"
-    and rfin_aux = DFS_dircycle_tracked_state.finished
-    and runfin_aux = DFS_dircycle_tracked_state.unfinished
-    and rcycle_aux = DFS_dircycle_tracked_state.cycle
-    and radj_aux = DFS_dircycle_refine_state.adj
+    and rfin_aux = DFS_dircycle_linear_tracked_aux_state.finished
+    and runfin_aux = DFS_dircycle_linear_tracked_aux_state.unfinished
+    and rcycle_aux = DFS_dircycle_linear_tracked_aux_state.cycle
+    and radj_aux = DFS_dircycle_linear_tracked_aux_refine_state.adj
   proof (unfold_locales, goal_cases)
     case 1
     show ?case
@@ -435,13 +435,13 @@ proof -
   qed
   have impl: "sweep_dircycle_refine (a_graph ?E) (dep_radjmap c)
                 (sweep_refine_init (a_graph ?E) (dep_verts c))
-                = rdclin.DFS_DirCycle_Refine (a_graph ?E) (dep_radjmap c)
+                = rdclin.DFS_dircycle_linear_tracked_refine (a_graph ?E) (dep_radjmap c)
                     (sweep_refine_init (a_graph ?E) (dep_verts c))"
     unfolding sweep_refine_init_def
-    by (rule rdclin.DFS_DirCycle_Refine_impl_same[OF sweep.refine_initial_state_props(6)])
+    by (rule rdclin.DFS_dircycle_linear_tracked_refine_impl_same[OF sweep.refine_initial_state_props(6)])
   show ?thesis
-    using sweep.DFS_DirCycle_Refine_sound[folded sweep_refine_init_def]
-    using sweep.DFS_DirCycle_Refine_complete[folded sweep_refine_init_def]
+    using sweep.DFS_dircycle_linear_tracked_refine_sound[folded sweep_refine_init_def]
+    using sweep.DFS_dircycle_linear_tracked_refine_complete[folded sweep_refine_init_def]
     by (auto simp: dl_acyclic_dfs_code_def dep_adjmap_def impl a_graph_digraph_abs)
 qed
 
@@ -470,7 +470,7 @@ lemma dl_acyclic_dfs_iff:
   "dl_acyclic_dfs c = (\<nexists>p. Awalk_Defs.cycle (set (nat_edges c)) p)"
 proof -
   let ?E = "nat_edges c"
-  interpret sweep0: DFS_DirCycle_Linear_thms where insert = vset_insert and
+  interpret sweep0: DFS_dircycle_linear_thms where insert = vset_insert and
     sel = sel and vset_empty = vset_empty and diff = vset_diff and
     lookup = lookup and empty = map_empty and delete = delete and isin = isin and t_set = t_set
     and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
@@ -479,18 +479,18 @@ proof -
     and dfs_aux = "\<lambda>s fs. find_dircycle_linear (a_graph ?E) (dircycle_linear_initial_state s fs)"
     and fin_aux = DFS_dircycle_state.finished and cycle_aux = DFS_dircycle_state.cycle
   proof
-    show "dclin.DFS_DirCycle_Linear_axioms TYPE(nat) (a_graph ?E) (dep_verts c)"
+    show "dclin.DFS_dircycle_linear_axioms TYPE(nat) (a_graph ?E) (dep_verts c)"
       by (rule dep_adjmap_axioms)
     show "dclin.dfs_aux_axioms TYPE(nat) (a_graph ?E)"
       by (rule dep_adjmap_aux_axioms)
   qed
   have impl: "sweep_dircycle (a_graph ?E) (dep_verts c) sweep_initial_state
-                = dclin.DFS_DirCycle_Linear (dep_verts c) (a_graph ?E) sweep_initial_state"
+                = dclin.DFS_dircycle_linear (dep_verts c) (a_graph ?E) sweep_initial_state"
     unfolding sweep_initial_state_def
-    by (rule dclin.DFS_DirCycle_Linear_impl_same[OF sweep0.initial_state_props(4)])
+    by (rule dclin.DFS_dircycle_linear_impl_same[OF sweep0.initial_state_props(4)])
   show ?thesis
-    using sweep0.DFS_DirCycle_Linear_sound[folded sweep_initial_state_def]
-    using sweep0.DFS_DirCycle_Linear_complete[folded sweep_initial_state_def]
+    using sweep0.DFS_dircycle_linear_sound[folded sweep_initial_state_def]
+    using sweep0.DFS_dircycle_linear_complete[folded sweep_initial_state_def]
     by (auto simp: dl_acyclic_dfs_def dep_adjmap_def impl a_graph_digraph_abs)
 qed
 
