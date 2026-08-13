@@ -34,7 +34,7 @@ and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
 and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F and
 s = s and f = f for F s f
 defines dircycle_linear_initial_state = dircycle.dircycle_linear_initial_state and
-find_dircycle_linear = dircycle.dc.DFS_skel_impl and
+find_dircycle_linear = dircycle.dc.DFS_skeleton_impl and
 cyc_found = dircycle.cyc_found and
 neighbourhood = dircycle.Graph.neighbourhood
   using G.Pair_Graph_Specs_axioms RBT.Set2_axioms
@@ -42,7 +42,7 @@ neighbourhood = dircycle.Graph.neighbourhood
                                            RBT_Set.empty_def adj_inv_def map_empty_def vset_inv_def)
 
 lemmas find_dircycle_linear_code[code] =
-  dircycle.dc.DFS_skel_impl.simps[folded find_dircycle_linear_def[folded cyc_found_def],
+  dircycle.dc.DFS_skeleton_impl.simps[folded find_dircycle_linear_def[folded cyc_found_def],
     unfolded dircycle.cyc_on_found_def dircycle.cyc_on_empty_def dircycle.cyc_on_backtrack_def]
 
 global_interpretation dclin: DFS_dircycle_linear where insert = vset_insert and
@@ -367,7 +367,7 @@ proof (intro ballI allI impI)
   have impl: "find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)
                 = aux.dircycle_linear_result"
     unfolding find_dircycle_linear_def dircycle_linear_initial_state_def
-    by (rule aux.dc.DFS_skel_impl_same[OF aux.dircycle_linear_initial_dom])
+    by (rule aux.dc.DFS_skeleton_impl_same[OF aux.dircycle_linear_initial_dom])
   show "vset_inv (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
         \<and> t_set fs \<subseteq> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))
         \<and> t_set (finished (find_dircycle_linear (a_graph E) (dircycle_linear_initial_state s fs)))

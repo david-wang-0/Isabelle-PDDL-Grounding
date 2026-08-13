@@ -200,7 +200,7 @@ and update = update and adjmap_inv = adj_inv and vset_delete = vset_delete
 and vset_inv = vset_inv and union = vset_union and inter = vset_inter and G = F and
 s = s and f = f and uf = uf for F s f uf
 defines tracked_initial_state = dctracked.dircycle_tracked_initial_state and
-find_dircycle_tracked = dctracked.dc.DFS_skel_more_impl and
+find_dircycle_tracked = dctracked.dc.DFS_skeleton_impl and
 rbt_delete_edge = dctracked.Graph.delete_edge
   by (rule DFS_dircycle_linear_tracked_aux_sel_min)
 
@@ -213,7 +213,7 @@ s = s and f = f and uf = uf and R = Rv and A = Av for F s f uf Rv Av
 defines del_preds_rbt = rdircycle.del_preds and
 del_in_edges_rbt = rdircycle.del_in_edges and
 dircycle_refine_init = rdircycle.dircycle_refine_initial_state and
-find_dircycle_refine = rdircycle.rdc.DFS_skel_more_refine_impl and
+find_dircycle_refine = rdircycle.rdc.DFS_skeleton_refine_impl and
 rcyc_found_rbt = rdircycle.rcyc_found
   by (rule DFS_dircycle_linear_tracked_aux_refine_sel_min)
 
@@ -233,7 +233,7 @@ lemmas del_in_edges_rbt_code [code] = rdircycle.del_in_edges_def[folded neighbou
 lemmas rcyc_found_rbt_code [code] = rdircycle.rcyc_found_def[folded neighbourhood_def]
 
 lemmas find_dircycle_refine_code [code] =
-  rdircycle.rdc.DFS_skel_more_refine_impl.simps[folded find_dircycle_refine_def[folded rcyc_found_rbt_def],
+  rdircycle.rdc.DFS_skeleton_refine_impl.simps[folded find_dircycle_refine_def[folded rcyc_found_rbt_def],
     unfolded rdircycle.rcyc_on_found_def rdircycle.rcyc_on_empty_def
              rdircycle.rcyc_on_backtrack_def rdircycle.rcyc_on_push_def,
     folded neighbourhood_def]
@@ -317,7 +317,7 @@ proof (intro ballI allI impI, goal_cases call)
   have impl: "find_dircycle_tracked (a_graph E) (tracked_initial_state s fs us)
                 = aux.dircycle_tracked_result"
     unfolding tracked_initial_state_def
-    by (rule dctracked.dc.DFS_skel_more_impl_same[OF aux.dircycle_tracked_initial_dom])
+    by (rule dctracked.dc.DFS_skeleton_impl_same[OF aux.dircycle_tracked_initial_dom])
   show ?case
     unfolding impl sweep_defs(5)
     using aux.dircycle_tracked_finished_inv aux.dircycle_tracked_seed_subset
@@ -385,7 +385,7 @@ proof (intro ballI allI impI, goal_cases call)
   have timpl: "find_dircycle_tracked (a_graph (nat_edges c)) (tracked_initial_state s fs us)
                  = raux.dircycle_tracked_result"
     unfolding tracked_initial_state_def
-    by (rule dctracked.dc.DFS_skel_more_impl_same[OF raux.dircycle_tracked_initial_dom])
+    by (rule dctracked.dc.DFS_skeleton_impl_same[OF raux.dircycle_tracked_initial_dom])
   show ?case
     unfolding rimpl timpl sweep_defs(7)
     using raux.dircycle_refine_components(3,5,6)
