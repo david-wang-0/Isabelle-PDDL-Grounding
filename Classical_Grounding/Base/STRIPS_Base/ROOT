@@ -10,4 +10,3 @@ session Grounding_Base_STRIPS = Grounding_Classical_Base +
     "Verified_SAT_Based_AI_Planning.STRIPS_Representation"
     "Verified_SAT_Based_AI_Planning.STRIPS_Semantics"
     "Verified_SAT_Based_AI_Planning.SAT_Plan_Extensions"
-    "Verified_SAT_Based_AI_Planning.Solve_SASP"

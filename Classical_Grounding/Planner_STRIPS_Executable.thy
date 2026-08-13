@@ -2,7 +2,7 @@ theory Planner_STRIPS_Executable
   imports
     Grounding_Pipeline_STRIPS_Executable
     Verified_SAT_Based_AI_Planning.SAT_Plan_Extensions
-    Verified_SAT_Based_AI_Planning.Solve_SASP
+    DIMACS_Glue
 begin
 
 section \<open>Executable SAT-based planner \<open>plan_by_cert\<close>\<close>
@@ -20,7 +20,8 @@ text \<open>The SAT half of the executable pipeline. The grounded STRIPS problem
 
 subsection \<open>Formula \<open>\<rightarrow>\<close> DIMACS-style CNF\<close>
 
-text \<open>The DIMACS layer is reused from the AFP \<open>Solve_SASP\<close>: \<^const>\<open>cnf_to_dimacs\<close> /
+text \<open>The DIMACS layer lives in \<^theory>\<open>Classical_Grounding.DIMACS_Glue\<close> (copied from the AFP
+  \<open>Solve_SASP\<close>, see the provenance note there): \<^const>\<open>cnf_to_dimacs\<close> /
   \<^const>\<open>disj_to_dimacs\<close> flatten a CNF formula into an \<open>int list list\<close>,
   \<^const>\<open>cnf_to_dimacs.var_to_dimacs\<close> numbers the SATPlan variables (\<open>h\<close> bounds the time
   indices --- use \<open>Suc t\<close> for horizon \<open>t\<close> --- and \<open>n_ops\<close> the operator indices; DIMACS
@@ -29,9 +30,9 @@ text \<open>The DIMACS layer is reused from the AFP \<open>Solve_SASP\<close>: \
   is_cnf_encode_problem_with_operator_interference_exclusion}), so the destructuring is total
   on the formulas we feed it. No lemmas about these functions are needed (see above).
 
-  Importing \<open>Solve_SASP\<close> also drags the SAS+ \<open>ast_problem\<close> namespace into scope alongside the
-  Classical PDDL one; every reference in this development is qualified
-  (\<open>ast_classical_problem.*\<close>), so the collision stays harmless.\<close>
+  Taking those four constants directly, rather than importing \<open>Solve_SASP\<close> for them, keeps the
+  SAS+ \<open>ast_problem\<close> namespace and the superseded \<open>AI_Planning_Languages_Semantics\<close> entry out of
+  scope, and is what lets this theory import the graph library at all.\<close>
 
 subsection \<open>The horizon loop\<close>
 
