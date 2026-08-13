@@ -1,5 +1,14 @@
 # Verified Grounding of PDDL Tasks using Reachability Analysis (and Tree Decomposition)
 
+> **Development here has paused.** This grounder has been merged into
+> [Formal-PDDL-Semantics](https://github.com/mabdula/Formal-PDDL-Semantics), under
+> `PDDL_Grounding/`, with this repository's history preserved — that is where it is developed
+> now. The PDDL semantics it is built on live there, so the merge turned three cross-repository
+> component dependencies into ordinary in-repo session dependencies.
+>
+> This repository is kept as-is for reference and for the history; it is not archived, but new
+> work should go to Formal-PDDL-Semantics.
+
 A partially verified Isabelle implementation of the grounder in
 [Helmert 2009](https://www.sciencedirect.com/science/article/pii/S0004370208001926), extended
 into an end-to-end verified SAT-based planner: normalize → certify reachability (untrusted

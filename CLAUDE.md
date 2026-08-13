@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Do NOT build automatically.** Never run `isabelle build` / `make build` / any compile command while editing files or answering questions, unless the user explicitly asks for a build.
 - **Verify via the `jedit-status` skill, not a batch build.** jEdit only processes the band around the caret + visible viewport, so `get_diagnostics` can report a *false* `0 errors` over an unprocessed tail. The skill forces tail-processing; do not declare a file clean until it reports `fully_processed: true` **and** `consolidated: true`. Fall back to a batch build only if the MCP server is down or the user asks for a clean/heap rebuild.
+- **Development here has paused.** This grounder now lives in the Formal-PDDL-Semantics repository under `PDDL_Grounding/` (merged with this repository's history); new work belongs there. This checkout is kept for reference.
 - **Not a submodule.** `git rev-parse --show-superproject-working-tree` is empty (the former superproject is gone). `origin` is `david-wang-0/Isabelle-PDDL-Grounding` and is already an SSH URL, so a plain `git push` goes over SSH.
 
 ## Project Overview
