@@ -2,7 +2,7 @@ theory Definedness_Translation
   imports Grounding_Common.PDDL_Normalization
     Grounding_Common.Formula_Utils
     Grounding_Utils.String_Utils
-    "Analysis_Free_Base.Well_Formedness"
+    "Discrete_Planning_Common.Well_Formedness"
 begin
 
 text \<open>Reusable, AST-agnostic core of definedness translation: convert reflexive numeric equalities

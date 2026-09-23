@@ -1,7 +1,7 @@
 theory PDDL_Sema_Supplement
-  imports "Analysis_Free_Base.Instantiations"
-    "Analysis_Free_Base.Happening_Semantics_Discrete"
-    "Analysis_Free_Base.Numeric_Update_Functions"
+  imports "Discrete_Planning_Common.Instantiations"
+    "Discrete_Planning_Common.Happening_Semantics"
+    "Discrete_Planning_Common.Numeric_Update_Functions"
     Grounding_Common.Formula_Utils
     Grounding_Utils.Grounding_Utils
 begin
@@ -12,7 +12,7 @@ text \<open>AST-agnostic supplement lemmas about a PDDL domain/problem \<^emph>\
   well-formedness bundles into component facts, characterizing predicate/function-declaration and
   effect well-formedness, resolving \<open>sig\<close>/\<open>func_sig\<close> against the declaration lists, and lifting an
   atom-level signature relation to formulas/effects/world models (well-formedness covariance). These
-  mention only the shared \<open>domain_signature\<close>/\<open>problem_signature\<close> semantics (from Analysis_Free_Base),
+  mention only the shared \<open>domain_signature\<close>/\<open>problem_signature\<close> semantics (from Discrete_Planning_Common),
   so they are reusable by any grounder. They were previously in
   \<open>Classical_Grounding.Classical_PDDL_Sema_Supplement\<close>; the classical-AST supplements (action schemas, the
   \<open>ast_classical_*\<close> locales) stay there.\<close>
@@ -577,12 +577,10 @@ qed
 
 lemma formula_atoms_in_dom_valuation_iff:
   "atoms F \<subseteq> dom (valuation M) \<longleftrightarrow>
-     set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)
-     \<and> (\<forall>d \<in> set (formula_enumerate_divisor_expressions F). d\<lbrakk>snd M\<rbrakk> \<noteq> Some 0)"
+     set (formula_enumerate_primitive_numeric_expressions F) \<subseteq> dom (snd M)"
   by (induction M)
      (auto simp: dom_valuation_iff subset_iff
-       set_formula_enumerate_primitive_numeric_expressions_conv
-       set_formula_enumerate_divisor_expressions_conv)
+       set_formula_enumerate_primitive_numeric_expressions_conv)
 
 subsection \<open>Formula predicates\<close>
 

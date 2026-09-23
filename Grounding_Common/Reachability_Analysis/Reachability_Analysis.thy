@@ -1,5 +1,5 @@
 theory Reachability_Analysis
-  imports "Analysis_Free_Base.World_Model_Discrete"
+  imports "Discrete_Planning_Common.Worlds"
     Grounding_Common.Formula_Utils
     Grounding_Utils.Graph_Funs
 begin

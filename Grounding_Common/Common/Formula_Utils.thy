@@ -1,7 +1,7 @@
 theory Formula_Utils
   imports "Propositional_Proof_Systems.Sema"
     "Propositional_Proof_Systems.CNF_Formulas"
-    "Analysis_Free_Base.Abstract_Syntax" (* just for the datatype atom *)
+    "Discrete_Planning_Common.Abstract_Syntax" (* just for the datatype atom *)
 begin
 
 subsection \<open> pure conjunctions \<close>
