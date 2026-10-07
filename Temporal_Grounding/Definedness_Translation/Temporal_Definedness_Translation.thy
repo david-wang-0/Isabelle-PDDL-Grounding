@@ -1,5 +1,0 @@
-theory Temporal_Definedness_Translation
-  imports Temporal_Definedness_Translation_Locales
-begin
-
-end

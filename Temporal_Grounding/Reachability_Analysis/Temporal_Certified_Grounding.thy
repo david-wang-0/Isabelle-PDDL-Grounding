@@ -1,5 +1,0 @@
-theory Temporal_Certified_Grounding
-  imports Temporal_Certified_Grounding_Locales
-begin
-
-end

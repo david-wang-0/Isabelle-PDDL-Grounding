@@ -1,5 +1,0 @@
-theory Temporal_Definedness_Normalization
-  imports Temporal_Definedness_Normalization_Locales
-begin
-
-end

@@ -1,5 +1,0 @@
-theory Temporal_Type_Normalization_Semantics
-  imports Temporal_Type_Normalization
-begin
-
-end

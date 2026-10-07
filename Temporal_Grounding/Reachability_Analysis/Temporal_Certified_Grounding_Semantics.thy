@@ -1,5 +1,0 @@
-theory Temporal_Certified_Grounding_Semantics
-  imports Temporal_Certified_Grounding
-begin
-
-end

@@ -1,5 +1,0 @@
-theory Temporal_Goal_Normalization
-  imports Temporal_Goal_Normalization_Locales
-begin
-
-end

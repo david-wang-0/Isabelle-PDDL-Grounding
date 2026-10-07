@@ -1,5 +1,0 @@
-theory Temporal_PDDL_Reachability_Certificate
-  imports Temporal_PDDL_Reachability_Analysis
-begin
-
-end

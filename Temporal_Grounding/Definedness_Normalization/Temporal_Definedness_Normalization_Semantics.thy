@@ -1,5 +1,0 @@
-theory Temporal_Definedness_Normalization_Semantics
-  imports Temporal_Definedness_Normalization
-begin
-
-end
