@@ -1,5 +1,3 @@
-chapter AFP
-
 session Temporal_Grounding_Utils = Grounding_Temporal_Base +
   description \<open>Temporal-specific PDDL utility/supplement theories: the PDDL semantic supplement,
     built on the Analysis-free temporal base. Pulls the AST-agnostic helpers from

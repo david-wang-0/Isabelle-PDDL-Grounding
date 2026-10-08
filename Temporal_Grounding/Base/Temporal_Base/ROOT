@@ -1,5 +1,3 @@
-chapter AFP
-
 session Grounding_Temporal_Base = Grounding_Base +
   description \<open>Thin layer loading the Formal-PDDL-Semantics temporal PDDL semantics on top of the
     Analysis-free Grounding_Base heap. It loads the DISCRETE temporal semantics

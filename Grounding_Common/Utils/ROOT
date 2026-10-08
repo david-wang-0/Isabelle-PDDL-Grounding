@@ -1,5 +1,3 @@
-chapter AFP
-
 session Grounding_Utils = Grounding_Light_Base +
   description \<open>PDDL-free shared utility theories: list/string/show helpers and graph functions.
     Reusable by any grounder (classical or temporal) and by the datalog/graph branch, which must

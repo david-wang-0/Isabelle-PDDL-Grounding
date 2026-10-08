@@ -1,5 +1,3 @@
-chapter AFP
-
 session Grounding_Common = Grounding_Base +
   description \<open>Project-local shared, AST-agnostic PDDL helpers reusable by classical AND temporal
     grounding: formula utilities and DNF over the shared \<open>atom\<close> type (from Discrete_Planning_Common's

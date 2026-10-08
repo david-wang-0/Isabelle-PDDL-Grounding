@@ -1,5 +1,3 @@
-chapter AFP
-
 session Grounding_Base = Discrete_Planning_Common +
   description \<open>Stable, Analysis-free base for the PDDL pipeline: the Formal-PDDL-Semantics
     Discrete_Planning_Common Abstract_Syntax + the propositional-logic library + assorted HOL-Library/Show
