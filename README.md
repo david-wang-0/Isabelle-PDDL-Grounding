@@ -30,6 +30,13 @@ the SAT-based planner and its SML harness) is not included.
 isabelle build -d <formal-pddl-semantics> -d . -b Grounding_Temporal_Common
 ```
 
+## Origin
+
+The theories in this repository are derived from Maximilian Vollath's verified PDDL grounder, his
+thesis project "Verified Grounding of PDDL Tasks using Reachability Analysis (and Tree
+Decomposition)" (<https://github.com/MVollath/Isabelle-PDDL-Grounding>), used under the MIT
+licence. His portions remain his work. See `NOTICE.md`.
+
 ## Licence
 
 BSD-3-Clause, see `LICENSE`.
