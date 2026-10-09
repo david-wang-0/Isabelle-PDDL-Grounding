@@ -39,4 +39,4 @@ licence. His portions remain his work. See `NOTICE.md`.
 
 ## Licence
 
-BSD-3-Clause, see `LICENSE`.
+MIT, see `LICENSE`.
