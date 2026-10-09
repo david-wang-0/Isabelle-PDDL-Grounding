@@ -29,3 +29,7 @@ the SAT-based planner and its SML harness) is not included.
 ```sh
 isabelle build -d <formal-pddl-semantics> -d . -b Grounding_Temporal_Common
 ```
+
+## Licence
+
+BSD-3-Clause, see `LICENSE`.
