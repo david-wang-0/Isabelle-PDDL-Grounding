@@ -1,6 +1,7 @@
 theory String_Utils
-imports Main Nat_Show_Utils "HOL-Library.Sublist" Grounding_Utils
+imports Main Nat_Show_Utils "HOL-Library.Sublist" Grounding_Utils "Provenance.Provenance"
 begin
+provenance ai_human
 
 lemma inj_prepend: "inj ((+) (s::String.literal))"
   apply (rule injI)
@@ -125,6 +126,7 @@ lemma safe_suffix_correct:
 
 (* fresh generated names: a token decorated with the least free decimal index *)
 
+provenance ai
 text \<open>Two entry points onto the single least-index search \<^const>\<open>safe_suffix\<close>:
   \<^item> \<^const>\<open>safe_suffix\<close> itself (aliased \<open>fresh_name\<close>) decorates a token so that the result is
     not a member of a given name list --- for a *complete* generated name;
@@ -200,7 +202,7 @@ proof
   thus False using safe_suffix_correct by blast
 qed
 
-lemma dist_fresh_prefix:
+lemma \<^marker>\<open>provenance ai_human\<close> dist_fresh_prefix:
   assumes "distinct xs"
   shows "distinct (map (\<lambda>x. fresh_prefix ns t + x) xs)"
   using assms by (simp add: distinct_map inj_on_def inj_prepend[unfolded inj_def])
@@ -283,6 +285,7 @@ corollary idx_name_nonempty: "idx_name s i \<noteq> STR ''''"
 
 (* nat upto *)
 
+provenance human
 fun nat_range_help :: "nat \<Rightarrow> nat list \<Rightarrow> nat list" where
   "nat_range_help 0 build = build" |
   "nat_range_help (Suc n) build = nat_range_help n (n # build)"
@@ -366,6 +369,7 @@ lemma distinct_strings_prefix: "prefix (distinct_strings n) (distinct_strings (n
   using distinct_strings_def nat_range_prefix map_mono_prefix by metis
 
 
+provenance ai_human
 context includes literal.lifting
 begin
 

@@ -1,8 +1,9 @@
 theory Temporal_PDDL_Normalization
   imports "Discrete_Temporal_Planning.Temporal_Well_Formedness"
     "Grounding_Common.PDDL_Normalization"
-    "Grounding_Common.Formula_Utils"
+    "Grounding_Common.Formula_Utils" "Provenance.Provenance"
 begin
+provenance ai
 
 section \<open>Temporal PDDL Normalization Locales and Assumptions\<close>
 

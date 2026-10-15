@@ -2,7 +2,9 @@ theory Formula_Utils
   imports "Propositional_Proof_Systems.Sema"
     "Propositional_Proof_Systems.CNF_Formulas"
     "Discrete_Planning_Common.Abstract_Syntax" (* just for the datatype atom *)
+    "Provenance.Provenance"
 begin
+provenance human
 
 subsection \<open> pure conjunctions \<close>
 (* Modeled after Propositional_Proof_Systems.CNF_Formulas.is_disj.
@@ -106,7 +108,7 @@ fun is_pos_conj :: "'a atom formula \<Rightarrow> bool" where
   "is_pos_conj (F \<^bold>\<and> G) \<longleftrightarrow> is_pos_lit F \<and> is_pos_conj G" |
   "is_pos_conj F \<longleftrightarrow> is_pos_lit F"
 
-lemma conj_induct_atoms [consumes 1, case_names
+lemma \<^marker>\<open>provenance ai_human\<close> conj_induct_atoms [consumes 1, case_names
     Bot Top Pred NotPred eqAtm NoteqAtm
     numericEq NotnumericEq numericLess NotnumericLess numericLE NotnumericLE
     numericGreater NotnumericGreater numericGE NotnumericGE
@@ -189,7 +191,7 @@ lemma pos_conj_conj: "is_pos_conj F \<Longrightarrow> is_conj F"
 lemma is_pos_conj_alt: "is_pos_conj F \<longleftrightarrow> (\<forall>l \<in> set (un_and F). is_pos_lit l)"
   by (induction F) simp_all
 
-lemma pos_lit_vs_plus: "is_lit_plus l \<longleftrightarrow> is_pos_lit l
+lemma \<^marker>\<open>provenance ai_human\<close> pos_lit_vs_plus: "is_lit_plus l \<longleftrightarrow> is_pos_lit l
     \<or> (\<exists>n args. l = \<^bold>\<not>(Atom(predAtm n args)))
     \<or> (\<exists>a b. l = Atom (numericEqAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericEqAtm a b)))
     \<or> (\<exists>a b. l = Atom (numericLessAtm a b)) \<or> (\<exists>a b. l = \<^bold>\<not>(Atom (numericLessAtm a b)))
@@ -209,7 +211,7 @@ qed auto
 text\<open> formula relaxation. Not in Formula_Utils because it uses PDDL atoms. \<close>
 
 (* expects is_lit_plus *)
-fun relax_lit :: "'a atom formula \<Rightarrow> 'a atom formula" where
+fun \<^marker>\<open>provenance ai_human\<close> relax_lit :: "'a atom formula \<Rightarrow> 'a atom formula" where
   "relax_lit (\<^bold>\<not>(Atom (predAtm n args))) = \<^bold>\<not>\<bottom>" |
   "relax_lit (Atom (numericEqAtm a b)) = \<^bold>\<not>\<bottom>" |
   "relax_lit (\<^bold>\<not>(Atom (numericEqAtm a b))) = \<^bold>\<not>\<bottom>" |
@@ -228,7 +230,7 @@ fun relax_conj :: "'a atom formula \<Rightarrow> 'a atom formula" where
   "relax_conj f = relax_lit f"
 
 lemma relax_conj_un_and: "un_and (relax_conj F) = map relax_lit (un_and F)"
-proof (induction F)
+proof \<^marker>\<open>provenance ai_human\<close> (induction F)
   case (Atom x) thus ?case by (cases x) auto
 next
   case (Not x) thus ?case

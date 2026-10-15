@@ -1,6 +1,7 @@
 theory Grounding_Utils
-  imports Main
+  imports Main "Provenance.Provenance"
 begin
+provenance ai
 
 text \<open>General list helper: the length of a \<open>map2\<close>. This previously arrived incidentally from the
   Affine_Arithmetic.Executable_Euclidean_Space tower (a HOL-Analysis/ODE dependency); it is kept
@@ -9,33 +10,34 @@ lemma length_map2: "length (map2 f xs ys) = min (length xs) (length ys)"
   by simp
 
 (* for testing and debugging *)
-definition "showvals f xs \<equiv> map (\<lambda>x. (x, f x)) xs"
+definition \<^marker>\<open>provenance human\<close> "showvals f xs \<equiv> map (\<lambda>x. (x, f x)) xs"
 
-fun showsteps :: "('a \<Rightarrow> 'b \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> 'b list \<Rightarrow> 'a list" where
+fun \<^marker>\<open>provenance human\<close> showsteps :: "('a \<Rightarrow> 'b \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> 'b list \<Rightarrow> 'a list" where
   "showsteps f i [] = [i]" |
   "showsteps f i (x # xs) = i # showsteps f (f i x) xs"
 
 (* rule rewriting *)
-lemma conj_split_3:
+lemma \<^marker>\<open>provenance ai_human\<close> conj_split_3:
   assumes "A \<and> B \<and> C"
   shows "A" "B" "C"
   using assms by simp_all
 
-lemma conj_split_4:
+lemma \<^marker>\<open>provenance human\<close> conj_split_4:
   assumes "A \<and> B \<and> C \<and> D"
   shows "A" "B" "C" "D"
   using assms by simp_all
 
-lemma conj_split_5:
+lemma \<^marker>\<open>provenance human\<close> conj_split_5:
   assumes "A \<and> B \<and> C \<and> D \<and> E"
   shows "A" "B" "C" "D" "E"
   using assms by simp_all
 
-lemma conj_split_6:
+lemma \<^marker>\<open>provenance ai_human\<close> conj_split_6:
   assumes "A \<and> B \<and> C \<and> D \<and> E \<and> F"
   shows "A" "B" "C" "D" "E" "F"
   using assms by simp_all
 
+provenance human
 lemma conj_split_7:
   assumes "A \<and> B \<and> C \<and> D \<and> E \<and> F \<and> G"
   shows "A" "B" "C" "D" "E" "F" "G"
@@ -53,7 +55,7 @@ fun find_index :: "'a \<Rightarrow> 'a list \<rightharpoonup> nat" where
   "find_index a (x # xs) = (if a = x then Some 0
       else map_option Suc (find_index a xs))"
 
-lemma find_index_Some_mem:
+lemma \<^marker>\<open>provenance ai\<close> find_index_Some_mem:
   assumes "x \<in> set xs"
   shows "\<exists>j. find_index x xs = Some j \<and> j < length xs \<and> xs ! j = x"
   using assms

@@ -4,8 +4,9 @@ imports
     "Propositional_Proof_Systems.CNF_Formulas"
     "Propositional_Proof_Systems.CNF_Sema"
     "Propositional_Proof_Systems.CNF_Formulas_Sema"
-    Formula_Utils
+    Formula_Utils "Provenance.Provenance"
 begin
+provenance human
 
 subsection \<open>DNF construction\<close>
 

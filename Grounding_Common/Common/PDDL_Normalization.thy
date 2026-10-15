@@ -1,6 +1,7 @@
 theory PDDL_Normalization
-  imports "Discrete_Planning_Common.Signatures"
+  imports "Discrete_Planning_Common.Signatures" "Provenance.Provenance"
 begin
+provenance human
 
 text \<open>AST-agnostic signature-level normalization properties: input restriction and detyping over a
   PDDL domain/problem \<^emph>\<open>signature\<close> (types, predicates, functions, consts). These locales mention only
@@ -37,7 +38,7 @@ locale restrict_problem_signature = problem_signature +
   assumes restrict_prob_sig: restrict_prob_sig
 
 sublocale restrict_problem_signature \<subseteq> restrict_domain_signature
-  using restrict_prob_sig restrict_prob_sig_def
+  using \<^marker>\<open>provenance ai_human\<close> restrict_prob_sig restrict_prob_sig_def
   by unfold_locales blast
 
 text \<open>Combined well-formed + restricted signatures. These are convenient to use as a single
@@ -54,7 +55,7 @@ text \<open> Type normalization (signature level):
 - predicate argument types are \<open>Either [''object'']\<close>
 - const types are \<open>Either [''object'']\<close> \<close>
 
-definition (in domain_signature) "typeless_domain_signature \<equiv>
+definition \<^marker>\<open>provenance ai_human\<close> (in domain_signature) "typeless_domain_signature \<equiv>
   ty_decl = []
   \<and> (\<forall>p \<in> set predicates. \<forall>T \<in> set (predicate_decl.argTs p). T = \<omega>)
   \<and> (\<forall>f \<in> set functions. \<forall>T \<in> set (function_decl.argTs f). T = \<omega>)
@@ -71,7 +72,7 @@ locale typeless_problem_signature = problem_signature +
   assumes typeless_problem_signature: typeless_problem_signature
 
 sublocale typeless_problem_signature \<subseteq> typeless_domain_signature
-  using typeless_problem_signature typeless_problem_signature_def
+  using \<^marker>\<open>provenance ai_human\<close> typeless_problem_signature typeless_problem_signature_def
   by unfold_locales simp
 
 text \<open> Grounded (nullary) declarations (AST-agnostic). A predicate or function declaration is
@@ -82,7 +83,7 @@ text \<open> Grounded (nullary) declarations (AST-agnostic). A predicate or func
 fun grounded_pred :: "predicate_decl \<Rightarrow> bool" where
   "grounded_pred (PredDecl n args) \<longleftrightarrow> args = []"
 
-fun grounded_func :: "function_decl \<Rightarrow> bool" where
+fun \<^marker>\<open>provenance ai\<close> grounded_func :: "function_decl \<Rightarrow> bool" where
   "grounded_func (FuncDecl n args) \<longleftrightarrow> args = []"
 
 end

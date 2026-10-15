@@ -3,8 +3,9 @@ theory PDDL_Sema_Supplement
     "Discrete_Planning_Common.Happening_Semantics"
     "Discrete_Planning_Common.Numeric_Update_Functions"
     Grounding_Common.Formula_Utils
-    Grounding_Utils.Grounding_Utils
+    Grounding_Utils.Grounding_Utils "Provenance.Provenance"
 begin
+provenance human
 
 section \<open>Signature-level PDDL semantics supplements (reusable)\<close>
 
@@ -31,10 +32,10 @@ subsection \<open>Splitting the well-formedness bundles\<close>
 lemmas (in wf_domain_signature) wf_D_sig =
   conj_split_7[OF wf_domain_signature[unfolded wf_domain_signature_def]]
 
-lemmas (in wf_problem_signature) wf_P_sig =
+lemmas \<^marker>\<open>provenance ai_human\<close> (in wf_problem_signature) wf_P_sig =
   conj_split_3[OF wf_problem_signature[unfolded wf_problem_signature_def]]
 
-lemmas (in wf_problem_signature) wf_sig = wf_D_sig wf_P_sig
+lemmas \<^marker>\<open>provenance ai_human\<close> (in wf_problem_signature) wf_sig = wf_D_sig wf_P_sig
 
 subsection \<open>Well-formedness characterizations\<close>
 
@@ -42,13 +43,13 @@ lemma (in domain_signature) wf_predicate_decl_alt:
   "wf_predicate_decl pd \<longleftrightarrow> (\<forall>T \<in> set (predicate_decl.argTs pd). wf_type T)"
   by (cases pd; simp)
 
-lemma (in domain_signature) wf_function_decl_alt:
+lemma \<^marker>\<open>provenance ai_human\<close> (in domain_signature) wf_function_decl_alt:
   "wf_function_decl fd \<longleftrightarrow> (\<forall>T \<in> set (function_decl.argTs fd). wf_type T)"
   by (cases fd; simp)
 
 text \<open>An effect is well-formed iff all its add/delete formula-atoms and numeric effects are; the
   characterization used to drive the effect covariance proof.\<close>
-lemma (in domain_signature) wf_effect_alt:
+lemma \<^marker>\<open>provenance ai_human\<close> (in domain_signature) wf_effect_alt:
     "wf_effect tyt \<epsilon> \<longleftrightarrow>
         (list_all (wf_fmla_atom tyt) (adds \<epsilon>))
       \<and> (list_all (wf_fmla_atom tyt) (dels \<epsilon>))
@@ -83,6 +84,7 @@ qed
 
 lemmas (in wf_domain_signature) sig_Some = pred_resolve[OF wf_D_sig(2)]
 
+provenance ai_human
 subsection \<open>Resolving \<open>func_sig\<close>\<close>
 
 abbreviation "split_func \<equiv> (\<lambda>FuncDecl f n \<Rightarrow> (f, n))"
@@ -118,23 +120,23 @@ text \<open>If a one-step weakening of the signature (an atom that is well-forme
   syntactic category — formulas, formula-atoms, numeric expressions/effects, effects, and whole
   world models — is preserved across the two signatures.\<close>
 
-lemma co_fmla_wf:
+lemma \<^marker>\<open>provenance human\<close> co_fmla_wf:
   assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1 tyt1 a
             \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2 tyt2 a"
   shows "domain_signature.wf_fmla ty1 preds1 funs1 tyt1 \<phi>
        \<Longrightarrow> domain_signature.wf_fmla ty2 preds2 funs2 tyt2 \<phi>"
-  apply (induction \<phi>)
+  apply \<^marker>\<open>provenance ai_human\<close> (induction \<phi>)
   unfolding domain_signature.wf_fmla.simps
   subgoal for x apply (induction x)
     by (auto intro: assms)
   by auto
 
-lemma co_fmla_atom_wf:
+lemma \<^marker>\<open>provenance human\<close> co_fmla_atom_wf:
   assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1 tyt1 a
             \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2 tyt2 a"
   shows "domain_signature.wf_fmla_atom ty1 preds1 tyt1 \<phi>
        \<Longrightarrow> domain_signature.wf_fmla_atom ty2 preds2 tyt2 \<phi>"
-  apply (subst domain_signature.wf_fmla_atom_alt)
+  apply \<^marker>\<open>provenance ai_human\<close> (subst domain_signature.wf_fmla_atom_alt)
   apply (subst (asm) domain_signature.wf_fmla_atom_alt)
   by (auto intro: assms co_fmla_wf)
 
@@ -167,20 +169,20 @@ lemma co_effect_wf:
   unfolding domain_signature.wf_effect_alt list_all_iff
   by (auto intro: assms co_fmla_atom_wf co_numeric_effect_wf)
 
-lemma co_wm_wf:
+lemma \<^marker>\<open>provenance human\<close> co_wm_wf:
   assumes "\<And>a. domain_signature.wf_atom ty1 preds1 funs1
                  (problem_signature.objT consts1 objs1) a
             \<Longrightarrow> domain_signature.wf_atom ty2 preds2 funs2
                  (problem_signature.objT consts2 objs2) a"
   shows "problem_signature.wf_world_model ty1 preds1 consts1 objs1 m
        \<Longrightarrow> problem_signature.wf_world_model ty2 preds2 consts2 objs2 m"
-  apply (induction m)
+  apply \<^marker>\<open>provenance ai_human\<close> (induction m)
   unfolding problem_signature.wf_world_model.simps
   by (auto intro: assms co_fmla_atom_wf)
 
 subsection \<open>Formula / atom / effect well-formedness\<close>
 
-lemma (in domain_signature) wf_fmla_alt: "wf_fmla tyt \<phi> = (\<forall>a\<in>atoms \<phi>. wf_atom tyt a)"
+lemma \<^marker>\<open>provenance human\<close> (in domain_signature) wf_fmla_alt: "wf_fmla tyt \<phi> = (\<forall>a\<in>atoms \<phi>. wf_atom tyt a)"
       by (induction \<phi>) auto
 
 lemma (in domain_signature) wf_fmla_mono_atoms:
@@ -188,6 +190,7 @@ lemma (in domain_signature) wf_fmla_mono_atoms:
   shows "wf_fmla tyt f"
   using assms unfolding wf_fmla_alt by blast
 
+provenance human
 lemmas (in domain_signature) wf_atom_deep = wf_atom.simps[unfolded wf_pred_atom.simps]
 
 lemma (in domain_signature) wf_type_alt: "wf_type T \<longleftrightarrow> set (primitives T) \<subseteq> insert (STR ''object'') (fst ` set ty_decl)"
@@ -203,6 +206,7 @@ lemma (in domain_signature) bigor_wf:
   shows "wf_fmla tyt (\<^bold>\<Or> \<phi>s)"
   using assms by (induction \<phi>s; simp)
 
+provenance ai_human
 lemma (in domain_signature) wf_fmla_atom_pred:
   "wf_fmla_atom tyt f \<Longrightarrow> is_predAtom f"
   apply (cases f)
@@ -219,7 +223,7 @@ lemma (in domain_signature) wf_simple_action_body_alt: "wf_simple_action_body ty
 
 subsection \<open>Well-formedness monotonicity under signature weakening\<close>
 
-lemma (in domain_signature) wf_fmla_mono:
+lemma \<^marker>\<open>provenance human\<close> (in domain_signature) wf_fmla_mono:
   assumes "tys \<subseteq>\<^sub>m tys'" "wf_fmla tys \<phi>"
   shows "wf_fmla tys' \<phi>"
   using assms apply (induction \<phi>)
@@ -232,10 +236,11 @@ lemma (in domain_signature) wf_numeric_effect_mono:
   using wf_numeric_expression_mono[OF assms(1)] wf_pne_mono[OF assms(1)]
   by simp
 
+provenance human
 lemma (in domain_signature) wf_effect_mono:
   assumes "tys \<subseteq>\<^sub>m tys'" "wf_effect tys eff"
   shows "wf_effect tys' eff"
-  using assms apply (cases eff)
+  using \<^marker>\<open>provenance ai_human\<close> assms apply (cases eff)
   using wf_fmla_atom_mono[OF assms(1)] wf_numeric_effect_mono[OF assms(1)]
   by simp
 
@@ -253,7 +258,7 @@ lemma (in domain_signature) subtype_rel_star_alt: "subtype_rel\<^sup>* = ((set t
 
 subsection \<open>World models and ground actions\<close>
 
-lemma (in problem_signature) wf_func_assign_imp_not_predAtm:
+lemma \<^marker>\<open>provenance ai_human\<close> (in problem_signature) wf_func_assign_imp_not_predAtm:
   "wf_func_assign x \<Longrightarrow> \<not>is_predAtom x"
   apply (cases x)
   subgoal for a
@@ -261,7 +266,7 @@ lemma (in problem_signature) wf_func_assign_imp_not_predAtm:
     by auto
   by auto
 
-lemma (in problem_signature) wf_lwm_basic:
+lemma \<^marker>\<open>provenance ai_human\<close> (in problem_signature) wf_lwm_basic:
   "wf_world_model M \<Longrightarrow> lwm_basic (fst M)"
   using wf_fmla_atom_pred unfolding lwm_basic_def
   by (cases M) auto
@@ -295,6 +300,7 @@ lemma (in domain_signature) sig_None:
     ultimately show ?thesis by simp
   qed
 
+provenance ai_human
 lemma (in domain_signature) func_sig_None:
     "func_sig f = None \<longleftrightarrow> f \<notin> function_decl.func ` set functions"
   proof -
@@ -320,6 +326,7 @@ lemma BigOr_map_semantics[simp]: "A \<Turnstile>\<^sub>m \<^bold>\<Or>F = ((\<fo
 lemma BigAnd_map_semantics[simp]: "A \<Turnstile>\<^sub>m \<^bold>\<And>F = ((\<forall>f\<in>set F. A \<Turnstile>\<^sub>m f))"
   by (induction F) auto
 
+provenance human
 fun un_Atom :: "'a formula \<Rightarrow> 'a" where
   "un_Atom (Atom x) = x" |
   "un_Atom _ = undefined"
@@ -333,6 +340,7 @@ lemma is_predAtom_decomp:
 
 abbreviation "map_atom_fmla \<equiv> map_formula \<circ> map_atom"
 
+provenance ai_human
 lemma formula_atom_simps[simp]:
   "atoms (Atom a) = {a}"
   "atoms \<bottom> = {}"
@@ -593,6 +601,7 @@ fun fmla_preds :: "'ent atom formula \<Rightarrow> predicate set" where
   "fmla_preds (\<phi>\<^sub>1 \<^bold>\<or> \<phi>\<^sub>2) = fmla_preds \<phi>\<^sub>1 \<union> fmla_preds \<phi>\<^sub>2" |
   "fmla_preds (\<phi>\<^sub>1 \<^bold>\<rightarrow> \<phi>\<^sub>2) = fmla_preds \<phi>\<^sub>1 \<union> fmla_preds \<phi>\<^sub>2"
 
+provenance human
 lemma fmla_preds_alt: "fmla_preds \<phi> = {p | p xs. predAtm p xs \<in> atoms \<phi>}"
   apply (induction \<phi>)
   subgoal for x
@@ -609,6 +618,7 @@ qed auto
 lemma notin_fmla_preds_notin_atoms: "p \<notin> fmla_preds \<phi> \<Longrightarrow> predAtm p args \<notin> atoms \<phi>"
   using fmla_preds_alt by blast
 
+provenance ai_human
 subsection \<open>Well-formedness \<leftrightarrow> enumerated primitive numeric expressions\<close>
 
 lemma (in domain_signature) wf_numeric_expression_imp_wf_pnes:

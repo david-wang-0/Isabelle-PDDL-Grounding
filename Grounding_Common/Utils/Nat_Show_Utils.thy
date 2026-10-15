@@ -1,6 +1,7 @@
 theory Nat_Show_Utils
-imports "Show.Show_Instances"
+imports "Show.Show_Instances" "Provenance.Provenance"
 begin
+provenance human
 
 text \<open> By Maximlian Shäffeler:
 https://isabelle.zulipchat.com/#narrow/channel/238552-Beginner-Questions/topic/String.20inequality.20with.20show/near/500270718 \<close>

@@ -1,8 +1,9 @@
 theory Temporal_PDDL_Sema_Supplement
   imports "Discrete_Temporal_Planning.Temporal_Happening_Semantics"
     Grounding_Utils.Grounding_Utils Grounding_Common.Formula_Utils Grounding_Common.PDDL_Normalization
-    Grounding_Common.PDDL_Sema_Supplement
+    Grounding_Common.PDDL_Sema_Supplement "Provenance.Provenance"
 begin
+provenance ai
 
 subsection \<open>Accessors for Temporal AST\<close>
 
